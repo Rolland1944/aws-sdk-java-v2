@@ -1,0 +1,581 @@
+{
+  "P1_latency_pass": false,
+  "P1_no_amp_regression": false,
+  "P1_single": {
+    "lance_large": {
+      "auto_amp": 1.2979358159486918,
+      "best_static": "template_locality",
+      "latency_not_worse_than_auto": true,
+      "no_amp_regression_vs_auto": true,
+      "runs": {
+        "aws_range_get": {
+          "cache_hit_read_rate": 0.0,
+          "latency_p95_ms": 50.070037841796875,
+          "latency_sum_ms": 9162196.085186005,
+          "logical_bytes": 10590207102,
+          "read_amplification": 1.0,
+          "remote_bytes": 10590207102,
+          "remote_gets": 181224
+        },
+        "s3a_prefetch": {
+          "cache_hit_read_rate": 0.7874674436057034,
+          "latency_p95_ms": 130.0,
+          "latency_sum_ms": 4908185.891094208,
+          "logical_bytes": 10590207102,
+          "read_amplification": 68.14202027585617,
+          "remote_bytes": 721638107070,
+          "remote_gets": 87166
+        },
+        "stat_selector": {
+          "cache_hit_read_rate": 0.7345770979561206,
+          "latency_p95_ms": 52.5,
+          "latency_sum_ms": 2530158.1398391724,
+          "logical_bytes": 10590207102,
+          "read_amplification": 1.2720497163323559,
+          "remote_bytes": 13471269940,
+          "remote_gets": 48138
+        },
+        "template_auto": {
+          "cache_hit_read_rate": 0.7051549463647199,
+          "latency_p95_ms": 50.625,
+          "latency_sum_ms": 2802736.4362335205,
+          "logical_bytes": 10590207102,
+          "read_amplification": 1.2979358159486918,
+          "remote_bytes": 13745409096,
+          "remote_gets": 53433
+        },
+        "template_locality": {
+          "cache_hit_read_rate": 0.727983048602834,
+          "latency_p95_ms": 52.5,
+          "latency_sum_ms": 2584208.640050888,
+          "logical_bytes": 10590207102,
+          "read_amplification": 1.1823095898318534,
+          "remote_bytes": 12520903415,
+          "remote_gets": 49296
+        }
+      },
+      "selector_amp": 1.2720497163323559,
+      "selector_vs_auto_latency_ratio": 0.9027456549711629,
+      "selector_vs_auto_remote_ratio": 0.9800559478379021,
+      "selector_vs_best_latency_ratio": 0.9790843125535517
+    },
+    "lance_small": {
+      "auto_amp": 0.17290667424122785,
+      "best_static": "s3a_prefetch",
+      "latency_not_worse_than_auto": true,
+      "no_amp_regression_vs_auto": true,
+      "runs": {
+        "aws_range_get": {
+          "cache_hit_read_rate": 0.0,
+          "latency_p95_ms": 50.0299072265625,
+          "latency_sum_ms": 5996863.844299316,
+          "logical_bytes": 4248184480,
+          "read_amplification": 1.0,
+          "remote_bytes": 4248184480,
+          "remote_gets": 119127
+        },
+        "s3a_prefetch": {
+          "cache_hit_read_rate": 0.9974648904110739,
+          "latency_p95_ms": 0.0,
+          "latency_sum_ms": 1430.8920764923096,
+          "logical_bytes": 4248184480,
+          "read_amplification": 0.044944934453505656,
+          "remote_bytes": 190934373,
+          "remote_gets": 26
+        },
+        "stat_selector": {
+          "cache_hit_read_rate": 0.9993452365962376,
+          "latency_p95_ms": 0.0,
+          "latency_sum_ms": 3926.2981033325195,
+          "logical_bytes": 4248184480,
+          "read_amplification": 0.08926079876832467,
+          "remote_bytes": 379196340,
+          "remote_gets": 40
+        },
+        "template_auto": {
+          "cache_hit_read_rate": 0.9503387141454078,
+          "latency_p95_ms": 0.0,
+          "latency_sum_ms": 302805.1140785217,
+          "logical_bytes": 4248184480,
+          "read_amplification": 0.17290667424122785,
+          "remote_bytes": 734539450,
+          "remote_gets": 5916
+        }
+      },
+      "selector_amp": 0.08926079876832467,
+      "selector_vs_auto_latency_ratio": 0.012966419392488774,
+      "selector_vs_auto_remote_ratio": 0.5162368610698853,
+      "selector_vs_best_latency_ratio": 2.7439512509968265
+    },
+    "ml_embedding": {
+      "auto_amp": 0.014858150109831396,
+      "best_static": "s3a_prefetch",
+      "latency_not_worse_than_auto": true,
+      "no_amp_regression_vs_auto": false,
+      "runs": {
+        "aws_range_get": {
+          "cache_hit_read_rate": 0.0,
+          "latency_p95_ms": 50.003662109375,
+          "latency_sum_ms": 9048866.703910828,
+          "logical_bytes": 69908972,
+          "read_amplification": 1.0,
+          "remote_bytes": 69908972,
+          "remote_gets": 180964
+        },
+        "s3a_prefetch": {
+          "cache_hit_read_rate": 0.9999944740390354,
+          "latency_p95_ms": 0.0,
+          "latency_sum_ms": 59.02237892150879,
+          "logical_bytes": 69908972,
+          "read_amplification": 0.013532812354900598,
+          "remote_bytes": 946065,
+          "remote_gets": 1
+        },
+        "stat_selector": {
+          "cache_hit_read_rate": 0.9999613182732477,
+          "latency_p95_ms": 0.0,
+          "latency_sum_ms": 361.1559867858887,
+          "logical_bytes": 69908972,
+          "read_amplification": 0.016733045366480286,
+          "remote_bytes": 1169790,
+          "remote_gets": 7
+        },
+        "template_auto": {
+          "cache_hit_read_rate": 0.9999226365464954,
+          "latency_p95_ms": 0.0,
+          "latency_sum_ms": 709.9059867858887,
+          "logical_bytes": 69908972,
+          "read_amplification": 0.014858150109831396,
+          "remote_bytes": 1038718,
+          "remote_gets": 14
+        }
+      },
+      "selector_amp": 0.016733045366480286,
+      "selector_vs_auto_latency_ratio": 0.5087377674063978,
+      "selector_vs_auto_remote_ratio": 1.1261863181344696,
+      "selector_vs_best_latency_ratio": 6.118966964482638
+    },
+    "ml_epoch_scan": {
+      "auto_amp": 1.1224644511355408,
+      "best_static": "template_locality",
+      "latency_not_worse_than_auto": true,
+      "no_amp_regression_vs_auto": true,
+      "runs": {
+        "aws_range_get": {
+          "cache_hit_read_rate": 0.0,
+          "latency_p95_ms": 92.89736557006836,
+          "latency_sum_ms": 43097.25319862366,
+          "logical_bytes": 1064016617,
+          "read_amplification": 1.0,
+          "remote_bytes": 1064016617,
+          "remote_gets": 659
+        },
+        "s3a_prefetch": {
+          "cache_hit_read_rate": 0.7207890743550834,
+          "latency_p95_ms": 130.0,
+          "latency_sum_ms": 10963.585233688354,
+          "logical_bytes": 1064016617,
+          "read_amplification": 2.128347641209818,
+          "remote_bytes": 2264597257,
+          "remote_gets": 305
+        },
+        "stat_selector": {
+          "cache_hit_read_rate": 0.5295902883156297,
+          "latency_p95_ms": 89.87761497497561,
+          "latency_sum_ms": 18029.072828292847,
+          "logical_bytes": 1064016617,
+          "read_amplification": 0.24923718555045837,
+          "remote_bytes": 265192507,
+          "remote_gets": 310
+        },
+        "template_auto": {
+          "cache_hit_read_rate": 0.19271623672230653,
+          "latency_p95_ms": 92.87202835083008,
+          "latency_sum_ms": 37989.930992126465,
+          "logical_bytes": 1064016617,
+          "read_amplification": 1.1224644511355408,
+          "remote_bytes": 1194320828,
+          "remote_gets": 532
+        },
+        "template_locality": {
+          "cache_hit_read_rate": 0.5295902883156297,
+          "latency_p95_ms": 89.87761497497561,
+          "latency_sum_ms": 18029.072828292847,
+          "logical_bytes": 1064016617,
+          "read_amplification": 0.24923718555045837,
+          "remote_bytes": 265192507,
+          "remote_gets": 310
+        }
+      },
+      "selector_amp": 0.24923718555045837,
+      "selector_vs_auto_latency_ratio": 0.4745750349488508,
+      "selector_vs_auto_remote_ratio": 0.2220446137945105,
+      "selector_vs_best_latency_ratio": 1.0
+    },
+    "multimodal": {
+      "auto_amp": 0.7938418683625923,
+      "best_static": "template_multimodal",
+      "latency_not_worse_than_auto": true,
+      "no_amp_regression_vs_auto": true,
+      "runs": {
+        "aws_range_get": {
+          "cache_hit_read_rate": 0.0,
+          "latency_p95_ms": 55.8131136894226,
+          "latency_sum_ms": 63512.94154167175,
+          "logical_bytes": 221557979,
+          "read_amplification": 1.0,
+          "remote_bytes": 221557979,
+          "remote_gets": 1228
+        },
+        "s3a_prefetch": {
+          "cache_hit_read_rate": 0.6140065146579805,
+          "latency_p95_ms": 130.0,
+          "latency_sum_ms": 58056.76097869873,
+          "logical_bytes": 221557979,
+          "read_amplification": 94.26558877845694,
+          "remote_bytes": 20885293339,
+          "remote_gets": 2525
+        },
+        "stat_selector": {
+          "cache_hit_read_rate": 0.46335504885993484,
+          "latency_p95_ms": 55.210352420806885,
+          "latency_sum_ms": 34627.34146118164,
+          "logical_bytes": 221557979,
+          "read_amplification": 0.7938418683625923,
+          "remote_bytes": 175882000,
+          "remote_gets": 659
+        },
+        "template_auto": {
+          "cache_hit_read_rate": 0.46335504885993484,
+          "latency_p95_ms": 55.210352420806885,
+          "latency_sum_ms": 34627.34146118164,
+          "logical_bytes": 221557979,
+          "read_amplification": 0.7938418683625923,
+          "remote_bytes": 175882000,
+          "remote_gets": 659
+        },
+        "template_multimodal": {
+          "cache_hit_read_rate": 0.46335504885993484,
+          "latency_p95_ms": 55.210352420806885,
+          "latency_sum_ms": 34627.34146118164,
+          "logical_bytes": 221557979,
+          "read_amplification": 0.7938418683625923,
+          "remote_bytes": 175882000,
+          "remote_gets": 659
+        }
+      },
+      "selector_amp": 0.7938418683625923,
+      "selector_vs_auto_latency_ratio": 1.0,
+      "selector_vs_auto_remote_ratio": 1.0,
+      "selector_vs_best_latency_ratio": 1.0
+    },
+    "tpch": {
+      "auto_amp": 0.19403534132315495,
+      "best_static": "s3a_random",
+      "latency_not_worse_than_auto": false,
+      "no_amp_regression_vs_auto": true,
+      "runs": {
+        "aws_range_get": {
+          "cache_hit_read_rate": 0.0,
+          "latency_p95_ms": 56.05274200439453,
+          "latency_sum_ms": 255184.3907737732,
+          "logical_bytes": 1303840374,
+          "read_amplification": 1.0,
+          "remote_bytes": 1303840374,
+          "remote_gets": 4855
+        },
+        "s3a_prefetch": {
+          "cache_hit_read_rate": 0.98043254376931,
+          "latency_p95_ms": 0.0,
+          "latency_sum_ms": 8045.513668060303,
+          "logical_bytes": 1303840374,
+          "read_amplification": 0.8916049864551902,
+          "remote_bytes": 1162510579,
+          "remote_gets": 166
+        },
+        "s3a_random": {
+          "cache_hit_read_rate": 0.8323377960865087,
+          "latency_p95_ms": 51.859846115112305,
+          "latency_sum_ms": 42727.63876914978,
+          "logical_bytes": 1303840374,
+          "read_amplification": 0.1630669974942807,
+          "remote_bytes": 212613335,
+          "remote_gets": 814
+        },
+        "stat_selector": {
+          "cache_hit_read_rate": 0.8319258496395469,
+          "latency_p95_ms": 51.85988426208496,
+          "latency_sum_ms": 42832.63876914978,
+          "logical_bytes": 1303840374,
+          "read_amplification": 0.1634691080673653,
+          "remote_bytes": 213137623,
+          "remote_gets": 816
+        },
+        "template_auto": {
+          "cache_hit_read_rate": 0.9171987641606592,
+          "latency_p95_ms": 51.85931205749512,
+          "latency_sum_ms": 22512.71125793457,
+          "logical_bytes": 1303840374,
+          "read_amplification": 0.19403534132315495,
+          "remote_bytes": 252991112,
+          "remote_gets": 402
+        }
+      },
+      "selector_amp": 0.1634691080673653,
+      "selector_vs_auto_latency_ratio": 1.9025979713595573,
+      "selector_vs_auto_remote_ratio": 0.8424707939937431,
+      "selector_vs_best_latency_ratio": 1.0024574257558976
+    }
+  },
+  "P3_latency_pass": true,
+  "P3_mixed": {
+    "figure": "access_report/track1_mixed_convergence_v3.png",
+    "overall": {
+      "aws_range_get": {
+        "cache_hit_read_rate": 0.0,
+        "latency_p95_ms": 50.073699951171875,
+        "latency_sum_ms": 18784944.51218605,
+        "logical_bytes": 13489354801,
+        "read_amplification": 1.0,
+        "remote_bytes": 13489354801,
+        "remote_gets": 373126
+      },
+      "s3a_prefetch": {
+        "cache_hit_read_rate": 0.8949925762343015,
+        "latency_p95_ms": 130.0,
+        "latency_sum_ms": 4982392.701787949,
+        "logical_bytes": 13489354801,
+        "read_amplification": 55.21756812095879,
+        "remote_bytes": 744849367632,
+        "remote_gets": 90024
+      },
+      "s3a_random": {
+        "cache_hit_read_rate": 0.8244641220392039,
+        "latency_p95_ms": 50.625,
+        "latency_sum_ms": 3417368.2835674286,
+        "logical_bytes": 13489354801,
+        "read_amplification": 1.1078458081547498,
+        "remote_bytes": 14944125171,
+        "remote_gets": 65497
+      },
+      "stat_selector": {
+        "cache_hit_read_rate": 0.8644372142386219,
+        "latency_p95_ms": 52.5,
+        "latency_sum_ms": 2659164.7499656677,
+        "logical_bytes": 13489354801,
+        "read_amplification": 1.0322138844600475,
+        "remote_bytes": 13923899318,
+        "remote_gets": 50611
+      },
+      "template_auto": {
+        "cache_hit_read_rate": 0.8528379153422705,
+        "latency_p95_ms": 50.625,
+        "latency_sum_ms": 2883099.106197357,
+        "logical_bytes": 13489354801,
+        "read_amplification": 1.0696072755778054,
+        "remote_bytes": 14428312038,
+        "remote_gets": 54910
+      },
+      "template_locality": {
+        "cache_hit_read_rate": 0.8533471267078682,
+        "latency_p95_ms": 52.5,
+        "latency_sum_ms": 2868986.9052124023,
+        "logical_bytes": 13489354801,
+        "read_amplification": 1.0337549807027275,
+        "remote_bytes": 13944687712,
+        "remote_gets": 54720
+      },
+      "template_multimodal": {
+        "cache_hit_read_rate": 0.8512003987929011,
+        "latency_p95_ms": 50.625,
+        "latency_sum_ms": 2912085.1510047913,
+        "logical_bytes": 13489354801,
+        "read_amplification": 1.057450090121623,
+        "remote_bytes": 14264319450,
+        "remote_gets": 55521
+      }
+    },
+    "per_phase": {
+      "aws_range_get": {
+        "lance": {
+          "latency_sum_ms": 9162196.085186005,
+          "read_amplification": 1.0,
+          "reads": 181224,
+          "remote_bytes": 10590207102
+        },
+        "ml_emb": {
+          "latency_sum_ms": 9048866.703910828,
+          "read_amplification": 1.0,
+          "reads": 180964,
+          "remote_bytes": 69908972
+        },
+        "multimodal": {
+          "latency_sum_ms": 63512.94154167175,
+          "read_amplification": 1.0,
+          "reads": 1228,
+          "remote_bytes": 221557979
+        },
+        "tpch_a": {
+          "latency_sum_ms": 255184.3907737732,
+          "read_amplification": 1.0,
+          "reads": 4855,
+          "remote_bytes": 1303840374
+        },
+        "tpch_b": {
+          "latency_sum_ms": 255184.3907737732,
+          "read_amplification": 1.0,
+          "reads": 4855,
+          "remote_bytes": 1303840374
+        }
+      },
+      "stat_selector": {
+        "lance": {
+          "latency_sum_ms": 2538511.1814308167,
+          "read_amplification": 1.2578218538789818,
+          "reads": 181224,
+          "remote_bytes": 13320593930
+        },
+        "ml_emb": {
+          "latency_sum_ms": 361.1559867858887,
+          "read_amplification": 0.016733045366480286,
+          "reads": 180964,
+          "remote_bytes": 1169790
+        },
+        "multimodal": {
+          "latency_sum_ms": 34677.38052368164,
+          "read_amplification": 0.79386035562276,
+          "reads": 1228,
+          "remote_bytes": 175886096
+        },
+        "tpch_a": {
+          "latency_sum_ms": 42832.63876914978,
+          "read_amplification": 0.1634691080673653,
+          "reads": 4855,
+          "remote_bytes": 213137623
+        },
+        "tpch_b": {
+          "latency_sum_ms": 42782.393255233765,
+          "read_amplification": 0.16344936331907145,
+          "reads": 4855,
+          "remote_bytes": 213111879
+        }
+      },
+      "template_auto": {
+        "lance": {
+          "latency_sum_ms": 2802736.4362335205,
+          "read_amplification": 1.2979358159486918,
+          "reads": 181224,
+          "remote_bytes": 13745409096
+        },
+        "ml_emb": {
+          "latency_sum_ms": 709.9059867858887,
+          "read_amplification": 0.014858150109831396,
+          "reads": 180964,
+          "remote_bytes": 1038718
+        },
+        "multimodal": {
+          "latency_sum_ms": 34627.34146118164,
+          "read_amplification": 0.7938418683625923,
+          "reads": 1228,
+          "remote_bytes": 175882000
+        },
+        "tpch_a": {
+          "latency_sum_ms": 22512.71125793457,
+          "read_amplification": 0.19403534132315495,
+          "reads": 4855,
+          "remote_bytes": 252991112
+        },
+        "tpch_b": {
+          "latency_sum_ms": 22512.71125793457,
+          "read_amplification": 0.19403534132315495,
+          "reads": 4855,
+          "remote_bytes": 252991112
+        }
+      }
+    },
+    "phase_order": [
+      "tpch_a",
+      "lance",
+      "ml_emb",
+      "multimodal",
+      "tpch_b"
+    ],
+    "switch_region": {
+      "by_policy": {
+        "stat_selector": {
+          "lance": {
+            "latency_sum_ms": 2819.330415725708,
+            "read_amplification": 12.717654420099429,
+            "reads": 200,
+            "remote_bytes": 24918705
+          },
+          "ml_emb": {
+            "latency_sum_ms": 361.1559867858887,
+            "read_amplification": 2.0174497616567444,
+            "reads": 200,
+            "remote_bytes": 1169790
+          },
+          "multimodal": {
+            "latency_sum_ms": 3656.730899810791,
+            "read_amplification": 1.0184643279136796,
+            "reads": 200,
+            "remote_bytes": 11191546
+          },
+          "tpch_b": {
+            "latency_sum_ms": 9055.77320098877,
+            "read_amplification": 1.0129737461447537,
+            "reads": 200,
+            "remote_bytes": 32062644
+          }
+        },
+        "template_auto": {
+          "lance": {
+            "latency_sum_ms": 5489.5387172698975,
+            "read_amplification": 4.791729930758674,
+            "reads": 200,
+            "remote_bytes": 9388815
+          },
+          "ml_emb": {
+            "latency_sum_ms": 608.6559867858887,
+            "read_amplification": 1.5653495126208101,
+            "reads": 200,
+            "remote_bytes": 907646
+          },
+          "multimodal": {
+            "latency_sum_ms": 3606.691837310791,
+            "read_amplification": 1.0180915796010575,
+            "reads": 200,
+            "remote_bytes": 11187450
+          },
+          "tpch_b": {
+            "latency_sum_ms": 4074.037389755249,
+            "read_amplification": 2.0673279750830273,
+            "reads": 200,
+            "remote_bytes": 65435063
+          }
+        }
+      },
+      "window_reads": 200
+    },
+    "verdict": {
+      "auto_amp": 1.0696072755778054,
+      "no_amp_regression_vs_auto": true,
+      "selector_amp": 1.0322138844600475,
+      "selector_beats_auto_latency": true,
+      "selector_vs_auto_latency_ratio": 0.9223285957286962,
+      "selector_vs_auto_remote_ratio": 0.9650400740799393,
+      "switch_region_max_amp": {
+        "stat_selector": 12.717654420099429,
+        "template_auto": 4.791729930758674
+      }
+    }
+  },
+  "P3_no_amp_regression": true,
+  "config": {
+    "bandwidth_mib_s": 100.0,
+    "cache_budget_mib": 256,
+    "model": "models/policy_selector.joblib",
+    "request_rtt_ms": 50.0,
+    "selector_hysteresis": 3
+  }
+}

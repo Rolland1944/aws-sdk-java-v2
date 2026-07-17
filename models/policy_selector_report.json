@@ -1,0 +1,108 @@
+{
+  "decision_tree": {
+    "cv_accuracy": {
+      "folds": 5,
+      "mean": 0.9971976269403836,
+      "std": 0.000522234409149837
+    },
+    "feature_importance": {
+      "cur_size_over_filesize": 0.28569674785928306,
+      "distinct_obj_ratio": 0.03713676215771495,
+      "forward_ratio": 0.0005718771060257056,
+      "frac_large": 0.30208015319260073,
+      "frac_small": 0.3041844059071912,
+      "log2_cur_size": 0.015044240566081722,
+      "log2_med_gap": 0.009451716490160784,
+      "log2_med_size": 0.02150808931807253,
+      "page_revisit_ratio": 0.003935168275782581,
+      "sequentiality": 0.020390839127086665
+    },
+    "holdout_report": {
+      "accuracy": 0.9980674087816945,
+      "macro avg": {
+        "f1-score": 0.9908997182847724,
+        "precision": 0.9867000486316726,
+        "recall": 0.9953102513358342,
+        "support": 12936.0
+      },
+      "s3a_prefetch": {
+        "f1-score": 0.9995332399813296,
+        "precision": 0.9997332266239829,
+        "recall": 0.9993333333333333,
+        "support": 7500.0
+      },
+      "s3a_random": {
+        "f1-score": 0.9962855963681386,
+        "precision": 0.9983457402812241,
+        "recall": 0.9942339373970346,
+        "support": 1214.0
+      },
+      "template_locality": {
+        "f1-score": 0.9980830670926517,
+        "precision": 0.9987212276214834,
+        "recall": 0.9974457215836526,
+        "support": 3915.0
+      },
+      "template_multimodal": {
+        "f1-score": 0.9696969696969697,
+        "precision": 0.95,
+        "recall": 0.990228013029316,
+        "support": 307.0
+      },
+      "weighted avg": {
+        "f1-score": 0.9980814928274269,
+        "precision": 0.9981164606152896,
+        "recall": 0.9980674087816945,
+        "support": 12936.0
+      }
+    },
+    "params": {
+      "max_depth": 12,
+      "min_samples_leaf": 10
+    }
+  },
+  "feature_names": [
+    "log2_cur_size",
+    "log2_med_size",
+    "frac_small",
+    "frac_large",
+    "sequentiality",
+    "forward_ratio",
+    "log2_med_gap",
+    "page_revisit_ratio",
+    "distinct_obj_ratio",
+    "cur_size_over_filesize"
+  ],
+  "label_counts": {
+    "s3a_prefetch": 30000,
+    "s3a_random": 4855,
+    "template_locality": 15659,
+    "template_multimodal": 1228
+  },
+  "labels": [
+    "s3a_prefetch",
+    "s3a_random",
+    "template_locality",
+    "template_multimodal"
+  ],
+  "note": "CV accuracy measures in-distribution feature separability; the honest generalization signal is the simulator replay on the mixed trace (eval_track1.py).",
+  "per_trace_rows": {
+    "lance_large": 15000,
+    "lance_small": 15000,
+    "ml_embedding": 15000,
+    "ml_epoch_scan": 659,
+    "multimodal": 1228,
+    "tpch": 4855
+  },
+  "svm_rbf": {
+    "cv_accuracy": {
+      "folds": 0,
+      "mean": NaN,
+      "skipped": true,
+      "std": NaN
+    },
+    "holdout_report": {
+      "skipped": true
+    }
+  }
+}
