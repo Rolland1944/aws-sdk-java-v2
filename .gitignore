@@ -31,3 +31,6 @@ target/
 # VS Code
 .vscode/*
 
+# Project-local (do not commit)
+.venv/
+traces/**/*.strace

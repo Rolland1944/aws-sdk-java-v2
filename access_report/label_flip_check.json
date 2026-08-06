@@ -1,0 +1,540 @@
+{
+  "budgets": [
+    64,
+    256
+  ],
+  "candidates": [
+    "s3a_random",
+    "template_locality",
+    "s3a_prefetch",
+    "template_multimodal"
+  ],
+  "cost_model": {
+    "bw_mib_s": 100.0,
+    "rtt_ms": 50.0
+  },
+  "results": {
+    "lance_large": {
+      "by_budget": {
+        "256": {
+          "best": "template_locality",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.7874674436057034,
+              "latency_p95_ms": 130.0,
+              "latency_sum_ms": 4908185.891094208,
+              "logical_bytes": 10590207102,
+              "read_amplification": 68.14202027585617,
+              "remote_bytes": 721638107070,
+              "remote_gets": 87166
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.6514203416765991,
+              "latency_p95_ms": 50.625,
+              "latency_sum_ms": 3295303.935775757,
+              "logical_bytes": 10590207102,
+              "read_amplification": 1.3540518478899148,
+              "remote_bytes": 14339689496,
+              "remote_gets": 63171
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.727983048602834,
+              "latency_p95_ms": 52.5,
+              "latency_sum_ms": 2584208.640050888,
+              "logical_bytes": 10590207102,
+              "read_amplification": 1.1823095898318534,
+              "remote_bytes": 12520903415,
+              "remote_gets": 49296
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.7068820906723171,
+              "latency_p95_ms": 50.625,
+              "latency_sum_ms": 2786365.7387161255,
+              "logical_bytes": 10590207102,
+              "read_amplification": 1.2907999203734553,
+              "remote_bytes": 13669838484,
+              "remote_gets": 53120
+            }
+          }
+        },
+        "64": {
+          "best": "template_locality",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.6480267514236525,
+              "latency_p95_ms": 130.0,
+              "latency_sum_ms": 7972132.861461639,
+              "logical_bytes": 10590207102,
+              "read_amplification": 181.83999465528112,
+              "remote_bytes": 1925723202826,
+              "remote_gets": 234946
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.4644197236569108,
+              "latency_p95_ms": 50.625,
+              "latency_sum_ms": 5010932.549324036,
+              "logical_bytes": 10590207102,
+              "read_amplification": 1.5637492189243873,
+              "remote_bytes": 16560428084,
+              "remote_gets": 97060
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.5099710855074383,
+              "latency_p95_ms": 52.5,
+              "latency_sum_ms": 4658382.121038437,
+              "logical_bytes": 10590207102,
+              "read_amplification": 2.159807685978151,
+              "remote_bytes": 22872810695,
+              "remote_gets": 88805
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.48205535690637,
+              "latency_p95_ms": 50.625,
+              "latency_sum_ms": 4849003.151321411,
+              "logical_bytes": 10590207102,
+              "read_amplification": 1.5426652531577658,
+              "remote_bytes": 16337144520,
+              "remote_gets": 93864
+            }
+          }
+        }
+      },
+      "reference_label_256": "template_locality"
+    },
+    "lance_small": {
+      "by_budget": {
+        "256": {
+          "best": "s3a_prefetch",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.9974648904110739,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 1430.8920764923096,
+              "logical_bytes": 4248184480,
+              "read_amplification": 0.044944934453505656,
+              "remote_bytes": 190934373,
+              "remote_gets": 26
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.9080561081870608,
+              "latency_p95_ms": 50.625,
+              "latency_sum_ms": 556292.4911403656,
+              "logical_bytes": 4248184480,
+              "read_amplification": 0.21332192216850243,
+              "remote_bytes": 906230879,
+              "remote_gets": 10953
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.9699228554399926,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 186744.76410865784,
+              "logical_bytes": 4248184480,
+              "read_amplification": 0.18746095908716282,
+              "remote_bytes": 796368737,
+              "remote_gets": 3583
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.9503387141454078,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 302805.1140785217,
+              "logical_bytes": 4248184480,
+              "read_amplification": 0.17290667424122785,
+              "remote_bytes": 734539450,
+              "remote_gets": 5916
+            }
+          }
+        },
+        "64": {
+          "best": "template_locality",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.6180630755412291,
+              "latency_p95_ms": 130.0,
+              "latency_sum_ms": 5705693.347625732,
+              "logical_bytes": 4248184480,
+              "read_amplification": 228.5587863340624,
+              "remote_bytes": 970959888872,
+              "remote_gets": 119700
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.36309149059407186,
+              "latency_p95_ms": 50.625,
+              "latency_sum_ms": 3876521.1128997803,
+              "logical_bytes": 4248184480,
+              "read_amplification": 2.0455010955644752,
+              "remote_bytes": 8689666008,
+              "remote_gets": 75873
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.4017309258186641,
+              "latency_p95_ms": 52.5,
+              "latency_sum_ms": 3740170.672607422,
+              "logical_bytes": 4248184480,
+              "read_amplification": 4.3607481754182205,
+              "remote_bytes": 18525262720,
+              "remote_gets": 71270
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.38596623771269317,
+              "latency_p95_ms": 50.625,
+              "latency_sum_ms": 3741721.6207695007,
+              "logical_bytes": 4248184480,
+              "read_amplification": 2.0813038660693945,
+              "remote_bytes": 8841762782,
+              "remote_gets": 73148
+            }
+          }
+        }
+      },
+      "reference_label_256": "s3a_prefetch"
+    },
+    "ml_embedding": {
+      "by_budget": {
+        "256": {
+          "best": "s3a_prefetch",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.9999944740390354,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 59.02237892150879,
+              "logical_bytes": 69908972,
+              "read_amplification": 0.013532812354900598,
+              "remote_bytes": 946065,
+              "remote_gets": 1
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.9998950067416724,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 963.0309867858887,
+              "logical_bytes": 69908972,
+              "read_amplification": 0.01954538825145362,
+              "remote_bytes": 1366398,
+              "remote_gets": 19
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.9999613182732477,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 361.1559867858887,
+              "logical_bytes": 69908972,
+              "read_amplification": 0.016733045366480286,
+              "remote_bytes": 1169790,
+              "remote_gets": 7
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.9999226365464954,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 709.9059867858887,
+              "logical_bytes": 69908972,
+              "read_amplification": 0.014858150109831396,
+              "remote_bytes": 1038718,
+              "remote_gets": 14
+            }
+          }
+        },
+        "64": {
+          "best": "s3a_prefetch",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.9999944740390354,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 59.02237892150879,
+              "logical_bytes": 69908972,
+              "read_amplification": 0.013532812354900598,
+              "remote_bytes": 946065,
+              "remote_gets": 1
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.9998950067416724,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 963.0309867858887,
+              "logical_bytes": 69908972,
+              "read_amplification": 0.01954538825145362,
+              "remote_bytes": 1366398,
+              "remote_gets": 19
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.9999613182732477,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 361.1559867858887,
+              "logical_bytes": 69908972,
+              "read_amplification": 0.016733045366480286,
+              "remote_bytes": 1169790,
+              "remote_gets": 7
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.9999226365464954,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 709.9059867858887,
+              "logical_bytes": 69908972,
+              "read_amplification": 0.014858150109831396,
+              "remote_bytes": 1038718,
+              "remote_gets": 14
+            }
+          }
+        }
+      },
+      "reference_label_256": "s3a_prefetch"
+    },
+    "ml_epoch_scan": {
+      "by_budget": {
+        "256": {
+          "best": "s3a_prefetch",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.7207890743550834,
+              "latency_p95_ms": 130.0,
+              "latency_sum_ms": 10963.585233688354,
+              "logical_bytes": 1064016617,
+              "read_amplification": 2.128347641209818,
+              "remote_bytes": 2264597257,
+              "remote_gets": 305
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.2564491654021244,
+              "latency_p95_ms": 92.74466514587402,
+              "latency_sum_ms": 32143.812952041626,
+              "logical_bytes": 1064016617,
+              "read_amplification": 0.7532888755627395,
+              "remote_bytes": 801511881,
+              "remote_gets": 490
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.5295902883156297,
+              "latency_p95_ms": 89.87761497497561,
+              "latency_sum_ms": 18029.072828292847,
+              "logical_bytes": 1064016617,
+              "read_amplification": 0.24923718555045837,
+              "remote_bytes": 265192507,
+              "remote_gets": 310
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.2564491654021244,
+              "latency_p95_ms": 92.74466514587402,
+              "latency_sum_ms": 32139.786415100098,
+              "logical_bytes": 1064016617,
+              "read_amplification": 0.7528920650305971,
+              "remote_bytes": 801089668,
+              "remote_gets": 490
+            }
+          }
+        },
+        "64": {
+          "best": "s3a_prefetch",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.6798179059180577,
+              "latency_p95_ms": 130.0,
+              "latency_sum_ms": 14473.585233688354,
+              "logical_bytes": 1064016617,
+              "read_amplification": 3.319605533942521,
+              "remote_bytes": 3532115450,
+              "remote_gets": 486
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.010622154779969651,
+              "latency_p95_ms": 92.88260459899902,
+              "latency_sum_ms": 42663.30533981323,
+              "logical_bytes": 1064016617,
+              "read_amplification": 0.9917270361577445,
+              "remote_bytes": 1055214046,
+              "remote_gets": 652
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.165402124430956,
+              "latency_p95_ms": 89.87761497497561,
+              "latency_sum_ms": 30629.072828292847,
+              "logical_bytes": 1064016617,
+              "read_amplification": 0.30836648766360386,
+              "remote_bytes": 328107067,
+              "remote_gets": 550
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.010622154779969651,
+              "latency_p95_ms": 92.88260459899902,
+              "latency_sum_ms": 42657.165870666504,
+              "logical_bytes": 1064016617,
+              "read_amplification": 0.9911219986144257,
+              "remote_bytes": 1054570276,
+              "remote_gets": 652
+            }
+          }
+        }
+      },
+      "reference_label_256": "template_locality"
+    },
+    "multimodal": {
+      "by_budget": {
+        "256": {
+          "best": "template_locality",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.6140065146579805,
+              "latency_p95_ms": 130.0,
+              "latency_sum_ms": 58056.76097869873,
+              "logical_bytes": 221557979,
+              "read_amplification": 94.26558877845694,
+              "remote_bytes": 20885293339,
+              "remote_gets": 2525
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.44706840390879476,
+              "latency_p95_ms": 55.210352420806885,
+              "latency_sum_ms": 35646.039266586304,
+              "logical_bytes": 221557979,
+              "read_amplification": 0.8026910509054608,
+              "remote_bytes": 177842607,
+              "remote_gets": 679
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.46579804560260585,
+              "latency_p95_ms": 55.18437147140503,
+              "latency_sum_ms": 34552.5213432312,
+              "logical_bytes": 221557979,
+              "read_amplification": 0.8294225413565449,
+              "remote_bytes": 183765182,
+              "remote_gets": 656
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.46335504885993484,
+              "latency_p95_ms": 55.210352420806885,
+              "latency_sum_ms": 34627.34146118164,
+              "logical_bytes": 221557979,
+              "read_amplification": 0.7938418683625923,
+              "remote_bytes": 175882000,
+              "remote_gets": 659
+            }
+          }
+        },
+        "64": {
+          "best": "template_locality",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.33957654723127034,
+              "latency_p95_ms": 130.0,
+              "latency_sum_ms": 101061.3462638855,
+              "logical_bytes": 221557979,
+              "read_amplification": 218.19595609328067,
+              "remote_bytes": 48343055058,
+              "remote_gets": 5856
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.38599348534201955,
+              "latency_p95_ms": 55.38472843170166,
+              "latency_sum_ms": 39582.22605705261,
+              "logical_bytes": 221557979,
+              "read_amplification": 0.8908083919649764,
+              "remote_bytes": 197365707,
+              "remote_gets": 754
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.40960912052117265,
+              "latency_p95_ms": 55.18437147140503,
+              "latency_sum_ms": 38175.0213432312,
+              "logical_bytes": 221557979,
+              "read_amplification": 0.911062282257052,
+              "remote_bytes": 201853118,
+              "remote_gets": 725
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.4022801302931596,
+              "latency_p95_ms": 55.38472843170166,
+              "latency_sum_ms": 38562.24926948547,
+              "logical_bytes": 221557979,
+              "read_amplification": 0.8813539005968275,
+              "remote_bytes": 195270989,
+              "remote_gets": 734
+            }
+          }
+        }
+      },
+      "reference_label_256": "template_multimodal"
+    },
+    "tpch": {
+      "by_budget": {
+        "256": {
+          "best": "s3a_prefetch",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.98043254376931,
+              "latency_p95_ms": 0.0,
+              "latency_sum_ms": 8045.513668060303,
+              "logical_bytes": 1303840374,
+              "read_amplification": 0.8916049864551902,
+              "remote_bytes": 1162510579,
+              "remote_gets": 166
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.8323377960865087,
+              "latency_p95_ms": 51.859846115112305,
+              "latency_sum_ms": 42727.63876914978,
+              "logical_bytes": 1303840374,
+              "read_amplification": 0.1630669974942807,
+              "remote_bytes": 212613335,
+              "remote_gets": 814
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.7287332646755922,
+              "latency_p95_ms": 52.5,
+              "latency_sum_ms": 69064.04028892517,
+              "logical_bytes": 1303840374,
+              "read_amplification": 0.25847991649934904,
+              "remote_bytes": 337016551,
+              "remote_gets": 1317
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.8220391349124614,
+              "latency_p95_ms": 51.859846115112305,
+              "latency_sum_ms": 45191.08242034912,
+              "logical_bytes": 1303840374,
+              "read_amplification": 0.16012705862105786,
+              "remote_bytes": 208780124,
+              "remote_gets": 864
+            }
+          }
+        },
+        "64": {
+          "best": "s3a_prefetch",
+          "runs": {
+            "s3a_prefetch": {
+              "cache_hit_read_rate": 0.8817713697219361,
+              "latency_p95_ms": 130.0,
+              "latency_sum_ms": 69903.46990585327,
+              "logical_bytes": 1303840374,
+              "read_amplification": 11.219627470287248,
+              "remote_bytes": 14628603277,
+              "remote_gets": 1801
+            },
+            "s3a_random": {
+              "cache_hit_read_rate": 0.3083419155509784,
+              "latency_p95_ms": 56.052255630493164,
+              "latency_sum_ms": 176819.5856666565,
+              "logical_bytes": 1303840374,
+              "read_amplification": 0.7173319408193138,
+              "remote_bytes": 935286346,
+              "remote_gets": 3358
+            },
+            "template_locality": {
+              "cache_hit_read_rate": 0.22368692070030896,
+              "latency_p95_ms": 52.5,
+              "latency_sum_ms": 197781.62683486938,
+              "logical_bytes": 1303840374,
+              "read_amplification": 0.7504691628762219,
+              "remote_bytes": 978491994,
+              "remote_gets": 3769
+            },
+            "template_multimodal": {
+              "cache_hit_read_rate": 0.3027806385169928,
+              "latency_p95_ms": 56.05217933654785,
+              "latency_sum_ms": 178030.79022407532,
+              "logical_bytes": 1303840374,
+              "read_amplification": 0.7061697178277438,
+              "remote_bytes": 920732589,
+              "remote_gets": 3385
+            }
+          }
+        }
+      },
+      "reference_label_256": "s3a_random"
+    }
+  }
+}

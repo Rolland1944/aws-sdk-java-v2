@@ -1,0 +1,354 @@
+{
+  "1024:1:0": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "s3a_prefetch",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "s3a_prefetch",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "1024:1:1": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "s3a_prefetch",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "1024:4:4": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "s3a_prefetch",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "1024:8:8": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "s3a_prefetch",
+      "sift": "s3a_prefetch",
+      "taxi": "s3a_prefetch",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "128:1:0": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "template_locality"
+    }
+  },
+  "128:1:1": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_random"
+    }
+  },
+  "128:4:4": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "template_multimodal",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "128:8:8": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "template_multimodal",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_random"
+    }
+  },
+  "256:1:0": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_locality",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "s3a_prefetch",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "256:1:1": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "256:4:4": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "256:8:8": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "512:1:0": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_locality",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "s3a_prefetch",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "512:1:1": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "s3a_prefetch",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "512:4:4": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "s3a_prefetch",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  },
+  "512:8:8": {
+    "bytes": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_random",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "template_multimodal",
+      "taxi": "template_multimodal",
+      "tpch": "template_multimodal"
+    },
+    "cost": {
+      "clickbench": "template_multimodal",
+      "emb_real": "s3a_prefetch",
+      "fmnist": "s3a_prefetch",
+      "lastfm": "s3a_prefetch",
+      "mm": "template_multimodal",
+      "sift": "s3a_prefetch",
+      "taxi": "template_multimodal",
+      "tpch": "s3a_prefetch"
+    }
+  }
+}

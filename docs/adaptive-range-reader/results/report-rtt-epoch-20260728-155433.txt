@@ -1,0 +1,47 @@
+
+============= S2/S3 Adaptive Range Reader - System Benchmark =============
+label=rtt-epoch  reads=659  warmup=0  iters=2  apps=1  globalCache=64MiB  perAppReserved=64MiB  maxFetch=8MiB  prefetchDepth=1
+(template_auto/S2/S3 share the SAME appID budget/runtime and the same 4 executors;
+ they differ only by policy brain (hand rule vs learned tree) and prefetch depth.
+ passthrough = raw no-cache baseline.)
+ cost model: rtt=5.00ms  bw=200MiB/s  think=5.00ms/read (injected into every GET; ns/op & IO-latency now reflect network cost)
+
+metric                  passthrough(off) template_auto(d0)      S2(learn,d0)      S3(learn,d1)
+logical reads                        659               659               659               659
+logical MiB                      1014.73           1014.73           1014.73           1014.73
+remote GETs                          659               658               658               873
+remote MiB                       1014.73           1211.22           1085.07           1138.82
+read amplification                 1.000             1.194             1.069             1.122
+cache hit rate                     0.000             0.002             0.002             0.002
+policy switches                        0               282                 0                 0
+fallback reads                         0                 0                 0                 0
+prefetch GETs                          0                 0                 0               215
+prefetch useful MiB                 0.00              0.00              0.00              0.00
+prefetch wasted MiB                 0.00              0.00              0.00             53.75
+prefetch cancel MiB                 0.00              0.00              0.00              0.00
+IO latency sum (s)                11.423            13.136            12.136            12.170
+ns/op (min iter)            22549830.307      25191490.948      23738434.560      23799537.520
+p50 ns                           6617350          13145132           8363067           8409745
+p95 ns                          39309467          39662242          40381935          40536686
+p99 ns                          39874984          42761959          41630165          41463853
+
+per-policy read counts (template_auto | learned):
+  s3a_prefetch                217 |        0
+  s3a_random                    8 |        0
+  template_locality            23 |      659
+  template_multimodal         411 |        0
+
+deltas:
+  S2(learn) vs template_auto:  GET +0.0%   remote bytes -10.4%
+  S2 vs passthrough (cache):   GET -0.2%   remote bytes +6.9%
+  S3 vs S2 (prefetch):         GET +32.7%   remote bytes +5.0%
+
+IO-latency deltas (lower is better; the point of RTT injection):
+  S2 vs passthrough (cache):   IO latency +6.2%  (11.42s -> 12.14s)
+  S3 vs S2 (prefetch):         IO latency +0.3%  (12.14s -> 12.17s)
+  S3 vs passthrough (total):   IO latency +6.5%  (11.42s -> 12.17s)
+
+per-app isolation (S3 RuntimeMetrics):
+capacity=64.0MiB totalUsage=61.8MiB maxConcurrentGets=16 peakGets=2
+  app0-1     reserved=64.0MiB usage=61.8MiB blocks=40 inflightPeak=0.3MiB
+=========================================================================

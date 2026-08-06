@@ -1,0 +1,18 @@
+mixed holdout trace: traces/mixed_holdout.csv
+total reads: 11189
+
+class        source         src_rows     picked  method
+------------------------------------------------------------
+tpch         tpch               4855       1309  query
+tpch         clickbench         2226       1572  query
+tpch         * TOTAL                       2881  
+lance        fmnist           119127       1216  block
+lance        sift             181224       1216  block
+lance        * TOTAL                       2432  
+ml_emb       emb_real         180964       1216  block
+ml_emb       lastfm           533124       1216  block
+ml_emb       * TOTAL                       2432  
+ml_epoch     taxi                659        659  all
+ml_epoch     * TOTAL                        659  
+multi_model  mm                 2785       2785  all
+multi_model  * TOTAL                       2785  

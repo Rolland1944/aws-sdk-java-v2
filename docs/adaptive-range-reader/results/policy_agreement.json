@@ -1,0 +1,477 @@
+{
+  "max_reads": 20000,
+  "model": "models/policy_selector.joblib",
+  "per_trace": {
+    "clickbench": {
+      "agreement": {
+        "ta(java)": 0.1976639712488769,
+        "ta(sim)": 0.29110512129380056,
+        "tree(raw)": 0.44249775381850853,
+        "tree+hyst": 0.4420485175202156
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 222,
+          "s3a_random": 440,
+          "template_locality": 232,
+          "template_multimodal": 1332
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 246,
+          "s3a_random": 648,
+          "template_multimodal": 1332
+        },
+        "tree(raw)": {
+          "s3a_prefetch": 9,
+          "s3a_random": 985,
+          "template_locality": 319,
+          "template_multimodal": 913
+        },
+        "tree+hyst": {
+          "s3a_prefetch": 9,
+          "s3a_random": 984,
+          "template_locality": 316,
+          "template_multimodal": 917
+        }
+      },
+      "group": "held-out",
+      "oracle": "s3a_random",
+      "oracle_counts": {
+        "s3a_random": 2226
+      },
+      "reads": 2226,
+      "ta_java_mistakes": {
+        "s3a_prefetch": 222,
+        "template_locality": 232,
+        "template_multimodal": 1332
+      },
+      "trace": "traces/clickbench.csv"
+    },
+    "lance_large": {
+      "agreement": {
+        "ta(java)": 0.8986,
+        "ta(sim)": 0.0,
+        "tree(raw)": 0.99325,
+        "tree+hyst": 0.9934
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 58,
+          "s3a_random": 1968,
+          "template_locality": 17972,
+          "template_multimodal": 2
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 562,
+          "s3a_random": 19436,
+          "template_multimodal": 2
+        },
+        "tree(raw)": {
+          "s3a_prefetch": 45,
+          "s3a_random": 59,
+          "template_locality": 19865,
+          "template_multimodal": 31
+        },
+        "tree+hyst": {
+          "s3a_prefetch": 42,
+          "s3a_random": 58,
+          "template_locality": 19868,
+          "template_multimodal": 32
+        }
+      },
+      "group": "in-sample",
+      "oracle": "template_locality",
+      "oracle_counts": {
+        "template_locality": 20000
+      },
+      "reads": 20000,
+      "ta_java_mistakes": {
+        "s3a_prefetch": 58,
+        "s3a_random": 1968,
+        "template_multimodal": 2
+      },
+      "trace": "traces/lance_sift1m_real/lance_all.csv"
+    },
+    "lance_small": {
+      "agreement": {
+        "ta(java)": 0.0001,
+        "ta(sim)": 0.0032,
+        "tree(raw)": 0.9931,
+        "tree+hyst": 0.99435
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 2,
+          "s3a_random": 727,
+          "template_locality": 19267,
+          "template_multimodal": 4
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 64,
+          "s3a_random": 19932,
+          "template_multimodal": 4
+        },
+        "tree(raw)": {
+          "s3a_prefetch": 19862,
+          "s3a_random": 2,
+          "template_locality": 6,
+          "template_multimodal": 130
+        },
+        "tree+hyst": {
+          "s3a_prefetch": 19887,
+          "template_multimodal": 113
+        }
+      },
+      "group": "in-sample",
+      "oracle": "s3a_prefetch",
+      "oracle_counts": {
+        "s3a_prefetch": 20000
+      },
+      "reads": 20000,
+      "ta_java_mistakes": {
+        "s3a_random": 727,
+        "template_locality": 19267,
+        "template_multimodal": 4
+      },
+      "trace": "traces/lance_fmnist_real/lance_all.csv"
+    },
+    "mixed_holdout": {
+      "agreement": {
+        "ta(java)": 0.23103047636071142,
+        "ta(sim)": 0.19295736884440076,
+        "tree(raw)": 0.9028510143891322,
+        "tree+hyst": 0.9026722674054876
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 1006,
+          "s3a_random": 1622,
+          "template_locality": 5129,
+          "template_multimodal": 3432
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 1581,
+          "s3a_random": 6176,
+          "template_multimodal": 3432
+        },
+        "tree(raw)": {
+          "s3a_prefetch": 3496,
+          "s3a_random": 2245,
+          "template_locality": 2149,
+          "template_multimodal": 3299
+        },
+        "tree+hyst": {
+          "s3a_prefetch": 3497,
+          "s3a_random": 2237,
+          "template_locality": 2142,
+          "template_multimodal": 3313
+        }
+      },
+      "group": "held-out",
+      "oracle": "per-row(source)",
+      "oracle_counts": {
+        "s3a_prefetch": 3648,
+        "s3a_random": 2881,
+        "template_locality": 1875,
+        "template_multimodal": 2785
+      },
+      "reads": 11189,
+      "ta_java_mistakes": {
+        "s3a_prefetch": 1003,
+        "s3a_random": 1166,
+        "template_locality": 4464,
+        "template_multimodal": 1971
+      },
+      "trace": "traces/mixed_holdout.csv"
+    },
+    "ml_embedding": {
+      "agreement": {
+        "ta(java)": 5e-05,
+        "ta(sim)": 0.0001,
+        "tree(raw)": 0.9971,
+        "tree+hyst": 0.997
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 1,
+          "s3a_random": 2,
+          "template_locality": 19995,
+          "template_multimodal": 2
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 2,
+          "s3a_random": 19996,
+          "template_multimodal": 2
+        },
+        "tree(raw)": {
+          "s3a_prefetch": 19942,
+          "s3a_random": 4,
+          "template_locality": 1,
+          "template_multimodal": 53
+        },
+        "tree+hyst": {
+          "s3a_prefetch": 19940,
+          "s3a_random": 4,
+          "template_locality": 3,
+          "template_multimodal": 53
+        }
+      },
+      "group": "in-sample",
+      "oracle": "s3a_prefetch",
+      "oracle_counts": {
+        "s3a_prefetch": 20000
+      },
+      "reads": 20000,
+      "ta_java_mistakes": {
+        "s3a_random": 2,
+        "template_locality": 19995,
+        "template_multimodal": 2
+      },
+      "trace": "traces/ml_emb_real.csv"
+    },
+    "ml_epoch_scan": {
+      "agreement": {
+        "ta(java)": 0.03490136570561457,
+        "ta(sim)": 0.0,
+        "tree(raw)": 0.9863429438543247,
+        "tree+hyst": 1.0
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 217,
+          "s3a_random": 8,
+          "template_locality": 23,
+          "template_multimodal": 411
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 224,
+          "s3a_random": 24,
+          "template_multimodal": 411
+        },
+        "tree(raw)": {
+          "s3a_random": 9,
+          "template_locality": 650
+        },
+        "tree+hyst": {
+          "template_locality": 659
+        }
+      },
+      "group": "in-sample",
+      "oracle": "template_locality",
+      "oracle_counts": {
+        "template_locality": 659
+      },
+      "reads": 659,
+      "ta_java_mistakes": {
+        "s3a_prefetch": 217,
+        "s3a_random": 8,
+        "template_multimodal": 411
+      },
+      "trace": "traces/ml_taxi_epoch.csv"
+    },
+    "ml_lastfm_emb": {
+      "agreement": {
+        "ta(java)": 5e-05,
+        "ta(sim)": 0.0001,
+        "tree(raw)": 0.9971,
+        "tree+hyst": 0.997
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 1,
+          "s3a_random": 9,
+          "template_locality": 19988,
+          "template_multimodal": 2
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 2,
+          "s3a_random": 19996,
+          "template_multimodal": 2
+        },
+        "tree(raw)": {
+          "s3a_prefetch": 19942,
+          "s3a_random": 4,
+          "template_locality": 1,
+          "template_multimodal": 53
+        },
+        "tree+hyst": {
+          "s3a_prefetch": 19940,
+          "s3a_random": 4,
+          "template_locality": 3,
+          "template_multimodal": 53
+        }
+      },
+      "group": "held-out",
+      "oracle": "s3a_prefetch",
+      "oracle_counts": {
+        "s3a_prefetch": 20000
+      },
+      "reads": 20000,
+      "ta_java_mistakes": {
+        "s3a_random": 9,
+        "template_locality": 19988,
+        "template_multimodal": 2
+      },
+      "trace": "traces/ml_lastfm_emb.csv"
+    },
+    "mm_all": {
+      "agreement": {
+        "ta(java)": 0.5245960502692998,
+        "ta(sim)": 0.8086175942549372,
+        "tree(raw)": 0.9615798922800718,
+        "tree+hyst": 0.9662477558348295
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 324,
+          "s3a_random": 8,
+          "template_locality": 992,
+          "template_multimodal": 1461
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 413,
+          "s3a_random": 120,
+          "template_multimodal": 2252
+        },
+        "tree(raw)": {
+          "s3a_prefetch": 6,
+          "s3a_random": 23,
+          "template_locality": 78,
+          "template_multimodal": 2678
+        },
+        "tree+hyst": {
+          "s3a_prefetch": 6,
+          "s3a_random": 20,
+          "template_locality": 68,
+          "template_multimodal": 2691
+        }
+      },
+      "group": "held-out",
+      "oracle": "template_multimodal",
+      "oracle_counts": {
+        "template_multimodal": 2785
+      },
+      "reads": 2785,
+      "ta_java_mistakes": {
+        "s3a_prefetch": 324,
+        "s3a_random": 8,
+        "template_locality": 992
+      },
+      "trace": "traces/mm_n2000/mm_all.csv"
+    },
+    "multimodal": {
+      "agreement": {
+        "ta(java)": 0.46742671009771986,
+        "ta(sim)": 0.9527687296416938,
+        "tree(raw)": 0.998371335504886,
+        "tree+hyst": 1.0
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 160,
+          "s3a_random": 9,
+          "template_locality": 485,
+          "template_multimodal": 574
+        },
+        "ta(sim)": {
+          "s3a_random": 58,
+          "template_multimodal": 1170
+        },
+        "tree(raw)": {
+          "s3a_random": 2,
+          "template_multimodal": 1226
+        },
+        "tree+hyst": {
+          "template_multimodal": 1228
+        }
+      },
+      "group": "in-sample",
+      "oracle": "template_multimodal",
+      "oracle_counts": {
+        "template_multimodal": 1228
+      },
+      "reads": 1228,
+      "ta_java_mistakes": {
+        "s3a_prefetch": 160,
+        "s3a_random": 9,
+        "template_locality": 485
+      },
+      "trace": "traces/mm_n2000/retrieval.csv"
+    },
+    "tpch": {
+      "agreement": {
+        "ta(java)": 0.0032955715756951597,
+        "ta(sim)": 0.013388259526261586,
+        "tree(raw)": 0.9981462409886714,
+        "tree+hyst": 0.9981462409886714
+      },
+      "chosen": {
+        "ta(java)": {
+          "s3a_prefetch": 968,
+          "s3a_random": 16,
+          "template_locality": 546,
+          "template_multimodal": 3325
+        },
+        "ta(sim)": {
+          "s3a_prefetch": 1465,
+          "s3a_random": 65,
+          "template_multimodal": 3325
+        },
+        "tree(raw)": {
+          "s3a_random": 4846,
+          "template_locality": 9
+        },
+        "tree+hyst": {
+          "s3a_random": 4846,
+          "template_locality": 9
+        }
+      },
+      "group": "in-sample",
+      "oracle": "s3a_random",
+      "oracle_counts": {
+        "s3a_random": 4855
+      },
+      "reads": 4855,
+      "ta_java_mistakes": {
+        "s3a_prefetch": 968,
+        "template_locality": 546,
+        "template_multimodal": 3325
+      },
+      "trace": "traces/tpch_sf1_full.csv"
+    }
+  },
+  "summary": {
+    "held-out": {
+      "macro": {
+        "ta(java)": 0.23833512446972202,
+        "ta(sim)": 0.32319502109828463,
+        "tree(raw)": 0.8260071651219282,
+        "tree+hyst": 0.8269921351901331
+      },
+      "micro": {
+        "ta(java)": 0.12395027624309392,
+        "ta(sim)": 0.13980662983425415,
+        "tree(raw)": 0.9311325966850829,
+        "tree+hyst": 0.931353591160221
+      },
+      "reads": 36200,
+      "traces": 4
+    },
+    "in-sample": {
+      "macro": {
+        "ta(java)": 0.2340622745631716,
+        "ta(sim)": 0.1615761648613259,
+        "tree(raw)": 0.994385086724647,
+        "tree+hyst": 0.9971493734981118
+      },
+      "micro": {
+        "ta(java)": 0.27850528902340355,
+        "ta(sim)": 0.019492972940577148,
+        "tree(raw)": 0.9947409427347098,
+        "tree+hyst": 0.9952953162925894
+      },
+      "reads": 66742,
+      "traces": 6
+    }
+  }
+}
