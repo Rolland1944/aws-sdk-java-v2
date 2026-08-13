@@ -1,0 +1,10 @@
+timestamp,label,mode,scope,prefix,reads,logicalBytes,remoteGets,remoteBytes,readAmp,cacheHitRate,policySwitches,fallbackReads,demandClampReads,ioLatencySumNanos,nsPerOp,p50Ns,p95Ns,p99Ns,prefetchGets,prefetchBytes,prefetchUsefulBytes,prefetchWastedBytes,prefetchCancelledBytes
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,all,,11189,2588051441,5965,2170498785,0.8387,0.4669,0,0,0,247866034857,22697588.9,19539600,93063841,125167702,0,0,0,0,0
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,prefix,taxi,659,1064016617,490,801511881,0.7533,0.2564,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,prefix,mm,2785,569189337,1705,452949817,0.7958,0.3878,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,prefix,emb_real,1216,969764,25,1759614,1.8145,0.9794,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,prefix,tpch,1309,295968743,605,122729226,0.4147,0.5378,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,prefix,fmnist,1216,6140828,951,63541325,10.3474,0.2179,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,prefix,sift,1216,3142849,756,49700021,15.8137,0.3783,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,prefix,clickbench,1572,646756165,1358,672823988,1.0403,0.1361,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-134347,e3_force_s3a_random_b256,forced_s3a_random,prefix,lastfm,1216,1867138,75,5482913,2.9365,0.9383,0,0,0,0,0.0,0,0,0,0,0,0,0,0

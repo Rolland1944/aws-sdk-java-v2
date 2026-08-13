@@ -1,0 +1,10 @@
+timestamp,label,mode,scope,prefix,reads,logicalBytes,remoteGets,remoteBytes,readAmp,cacheHitRate,policySwitches,fallbackReads,demandClampReads,ioLatencySumNanos,nsPerOp,p50Ns,p95Ns,p99Ns,prefetchGets,prefetchBytes,prefetchUsefulBytes,prefetchWastedBytes,prefetchCancelledBytes
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,all,,11189,2588051441,3244,13808154677,5.3353,0.7101,0,0,0,239784305699,21932488.8,10195,109657794,143112613,0,0,0,0,0
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,prefix,taxi,659,1064016617,370,1720876499,1.6173,0.4385,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,prefix,mm,2785,569189337,1142,4781938259,8.4013,0.5899,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,prefix,emb_real,1216,969764,1,946065,0.9756,0.9992,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,prefix,tpch,1309,295968743,105,406920293,1.3749,0.9198,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,prefix,fmnist,1216,6140828,48,190934373,31.0926,0.9605,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,prefix,sift,1216,3142849,232,961423220,305.9082,0.8092,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,prefix,clickbench,1572,646756165,1345,5741917009,8.8780,0.1444,0,0,0,0,0.0,0,0,0,0,0,0,0,0
+20260812-141226,e4_block_4096KiB,forced_s3a_prefetch,prefix,lastfm,1216,1867138,1,3198959,1.7133,0.9992,0,0,0,0,0.0,0,0,0,0,0,0,0,0

@@ -205,7 +205,11 @@ class AdaptiveReaderSystemBenchmark {
         assertThat(recs).as("trace records").isNotEmpty();
 
         cacheBudget = (long) (intProp("s3arr.cacheBudgetMiB", 64)) * 1024 * 1024;
-        prefetchBlockSize = (long) intProp("s3arr.prefetchBlockMiB", 1) * 1024 * 1024;
+        // Prefer KiB granularity when set (scout E4 needs sub-MiB blocks); else fall back to MiB.
+        int blockKiB = intProp("s3arr.prefetchBlockKiB", 0);
+        prefetchBlockSize = blockKiB > 0
+                            ? (long) blockKiB * 1024L
+                            : (long) intProp("s3arr.prefetchBlockMiB", 1) * 1024 * 1024;
         long requestedMaxFetch = (long) intProp("s3arr.maxFetchMiB", 0) * 1024 * 1024;
         maxFetch = requestedMaxFetch > 0 ? requestedMaxFetch : autoMaxFetch(recs);
         String label = System.getProperty("s3arr.label", "S2");
@@ -508,6 +512,17 @@ class AdaptiveReaderSystemBenchmark {
     }
 
     private static String prefixOf(String key) {
+        // When objects live under a bucket folder (e.g. mixed_holdout/tpch/...), strip that folder so
+        // per-prefix CSV rows and oracle labels still use the workload source (tpch/fmnist/...).
+        String strip = System.getProperty("s3arr.stripKeyPrefix", "");
+        if (strip != null && !strip.isEmpty()) {
+            if (!strip.endsWith("/")) {
+                strip = strip + "/";
+            }
+            if (key.startsWith(strip)) {
+                key = key.substring(strip.length());
+            }
+        }
         int slash = key.indexOf('/');
         return slash < 0 ? key : key.substring(0, slash);
     }

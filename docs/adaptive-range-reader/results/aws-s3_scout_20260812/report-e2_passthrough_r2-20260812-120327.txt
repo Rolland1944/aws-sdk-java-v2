@@ -1,0 +1,14 @@
+
+============= Adaptive Range Reader - Policy Sweep =============
+label=e2_passthrough_r2 selector=passthrough reads=11189 warmup=0 iters=1 apps=1 globalCache=64MiB maxFetch=8MiB prefetchBlock=1MiB prefetchDepth=1
+remote GETs=11189 remote MiB=2468.16 readAmp=1.0000 cacheHitRate=0.0000 demandClampReads=0
+per-prefix metrics:
+  taxi             reads=  659 remoteMiB=  1014.73 amp=1.0000 clamps=0
+  mm               reads= 2785 remoteMiB=   542.82 amp=1.0000 clamps=0
+  emb_real         reads= 1216 remoteMiB=     0.92 amp=1.0000 clamps=0
+  tpch             reads= 1309 remoteMiB=   282.26 amp=1.0000 clamps=0
+  fmnist           reads= 1216 remoteMiB=     5.86 amp=1.0000 clamps=0
+  sift             reads= 1216 remoteMiB=     3.00 amp=1.0000 clamps=0
+  clickbench       reads= 1572 remoteMiB=   616.79 amp=1.0000 clamps=0
+  lastfm           reads= 1216 remoteMiB=     1.78 amp=1.0000 clamps=0
+=================================================================

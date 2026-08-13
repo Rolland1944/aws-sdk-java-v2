@@ -64,6 +64,22 @@ final class MinioEnvironment {
         return bucket;
     }
 
+    URI endpoint() {
+        return endpoint;
+    }
+
+    Region region() {
+        return region;
+    }
+
+    StaticCredentialsProvider credentials() {
+        return credentials;
+    }
+
+    static S3Configuration s3ConfigurationPublic() {
+        return s3Configuration();
+    }
+
     S3Client syncClient() {
         return S3Client.builder()
                        .endpointOverride(endpoint)

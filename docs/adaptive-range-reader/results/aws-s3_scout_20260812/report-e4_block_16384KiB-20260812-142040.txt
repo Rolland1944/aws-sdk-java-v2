@@ -1,0 +1,14 @@
+
+============= Adaptive Range Reader - Policy Sweep =============
+label=e4_block_16384KiB selector=fixed:s3a_prefetch reads=11189 warmup=0 iters=1 apps=1 globalCache=256MiB maxFetch=36MiB prefetchBlock=16MiB prefetchDepth=0
+remote GETs=2655 remote MiB=41775.70 readAmp=16.9259 cacheHitRate=0.7627 demandClampReads=0
+per-prefix metrics:
+  taxi             reads=  659 remoteMiB=  1495.17 amp=1.4735 clamps=0
+  mm               reads= 2785 remoteMiB= 17652.94 amp=32.5207 clamps=0
+  emb_real         reads= 1216 remoteMiB=     0.90 amp=0.9756 clamps=0
+  tpch             reads= 1309 remoteMiB=   613.85 amp=2.1748 clamps=0
+  fmnist           reads= 1216 remoteMiB=   182.09 amp=31.0926 clamps=0
+  sift             reads= 1216 remoteMiB=  2892.24 amp=964.9624 clamps=0
+  clickbench       reads= 1572 remoteMiB= 18935.47 amp=30.6998 clamps=0
+  lastfm           reads= 1216 remoteMiB=     3.05 amp=1.7133 clamps=0
+=================================================================

@@ -1,0 +1,7 @@
+date=2026-08-12T14:20:42Z
+region=us-east-2
+bucket=home-haoyue
+trace=/home/ec2-user/aws-sdk-java-v2/traces/mixed_holdout_s3.csv
+git=1cd9d6949e8
+java=openjdk version "17.0.19" 2026-04-21 LTS
+e1_summary=/home/ec2-user/aws-sdk-java-v2/docs/adaptive-range-reader/results/aws-s3_scout_e1/e1_summary.json
