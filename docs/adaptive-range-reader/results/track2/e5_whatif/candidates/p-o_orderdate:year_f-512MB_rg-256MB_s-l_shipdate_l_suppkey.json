@@ -1,0 +1,24 @@
+{
+  "candidate_id": "p-o_orderdate:year_f-512MB_rg-256MB_s-l_shipdate_l_suppkey",
+  "actions": [
+    {
+      "canonical": "partition.spec",
+      "value": "o_orderdate:year"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 536870912
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 268435456
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_shipdate",
+        "l_suppkey"
+      ]
+    }
+  ]
+}

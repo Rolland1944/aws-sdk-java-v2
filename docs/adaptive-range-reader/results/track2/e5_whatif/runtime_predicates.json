@@ -1,0 +1,597 @@
+{
+  "collected_at": "2026-08-24T10:09:57.797561+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 3.1/3.2 -> 5.1",
+  "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs",
+  "n_eventlogs": 5,
+  "n_executions": 150,
+  "n_executions_with_scan": 110,
+  "weighting": "execution end_ms - start_ms from the event log",
+  "max_partition_ndv": 64,
+  "tables": {
+    "lineitem": {
+      "n_scans": 115,
+      "scan_seconds": 21833.7,
+      "columns": {
+        "l_shipdate": {
+          "range": {
+            "n_executions": 35,
+            "weight_s": 5839.2,
+            "ops": {
+              "le": 10,
+              "gt": 5,
+              "ge": 30,
+              "lt": 25
+            }
+          },
+          "equality": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {},
+            "literals": []
+          }
+        },
+        "l_discount": {
+          "range": {
+            "n_executions": 5,
+            "weight_s": 754.3,
+            "ops": {
+              "ge": 5,
+              "le": 5
+            }
+          },
+          "equality": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {},
+            "literals": []
+          }
+        },
+        "l_quantity": {
+          "range": {
+            "n_executions": 10,
+            "weight_s": 1482.0,
+            "ops": {
+              "lt": 5,
+              "ge": 15,
+              "le": 15
+            }
+          },
+          "equality": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {},
+            "literals": []
+          }
+        },
+        "l_returnflag": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 5,
+            "weight_s": 788.1,
+            "ops": {
+              "eq": 5
+            },
+            "literals": [
+              "R"
+            ]
+          }
+        },
+        "l_shipmode": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 10,
+            "weight_s": 1527.7,
+            "ops": {
+              "in": 10
+            },
+            "literals": [
+              "[MAIL,SHIP]",
+              "[AIR,AIR REG]"
+            ]
+          }
+        },
+        "l_receiptdate": {
+          "range": {
+            "n_executions": 5,
+            "weight_s": 800.1,
+            "ops": {
+              "ge": 5,
+              "lt": 5
+            }
+          },
+          "equality": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {},
+            "literals": []
+          }
+        },
+        "l_shipinstruct": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 5,
+            "weight_s": 727.7,
+            "ops": {
+              "eq": 5
+            },
+            "literals": [
+              "DELIVER IN PERSON"
+            ]
+          }
+        }
+      }
+    },
+    "part": {
+      "n_scans": 45,
+      "scan_seconds": 6387.1,
+      "columns": {
+        "p_size": {
+          "range": {
+            "n_executions": 5,
+            "weight_s": 727.7,
+            "ops": {
+              "ge": 5,
+              "le": 15
+            }
+          },
+          "equality": {
+            "n_executions": 10,
+            "weight_s": 369.6,
+            "ops": {
+              "eq": 5,
+              "in": 5
+            },
+            "literals": [
+              "15",
+              "[14,19,23,3,36,45,49,9]"
+            ]
+          }
+        },
+        "p_type": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 5,
+            "weight_s": 897.2,
+            "ops": {
+              "eq": 5
+            },
+            "literals": [
+              "ECONOMY ANODIZED STEEL"
+            ]
+          }
+        },
+        "p_name": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {},
+            "literals": []
+          }
+        },
+        "p_brand": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 10,
+            "weight_s": 1838.9,
+            "ops": {
+              "eq": 20
+            },
+            "literals": [
+              "Brand#23",
+              "Brand#12",
+              "Brand#34"
+            ]
+          }
+        },
+        "p_container": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 10,
+            "weight_s": 1838.9,
+            "ops": {
+              "eq": 5,
+              "in": 15
+            },
+            "literals": [
+              "MED BOX",
+              "[SM BOX,SM CASE,SM PACK,SM PKG]",
+              "[MED BAG,MED BOX,MED PACK,MED PKG]",
+              "[LG BOX,LG CASE,LG PACK,LG PKG]"
+            ]
+          }
+        }
+      }
+    },
+    "partsupp": {
+      "n_scans": 35,
+      "scan_seconds": 2924.8,
+      "columns": {}
+    },
+    "supplier": {
+      "n_scans": 60,
+      "scan_seconds": 8020.5,
+      "columns": {}
+    },
+    "nation": {
+      "n_scans": 85,
+      "scan_seconds": 13130.5,
+      "columns": {
+        "n_name": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 20,
+            "weight_s": 3330.8,
+            "ops": {
+              "eq": 70
+            },
+            "literals": [
+              "FRANCE",
+              "GERMANY",
+              "CANADA",
+              "SAUDI ARABIA"
+            ]
+          }
+        }
+      }
+    },
+    "region": {
+      "n_scans": 30,
+      "scan_seconds": 3656.5,
+      "columns": {
+        "r_name": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 15,
+            "weight_s": 1828.2,
+            "ops": {
+              "eq": 30
+            },
+            "literals": [
+              "EUROPE",
+              "ASIA",
+              "AMERICA"
+            ]
+          }
+        }
+      }
+    },
+    "customer": {
+      "n_scans": 45,
+      "scan_seconds": 5588.6,
+      "columns": {
+        "c_mktsegment": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 5,
+            "weight_s": 759.2,
+            "ops": {
+              "eq": 5
+            },
+            "literals": [
+              "BUILDING"
+            ]
+          }
+        },
+        "c_acctbal": {
+          "range": {
+            "n_executions": 5,
+            "weight_s": 195.7,
+            "ops": {
+              "gt": 5
+            }
+          },
+          "equality": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {},
+            "literals": []
+          }
+        }
+      }
+    },
+    "orders": {
+      "n_scans": 60,
+      "scan_seconds": 9330.2,
+      "columns": {
+        "o_orderdate": {
+          "range": {
+            "n_executions": 25,
+            "weight_s": 3732.5,
+            "ops": {
+              "lt": 20,
+              "ge": 20,
+              "le": 5
+            }
+          },
+          "equality": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {},
+            "literals": []
+          }
+        },
+        "o_orderstatus": {
+          "range": {
+            "n_executions": 0,
+            "weight_s": 0.0,
+            "ops": {}
+          },
+          "equality": {
+            "n_executions": 5,
+            "weight_s": 1478.8,
+            "ops": {
+              "eq": 5
+            },
+            "literals": [
+              "F"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "sort_keys": {
+    "lineitem": [
+      {
+        "columns": [
+          "l_shipdate"
+        ],
+        "weight_s": 5839.2,
+        "n_executions": 35,
+        "ops": {
+          "le": 10,
+          "gt": 5,
+          "ge": 30,
+          "lt": 25
+        },
+        "ndv": 2505
+      },
+      {
+        "columns": [
+          "l_quantity"
+        ],
+        "weight_s": 1482.0,
+        "n_executions": 10,
+        "ops": {
+          "lt": 5,
+          "ge": 15,
+          "le": 15
+        },
+        "ndv": 57
+      }
+    ],
+    "part": [
+      {
+        "columns": [
+          "p_size"
+        ],
+        "weight_s": 727.7,
+        "n_executions": 5,
+        "ops": {
+          "ge": 5,
+          "le": 15
+        },
+        "ndv": 45
+      }
+    ],
+    "customer": [
+      {
+        "columns": [
+          "c_acctbal"
+        ],
+        "weight_s": 195.7,
+        "n_executions": 5,
+        "ops": {
+          "gt": 5
+        },
+        "ndv": 1060470
+      }
+    ],
+    "orders": [
+      {
+        "columns": [
+          "o_orderdate"
+        ],
+        "weight_s": 3732.5,
+        "n_executions": 25,
+        "ops": {
+          "lt": 20,
+          "ge": 20,
+          "le": 5
+        },
+        "ndv": 2321
+      }
+    ]
+  },
+  "partition_keys": {
+    "lineitem": [
+      {
+        "column": "l_shipmode",
+        "weight_s": 1527.7,
+        "n_executions": 10,
+        "driver": "equality",
+        "ndv": 7,
+        "n_partitions": 7
+      },
+      {
+        "column": "l_quantity",
+        "weight_s": 1482.0,
+        "n_executions": 10,
+        "driver": "range",
+        "ndv": 57,
+        "n_partitions": 57
+      },
+      {
+        "column": "l_returnflag",
+        "weight_s": 788.1,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 3,
+        "n_partitions": 3
+      },
+      {
+        "column": "l_discount",
+        "weight_s": 754.3,
+        "n_executions": 5,
+        "driver": "range",
+        "ndv": 12,
+        "n_partitions": 12
+      },
+      {
+        "column": "l_shipinstruct",
+        "weight_s": 727.7,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 4,
+        "n_partitions": 4
+      },
+      {
+        "column": "l_shipdate",
+        "weight_s": 5839.2,
+        "n_executions": 35,
+        "driver": "range",
+        "ndv": 2505,
+        "rejected": "ndv 2505 > max 64"
+      },
+      {
+        "column": "l_receiptdate",
+        "weight_s": 800.1,
+        "n_executions": 5,
+        "driver": "range",
+        "ndv": 2505,
+        "rejected": "ndv 2505 > max 64"
+      }
+    ],
+    "part": [
+      {
+        "column": "p_brand",
+        "weight_s": 1838.9,
+        "n_executions": 10,
+        "driver": "equality",
+        "ndv": 29,
+        "n_partitions": 29
+      },
+      {
+        "column": "p_container",
+        "weight_s": 1838.9,
+        "n_executions": 10,
+        "driver": "equality",
+        "ndv": 37,
+        "n_partitions": 37
+      },
+      {
+        "column": "p_size",
+        "weight_s": 1097.3,
+        "n_executions": 10,
+        "driver": "range",
+        "ndv": 45,
+        "n_partitions": 45
+      },
+      {
+        "column": "p_type",
+        "weight_s": 897.2,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 141,
+        "rejected": "ndv 141 > max 64"
+      }
+    ],
+    "nation": [
+      {
+        "column": "n_name",
+        "weight_s": 3330.8,
+        "n_executions": 20,
+        "driver": "equality",
+        "ndv": 30,
+        "n_partitions": 30
+      }
+    ],
+    "region": [
+      {
+        "column": "r_name",
+        "weight_s": 1828.2,
+        "n_executions": 15,
+        "driver": "equality",
+        "ndv": 5,
+        "n_partitions": 5
+      }
+    ],
+    "customer": [
+      {
+        "column": "c_mktsegment",
+        "weight_s": 759.2,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 4,
+        "n_partitions": 4
+      },
+      {
+        "column": "c_acctbal",
+        "weight_s": 195.7,
+        "n_executions": 5,
+        "driver": "range",
+        "ndv": 1060470,
+        "rejected": "ndv 1060470 > max 64"
+      }
+    ],
+    "orders": [
+      {
+        "column": "o_orderstatus",
+        "weight_s": 1478.8,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 2,
+        "n_partitions": 2
+      },
+      {
+        "column": "o_orderdate",
+        "weight_s": 3732.5,
+        "n_executions": 25,
+        "driver": "range",
+        "ndv": 2321,
+        "rejected": "ndv 2321 > max 64"
+      }
+    ]
+  }
+}

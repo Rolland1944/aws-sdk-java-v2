@@ -684,6 +684,230 @@ record-level routing 与查询侧配合；Track 2 选择较低自由度、较低
 
 ## 9. 更新日志
 
+### 2026-08-24（其二）—— workload.py 拆解：几何、查询目录、动作空间全部改为实测；闸门 A 被实测证伪并改写
+
+**问题**：上一条把排序/分区键改成了运行时推导，但 `workload.py` 里还剩三类**性质完全不同**的东西混在一个文件里，全是手抄常量：
+
+| 内容 | 真实性质 | 手抄的后果 |
+|---|---|---|
+| `FILE_SIZE_GRID` / `RG_SIZE_GRID` | 动作空间 | 单位就写错了。成本模型在意的是**文件数**（并行度 + 每次 open 一个 RTT），"512 MB" 在 21 GiB 的 lineitem 上是 43 个文件、在 100 MB 的表上是 1 个文件，同一个网格在不同表上含义不同、在小表上无意义。L0 的下界 `n_files ≥ min(16, baseline)` 本来就是关于**计数**的约束，字节网格只能碰巧满足它然后被事后过滤掉 |
+| `BASELINE_GEOMETRY` / `COLUMN_ORDER` / `COLUMN_SHARE` / `SYNTHETIC_STATS` | 数据集快照 | 描述的是"某个目录此刻长什么样"，不是 workload。写死就意味着候选布局写出来之后无法对**它**重新估价 |
+| `QUERIES` | 查询目录 | 抄的是 SQL 文本说了什么，但 L1 要估价的是 **Spark 实际读了什么**，两者不等 |
+
+**改法**：拆成四个模块，`workload.py` / `clickbench_workload.py` 降级为 `hand_catalog_tpch.py` / `hand_catalog_clickbench.py`——只留 `QUERIES`，**冻结**，唯一用途是给 `workload_snapshot.py --compare` 做交叉验证。
+
+| 新模块 | 职责 | 数据来自 |
+|---|---|---|
+| `dataset_snapshot.py` | 布局几何 + 列事实 | 对象列表（文件数、压缩字节，精确）+ 抽样 footer（RG 数、RG 字节、列顺序、列字节占比、`rg_span`）+ `column_stats.json`（ndv/cdf） |
+| `workload_snapshot.py` | 每查询 `scans[]` | eventlog 的 `physicalPlanDescription` → `Scan parquet` 的 ReadSchema / PushedFilters / Location |
+| `adaptive_physical_options.py` | 物理动作空间 | 由实测几何在**计数空间**生成：`n_files ∈ {floor, 2·floor, 4·floor, …}` 上界取基线文件数，`floor = min(parallelism, baseline_files)`，最后才折成字节 |
+| `advisor_policy.py` | 闸门阈值 + 模型假设 | 手写，但明确标注为"决策"或"承认的近似"，与数据集无关 |
+| `advisor_catalog.py` | 把上面四个装配成模型读的那个对象 | — |
+
+查询号在 eventlog 里不存在，`workload_snapshot.py` 两条路解析：优先读 execution description 里的 `track2:q<N>`（`run_benchmark.py` 现在每条查询前 `setLocalProperty("callSite.short", ...)` 打这个标记，新跑的日志自描述）；归档日志退回**位置对齐**——查询串行执行，同一份日志里第 k 个带扫描的 execution 就是第 k 条查询，日志短的是被中断的那轮、只覆盖前缀。TPC-H 五份日志各 22 条、ClickBench 三份 43/43/25，对齐无歧义，且用手写目录逐条复核过。
+
+**发现的四个真实错误**（都不是重构引入的，是重构**暴露**的）：
+
+1. **`PushedFilters` 正则的括号 bug，和上一条修的逗号 bug 同源。** `PUSHED_RE = r"PushedFilters:\s*\[(.*?)\]"` 非贪婪匹配到第一个 `]`，而 `In(l_shipmode, [MAIL,SHIP])` 的第一个 `]` 在括号**内部**，于是整条谓词被截断、解析失败、静默丢弃。TPC-H Q12 和 Q19 的全部 IN 谓词就是这么消失的（谓词数 60 → 81）。`Location` 和 `ReadSchema` 是同一种写法，一并改成括号配对扫描。
+2. **`Not` 被展平时没有取反。** `Not(EqualTo(p_brand, Brand#45))` 被记成 `eq`，L1 于是认为 Q16 只读 1/ndv 的行，实际读 1−1/ndv——差 24 倍。排序键**排名**不受影响（这一列无论如何都值得关注），但选择率模型受影响，而新的 workload snapshot 正是喂给后者的。现按 De Morgan 下推到叶子。
+3. **手抄目录漏数了扫描。** 计划里 TPC-H 有 **95** 个 `Scan parquet`，手抄目录只有 76 个：Q2 的相关子查询会重扫 partsupp/supplier/nation/region，Q18 三扫 lineitem，Q22 两扫 customer。L1 一直在**低估**这些查询。手抄目录的谓词集合是运行时集合的**真子集**（`hand-only` 全空），即运行时目录不仅正确、而且更全。
+4. **`BASELINE_GEOMETRY` 的 lineitem 行组大小 247 MB 是抽样偏差。** 实测分布是三簇：1 / 161 / 236 MiB，平均 **1.5 个行组/文件**，不是抄进去的 2。原来的 `_layout_manifest.json` 抽了**前** 20 个文件，恰好都落在 236 MiB 那一簇。快照现在记录**均值**而非中位数，因为 L1 只以 `n_rg × rg_bytes = 总未压缩字节` 的形式消费它——两个中位数（按前 N 个文件抽 236 MiB、按均匀抽 161 MiB）都是合法的中位数，但都还原不出总量。
+
+**闸门 A 被实测证伪，已改写。** ClickBench `EventDate` 抄进 `SYNTHETIC_STATS` 的 `rg_span` 是 **0.5232**，恰好卡在阈值 0.5 上方；**实测是 0.358**。也就是说旧形式的闸门 A 会否决 `hits-baseline-eventdate`——**E8 实测 −51.3%** 的那个布局。这个数值只有在统计量从"抄"变成"测"之后才可能被发现。
+
+绝对阈值的形式本身也是错的：完美排序后每个行组约覆盖 `1/n_rg` 的值域（相异值不足时被 `1/ndv` 顶住），所以 0.358 在 165 个行组的表上叫"几乎没聚簇"，在 3 个行组的表上叫"已经完美"，绝对阈值把两者读成同一件事。现改为相对**可达跨度**的余量比：
+
+```
+achievable = max(1/n_rg, 1/ndv)
+拒绝条件：rg_span < achievable × --cluster-headroom-min   （默认 2.0，消融旋钮）
+```
+
+判定：TPC-H `l_shipdate` 300×（过）、`o_orderdate` 100×（过）、`l_orderkey` 1.29×（拒，dbgen 本来就按 orderkey 输出）、ClickBench `EventDate` 6.1×（过，与 −51.3% 一致）、`CounterID` 5.0×（过，但它只有等值谓词、根本进不了排序候选，且闸门 C 会拦）。**遗留近似**：`rg_span` 量的是值域，而排序均衡的是**行数**，所以 `achievable` 对偏斜列偏小、闸门对偏斜列偏松。
+
+**验证（离线，未重跑基准）**：
+
+| 数据集 | 自洽 GET 误差 | 自洽字节误差 | top-1 | 与归档对比 |
+|---|---|---|---|---|
+| TPC-H SF100（重构前） | 2.6% | 2.9% | `lineitem-shipdate` + `orders-orderdate`，2385.0 s | E8 实测 −37% |
+| TPC-H SF100（**重构后**，2160 点） | **6.2%** | **0.5%** | 上式 + `orders-32f` + `o_orderstatus` identity 分区，2374.8 s | 归档 top-1 落在**第 3 名**（2398.7 s，差 1.0%） |
+| ClickBench SF1（**重构后**，16 点） | —(E2 未记 IO) | — | **`hits-baseline-eventdate`** | **与归档/实测 top-1 完全一致** |
+
+字节误差从 2.9% 降到 **0.5%**（好 6 倍），这是几何与投影列表同时改为实测的直接结果。GET 误差**变差**（2.6% → 6.2%）：扫描节点从 76 涨到 95，每个都按 `META_GETS_PER_OPEN` 计了一次 open，而 Spark 在同一条查询内会复用部分 open。这是一个**具名的模型缺口**，不是抵消掉的误差——重构前 2.6% 的好看数字，部分来自"漏数扫描"与"高估行组数（400 vs 实际 300）"两个错误方向相反。
+
+TPC-H 的 top-1 变了，差距 1.0%，在模型分辨率以下，**不宣称是改进**。新 top-1（orders 32 文件 + `o_orderstatus` 两目录分区）是旧手写网格**表达不出来**的点：旧网格里 orders 的文件档只有 128/256/512 MB，512 MB 只剩 13 个文件、低于并行度下界被拒，而分区候选从来只在基线文件数上评估过。m2_gate 的判据（L1 top-3 含实测最优）仍然成立。
+
+**限制**：（1）位置对齐只对"查询串行、每条恰好一个带扫描的 execution"成立，AQE 或缓存改变这一点就会错位；新日志靠 `track2:q<N>` 标记，旧日志靠与手写目录交叉验证，两者都有，但这不是通用方案。（2）`rg_span` / 列字节占比来自抽样 footer（默认每表 8 个文件），lineitem 那种三簇分布下抽样噪声是真实存在的，不是随便加大 `--sample-files` 就能免费解决。（3）`hand_catalog_*.py` 保留是为了留证据，不是留退路：`analyze_layout` 已经**没有**手写网格 fallback，没有 eventlog 就直接报错——上一版那个 fallback 会让"advisor 选中了 `l_shipdate`"退化成"读回某人写进常量里的 `l_shipdate`"。
+
+### 2026-08-24 —— 排序/分区候选改由运行时谓词生成；派生变换分区记为负结果；CPU 残差改名
+
+**问题**：`sort_from_predicates` 只把实测中位数当标量权重用，谓词结构全部来自手抄的 `workload.QUERIES`；而且它的返回值没有任何消费者，真正的候选来自 `SORT_GRID` / `PER_TABLE_SORT` 两个手写常量。等于结论先写死、再用另一份手抄目录去"证实"。同时 `collect_semantic.py` 采集的 `pushed_filters` 只被 `correlate.py` 用于 E1 覆盖率记账，advisor 从未读过。
+
+**改法**：新增 `predicates_from_runtime.py`，把 eventlog 里的 `Scan parquet` 变成 `(表, 列, 算子, 字面量)` 目录，按该 execution 自身的 `end_ms − start_ms` 加权——不需要 query-id 映射，排名是运行时记录的纯函数。range 谓词给排序键，低 NDV 列给 identity 分区键（两者分开：2 值列拿不到它用不上的排序键）。`analyze_layout.py` 的 per-table 网格改为由 `large_tables()`（实测几何）× 运行时键笛卡尔积生成，`PER_TABLE_SORT` 降级为无 eventlog 时的 fallback。`clickbench_workload.generate_per_table_grid` 是第二份手写网格副本，已删除。
+
+顺带修了 `collect_semantic.py` 的括号 bug：`pushed_filters` 原先用 `split(",")`，把 `GreaterThanOrEqual(l_shipdate,1994-01-01)` 劈成两段，字面量全丢、还造出 `EqualTo(n_name` 这种假列名。现改为括号感知切分并递归展开 `And/Or/Not`、`In(col,[...])`。
+
+**验证（离线，未重跑基准）**：
+
+| 数据集 | 网格来源 | 闸门 | top-1 | 预测 | 实测 |
+|---|---|---|---|---|---|
+| TPC-H SF100 | 手写（fallback） | A/C/D | `lineitem-shipdate` + `orders-orderdate` | 2385.0 s | −37%（E8 n=5） |
+| TPC-H SF100 | **运行时**（1620 点） | A/C/D | **同一布局** | 2385.0 s | 同上，无需重测 |
+| ClickBench SF1 | 手写 | **全关** | **`CounterID`** | −402.5 s (−14.5%) | **+23.5% 回归** |
+| ClickBench SF1 | **运行时**（24 点） | A/C/D | `EventDate`（CounterID 未被提名） | −751.5 s (−27%) | **−51.3%（n=2）** |
+
+TPC-H 上运行时目录**独立复现**了手写的两个键：`l_shipdate` 5839.2 s（n=35，ge×30/gt×5/le×10/lt×25）、`o_orderdate` 3732.5 s（n=25），都是各自表的第一名。1620 点的运行时网格（含 identity 分区轴）选出的 top-1 与归档 E8 的 `cand_ptable_sort_sf100` **是同一个布局**，因此不必重写 SF100：那个点已实测 2019.2 s vs 基线 3205.0 s（−37%，CV 2.89%）。fallback 路径也逐位复现归档（180 候选、4 个合法点、regret 0%）。
+
+ClickBench 上 `CounterID` **只以等值谓词出现**（ndv=7526），根本进不了排序候选——加上闸门 A（`rg_span=0.080`），两条独立机制都会否掉那次回归。运行时网格给出的 −1.4% 同样是正确答案：基线已聚簇，本来就没得赚。
+
+**过程中修掉两个真实的几何建模错误**，都是在跑实验之前发现的——这正是把候选生成从手写网格换成运行时推导的副产品：手写网格只含被测过的点，模型错了也看不出来；一旦开始枚举没测过的点，错误立刻暴露。
+
+1. **`partitionBy` 的文件数是 `F × P`，不是 `F`。** 第一版记成 `n_parts × ceil(F / n_parts)`（≈ 不变），于是 `l_returnflag` / `o_orderstatus` 分区看起来能再省 85 s。但 `write_layout` 先按排序键 `repartitionByRange`、再 `partitionBy`，而 partitionBy 由**每个写出 task 各自执行**：排序键与分区键不相关，每个 task 都含全部分区值。lineitem 200 文件 × 3 个 returnflag = 600 个 36 MiB 文件，228 ms RTT 下多出的 open 远超剪枝收益。改正后两个数据集上都没有分区候选通过 §4.1——它们是**被代价否掉的，不是被闸门否掉的**。模型自洽性检查：分区列上有等值谓词时开 201 个文件（≈ 未分区的 200），无谓词时开 600 个。
+2. **排序键的 NDV 是文件数上界。** `repartitionByRange(F, key)` 产生的非空区间不可能多于 key 的相异值个数。实测：ClickBench `EventDate` 只有 17 个不同日期，请求 110 个文件、实际写出 **17 个 882 MiB 文件**。第一版模型按 110 个文件估价，预测 −1.4%；按真实的 17 个文件估价是 **−27%**（每次全表扫描少开 93 个文件，43 条查询累积 GET 从 44880 降到 28357）。候选现在携带 `sort_ndv`，由运行时目录从 column stats 填入。
+
+**ClickBench E8 实测（`e8_sf1_eventdate_s3`，S3 跨云，n=2）**：
+
+| | 基线 E2 | EventDate | |
+|---|---|---|---|
+| 两轮 | 1826.0 / 2720.7 s | 1112.9 / 1103.3 s | |
+| 中位 | 2273.3 s | **1108.1 s** | **−51.3%** |
+| CV | —（两轮相差 49%） | **0.62%** | |
+| 变慢的查询 | — | **1 / 43**（Q40 +9.0%） | |
+
+即使拿基线**较快**的那一轮（1826 s）比，仍是 −39.3%，结论不依赖取哪一轮。先前在 `CounterID` 排序下整体回归的 Q37–43 组现在普遍变快（Q38 −18.0%、Q41 −19.3%、Q43 −17.0%）。canary（Q1/7/24/43）先行验证可读性通过，Q24 那条 105 列 `SELECT *` 从 336.8 s → 171.5 s（−49.1%），确认收益主要来自全表扫描少开文件。合同 n=5 未做，**不能报成过门禁**；基线 n=2 且方差大（CV 无意义），这个数字是方向性的，不是门禁结论。
+
+**遗留风险**：L0 的可读性闸门只检查**请求的** `parquet.block.size`，而 EventDate 布局没有请求 RG 动作、RG 是全局排序压出来的副产品——实测 footer 中位 335 MiB / 最大 399 MiB（基线 192 / 391 MiB）。M2 canary 曾在中位约 473 MiB 时触发 parquet vectored 300 s 写死超时。这次 399 MiB 读下来了，但闸门确实看不见「排序导致文件变少变大、RG 随之变大」这条路径，属于运气而非设计。应把预测 RG 大小（由 `n_rg` 与 `sort_ndv` 推出）纳入闸门。
+
+**分区（负结果）**：`PARTITION_GRID` 里的 `l_shipdate:year` / `:month` / `o_orderdate:year` 在 bare Parquet 上**可证明惰性**。`write_layout` 把它们渲染成 `l_shipdate_year` 派生列加 `partitionBy`，而 Spark 按**分区列名**匹配谓词；TPC-H 查询写的是 `l_shipdate >= DATE '1995-01-01'`，从不提 `l_shipdate_year`，于是零目录被裁、文件数反而上升——比不分区更差。E5 早就预测它们为负收益，但原因一直没写下来。要让变换生效必须由引擎改写谓词（hidden partitioning，即 Iceberg），不是改 writer 配置能解决的，故移除并记为负结果。替代品是运行时低 NDV 列的 **identity 分区**（`write_layout` 本就原生支持 `transform == "identity"`，无需改 writer）。
+
+**L0 闸门 D**（`--max-partitions` 默认 64，`--min-partition-bytes` 默认 128 MiB）：派生变换直接拒；identity 分区超过目录数上限或每目录字节低于下限则拒。实测判定：`l_shipdate:year` 拒（派生列）、`l_shipdate` identity 拒（2505 目录 / 每目录 9 MiB）、`l_quantity`(57) 过、`l_returnflag`(3) 过。`virtual_footer` 相应区分两者：identity 分区按目录裁剪（range 谓词同样能裁，这正是派生变换做不到的），与排序前缀同列时用 `min()` 而非相乘。
+
+**改名**：`CPU 残差` → `execution_residual`（`calibrate_execution_residual` / `residual_base` / `t_exec_residual_s` / `join_agg_residual_scale`）。它不是 CPU 模型，是 `实测中位数 − 预测 I/O` 的标定残差，解压解码、聚合、shuffle、调度、JVM/GC **以及 I/O 项自身的误差**全被它吸收，再按扫描行数线性外推；线性外推对 shuffle/join 阶段和每查询固定开销都是错的。改名后 E5 逐位不变（自洽 2.6%/2.9% PASS，top-1 2385.0 s，regret 0%）。归档结果 JSON 保留旧键 `t_cpu_s` 不动。
+
+### 2026-08-21 —— L0 增加排序闸门 A（基线聚簇度）与闸门 C（剪枝后并行度）
+
+ClickBench SF1 按 `CounterID` 重排后整体变慢（S3 +23.5%）：基线 `hits.parquet` 已是 ClickHouse 主键序，`CounterID` 的 `rg_span=0.080`，剪枝空间几乎为零；等值谓词 `CounterID=62` 把存活文件从 3 压到 1，16 槽只剩 1 个 task。TPC-H 相反：`l_shipdate` `rg_span=0.999`，日期范围排序是从零造出剪枝。
+
+L0 增加两条可关的硬闸门（不做闸门 B：带排序键谓词的时间占比与聚簇度同一信号）：
+
+- **Gate A** `--cluster-span-min`（默认 **0.5**）：排序前缀的基线 `rg_span = avg(rg.max−rg.min)/(global.max−global.min)` 低于阈值则拒。CounterID 0.080 拒；`l_shipdate` 0.999 / `o_orderdate` 1.000 过。阈值留给后续消融。
+  > **后续已证伪（2026-08-24 其二）**：这个绝对阈值形式是错的，且它当时的标定依据 —— ClickBench `EventDate` 的 `rg_span` —— 是手抄的 0.5232，实测为 0.358。旧形式会否决 E8 实测 −51.3% 的那个布局。现改为相对可达跨度的余量比 `--cluster-headroom-min`，详见更新日志。
+- **Gate C** `--prune-parallelism-floor`（默认 **4**）：剪枝后存活 RG **且** 存活文件都低于门槛则拒。`K_eff` 仍参与 L1 代价（软排名），但 1–2 个 task 的串行化不再只靠代价折扣。默认不是 16：TPC-H Q4/Q10 三个月窗口在 orders 上大约 5 个文件，E8 `o_orderdate` 是实测赢家。TFS 的「大表文件数 ≥ min(16, 基线)」门槛未改。
+
+`rg_span` 从 Parquet footer min/max 收集（`parse_footer.py --clustering`；`column_stats.py` 顺带写入）。SYNTHETIC_STATS 带了 SF100 / ClickBench SF1 的实测值。未重跑 E8。
+
+### 2026-08-19 —— E8 复测：按表 sort、文件数保持基线
+
+对推荐布局 `li-baseline-shipdate_o-baseline-odate_ps-baseline` 按 E2 口径跑 22×5 cold-cache。写出 `s3a://home-haoyue/track2/cand_ptable_sort_sf100`：lineitem 200 文件 + `l_shipdate` 全局 sort，orders 100 文件 + `o_orderdate`，其余表 Spark 默认（文件数与 E2 相同）。`write_layout` 在无 TFS 的 sort 上钉死基线文件数，避免 shuffle.partitions 把 orders 写成 200 文件。归档：`results/track2/e8_ptable_sort/`。
+
+**对照上一版 E8（全局 1GB + shipdate）**：稳定性明显更好，端到端略快，单查询 guardrail 仍未过。
+
+| | E2 基线 | E8 1GB（旧） | E8 按表 sort（本轮） |
+|---|---|---|---|
+| 五轮 wall-clock / s | — | 4304, 2374, 2128, 1958, 1932 | **1985, 2011, 2019, 2137, 2056** |
+| median / s | 3205 | 2128（−33.6%） | **2019（−37.0%）** |
+| CV | 1.99% | **39.5% FAIL** | **2.89% PASS** |
+| Q11 | 45.8 | 54.2（+18%） | **45.0（−2%）** |
+| Q18 | 170.2 | 205.4（+21%） | 225.5（**+32% FAIL**） |
+| Q22 | 39.6 | 33.3 | 45.7（**+16% FAIL**） |
+| 合同门禁 | — | FAIL | FAIL（Q18/Q22） |
+
+五轮全部 `error: null`。墙钟 CV 从 39.5% 降到 2.89%，达到 E2 同级稳定性；run-1 不再出现 Q9/Q18/Q21 的 500–600 s 离群。Q11 回归消失（维表文件数未合并）。Q18 仍慢：两次全表 lineitem 扫描，`l_shipdate` sort 不裁剪，且比 1GB 布局的 Q18 median 更差（225 vs 205），只是不再有 552 s 尖峰。Q22 扫 orders 无日期谓词，`o_orderdate` 排序没有帮助。P95/P99 未回归。合同禁止为过门禁丢掉回归查询。
+
+L1 曾预测 −25.7% 且 Q18 持平；实测 −37%（sort 裁剪比模型更强），但 Q18/Q22 是模型没抓住的无谓词扫描代价。未改合同门槛。E12 仍预留。
+
+### 2026-08-19 —— 按表 file size / sort（默认搜索空间）
+
+全局 TFS 网格在 L0+§4.1 下只剩 baseline。本轮把动作做成**按表**：lineitem / orders / partsupp 各自选 file size 与 sort，小表保持 Spark 默认。不是 8 表全笛卡尔积：lineitem 5×2、orders 3×2、partsupp 3×1 → **180 点**。非法 file size（orders/partsupp 的 512MB/1GB）不进网格。
+
+`actions[]` 增加可选 `table` 字段（合同 3.3 `scope.table`）。`write_layout.render(actions, table=)` 写出时按表覆盖；`virtual_footer.layout_for` 估价时按表解析。旧的全局网格仍可用 `--grid global`。
+
+**搜索（L0 ∧ §4.1 vs 基线 L1）**：180 点 L0 全过，§4.1 拒 176，合法 4。最优 `li-baseline-shipdate_o-baseline-odate_ps-baseline`，预测 2385 s（−25.7%），max regression 0%。迭代分解命中同一点。合法集里**没有任何改 file size 的点**——改文件数仍会触发 Q11/Q13 一类回归。收益来自按表排序：lineitem `l_shipdate`、orders `o_orderdate`；partsupp 不动。Q11/Q18 预测 0%。Q06 −85%、Q14 −84%、Q12 −63% 仍是 sort 裁剪。
+
+写出候选：`e5_whatif/recommended_per_table.json`。未重写 S3，未重跑 E8。若复测，应只对 lineitem / orders 做全局 sort，文件数保持 E2 基线。
+
+### 2026-08-19 —— L0 并行度下界 + L1 无谓词 join/agg + §4.1 剪枝
+
+E8 的 Q11/Q18 回归来自**全局** `target-file-size=1GB`：对 lineitem（22 GB → 22 文件）合适，把 orders 100→7、partsupp 50→5，低于 `local[16]`。顾问过拟合了 fact 表。每张表是独立的 Parquet 文件，**可以**有不同的 file size 与排序；当前网格仍是全局旋钮，本轮不爆炸搜索空间。
+
+**L0**：压缩量 ≥ 2 GiB 的表（lineitem / orders / partsupp）要求 `n_files ≥ min(16, 基线文件数)`。全局 512 MB / 1 GB 非法。GET/GiB 自洽门禁未变：2.6% / 2.9% PASS。
+
+**L1**：`K_eff = min(K_busy, n_files_opened, 16)`；无谓词多表扫描把 `t_exec_residual` 再乘 `(n_files_base / n_files)^0.5`（不是 join 基数模型）。基线大表文件数 > K，validate 公式与旧的 `/K_busy` 一致。
+
+**搜索**：目标与合同 §4.1 对齐——可行性剪枝，不是加速。候选相对**同一套 L1 的基线预测**逐查询回归 ≤ 10%（标定后等于 E2 median）。321 点中 L0 拒 160，§4.1 再拒 160，**合法集只剩 baseline**。L0 合法但不看 guardrail 的最优是 `p-none_f-256MB_rg-128MB_s-l_shipdate`（2965 s，−7.7%），max regression 41%，11 条查询越线。RTT 扫到的两边都是 baseline。
+
+这不是搜坏了：网格最细的全局 file size 已是 128 MB，而 orders 基线约 65 MB（100 文件）、partsupp 约 88 MB（50 文件）。全局 TFS 无法在合并 lineitem 的同时保住维表并行度。下一步应是**按表**的 file size / sort，而不是把全局网格加密。未重写 S3，未重跑 E8。
+
+### 2026-08-18 —— 阶段 F / E8 开始：按 E2 口径复测 L1 推荐布局
+
+在同一腾讯云客户端上对 `p-none_f-1GB_rg-128MB_s-l_shipdate`（`s3a://home-haoyue/track2/cand_rg128_sf100`）跑 22 查询 × 5 次 cold-cache，对照 E2 median 3205 s。`spark.task.maxFailures=4` 仅为跨云断流重试，不是布局旋钮。E12 仍预留。归档：`results/track2/e8_acceptance/`。
+
+**五轮已完成，E8 门禁 FAIL。** 22×5 全部 `error: null`。end-to-end **median 2128 s vs E2 3205 s（−33.6%）**，≥10% 这一条过了。但 CV **39.5%**（run 1 = 4304 s 离群，Q9/Q18/Q21 单次 500–600 s；后四轮 2374/2128/1958/1932 s），且 Q11（+18%）、Q18（+21%）单查询 median 回归超过 10%。P95/P99 未回归。见 `e8_gate.json`。合同禁止丢掉最慢一轮来过门禁。
+
+### 2026-08-17 —— 阶段 E：What-if L0/L1 落地（E5 自洽门禁 PASS）
+
+实现 DB2 Design Advisor 的 recommend/evaluate 纪律：`analyze_layout.py` 生成 321 点 PTO 网格；`whatif.py` 用 virtual footer 估价，不物化。
+
+**自洽门禁**：L1 对基线预测 62391 GET / 153.68 GiB，对照 E2 64032 / 149.32，误差 2.6% / 2.9%（≤10% PASS）。`t_io` 2418 s，实测 median 3211 s，差额作逐查询 `t_exec_residual`（旧名「CPU 残差」）。
+
+**系统常数**（`sysconst.json`）：RTT 228.5 ms，BW 226 MiB/s，`K_busy` 6.77。并发不是 local[16]：vectored 上限 4，busy 区间里大量是 HEAD+footer；见 `concurrency.json`。
+
+**穷举（可读 RG 约束之后）**：257 个 L0 合法点（64 个因 requested RG=256 MiB 被拒）。最优 `p-none_f-1GB_rg-128MB_s-l_shipdate`，预测 2403 s（相对基线 −25%）。DB2 式迭代分解命中同一点，regret 0%。`partitionBy` 与过小 RG 在本 regime 下增加请求数，预测为负收益。
+
+**256 MiB RG 为何被拒**：M2 第一只 canary（`p-none_f-1GB_rg-256MB_s-l_shipdate`，`s3a://home-haoyue/track2/cand_best_sf100`）压缩 10 查询 5/10 失败。parquet-hadoop 1.16 把 vectored wait 写死为 300 s（`HADOOP_VECTORED_READ_TIMEOUT_SECONDS`，无配置项）。写出的 RG 未压缩中位数约 473 MiB，vectored range 35–182 MiB 超时或 HTTP body 提前关闭。这不是 Reader 冻结旋钮，故 L0 增加「requested RG ≤ 128 MiB」（E2 已证明可读）。证据：`e5_whatif/m2_canary_unreadable.json`。
+
+**RTT 敏感性**：25 ms 与 228 ms 的 top-1 相同（该点同时减少请求和字节，仿射代价无法翻转）。Spearman 0.97，最大名次移动 40。这是负结果，照实记录。
+
+**经验相关列**（`l_receiptdate`~`l_shipdate`）：关掉后同一 top-1，预测只差 ~72 s。暂留，等 M2 实测再决定是否删除。
+
+**E12**：已预留，不阻塞 M2。见 `results/track2/e12_reserved.json`。缺席则论文不得声称 D-8 / 同区 EC2。
+
+**M2 门禁 PASS**（压缩负载 X=60%，10 查询）：L1 最优 `p-none_f-1GB_rg-128MB_s-l_shipdate`。n=1 曾报 1978.7 s（−1.1%），Q18/Q21 被跨云抖动抬高。n=5 cold-cache 后，逐查询 median 之和 **1310.4 s vs 基线 2000.5 s（−34.5%）**，run-sum median 1395.5 s，CV 5.26%（略超 E2 的 5% 墙钟 CV，`run_benchmark` 因此 exit 1；排序门禁仍 PASS，top-3 命中，regret 0%）。见 `e5_whatif/m2_cand_rg128_n5/` 与 `m2_gate.json`。
+
+逐查询 median（对照 E2）：Q15 30 vs 231、Q12 43 vs 160、Q7 66 vs 165 仍是 sort 裁剪；Q18 205 vs 170、Q21 240 vs 296，n=1 里那两次 400+s 不是稳态。E8 仍要 22×5。
+
+lineitem 写出：22 文件，RG 未压缩中位数 236 MiB（与 E2 的 247 MiB 同量级），offset index 在。`write_layout.py` 默认 `local[16]` / 32g，否则本机 32 核 `local[*]` 会在全局 sort 时 OOM。
+
+### 2026-08-17 —— 合同 r4：E2 客户端 regime 偏离，预留同区门禁实验 E12
+
+已归档 E2 跑在腾讯云 VM 跨云访问 `us-east-2`（RTT ≈ 228 ms），不是合同 D-8 的同区 `m5d.4xlarge`。
+What-if 把 `(RTT, BW, K)` 做成模型输入，**不替代**「测过的机器 ≠ 合同写的机器」。
+
+**改了什么**：`TRACK2_M0_CONTRACT.md` r4。D-8 目标环境不改。§1.2 增加偏离说明；§7 增加预留 **E12（同区门禁复核）**；§9 增加 O-7。
+
+**为什么**：参数化只解决模型；对外数字若声称同区 EC2，必须有同区实测。当前 3205 s 仍是 M2 工作基线。
+
+**尚未做**：E12 本身。安排在 M4 之后、论文数字冻结前：同区重跑 E2 基线与 E8 验收。缺席则论文不得写成 D-8。
+
+阶段 E 的 What-if 架构按计划推进；E12 不阻塞 M2。
+
+### 2026-08-14 —— 阶段 D 完成：E2 基线门禁 PASS（CV 1.99%）
+
+合同 E2（`TRACK2_M0_CONTRACT.md` §7 / §4.2）：Spark/parquet-mr 默认布局、SF100、22 查询 × 5 次 cold-cache。
+**CV = 1.99% < 5%，22×5 全部 `error: null`，门禁通过。**
+
+归档根目录：`docs/adaptive-range-reader/results/track2/e2_baseline/`
+（`report.json`、`per_query.csv`、`_layout_manifest.json`、`env_metadata.json`、`io/` 342 MiB、`eventlogs/` 5 个 Spark 4 `eventlog_v2`）。
+
+| 项 | 值 |
+| --- | --- |
+| 布局 | `s3a://home-haoyue/track2/baseline_sf100`，空 action = `df.write.parquet(...)` |
+| end-to-end 五次 / s | 3288.7, 3188.2, **3205.0（median）**, 3228.3, 3112.9 |
+| mean / stdev / CV | 3204.6 s / 63.9 s / **1.99%** |
+| 每 run IO（差分） | ≈ 64032 ranged GET、149.3 GiB |
+| 最慢 / 最快查询 median | Q21 295.7 s / Q16 29.4 s |
+| Q6 median | 151.1 s（与冒烟 156.6 s 同量级） |
+| 冷缓存 | 每 run 新 JVM；无 sudo，`drop_caches` 未执行 |
+
+**基线写出**（同日，约 43 min）：八张表 `--verify` 全部 `offset_index_present: true`，bloom 关。不再用 DuckDB 源当 E2 基线。
+
+**库默认（不是我们的旋钮）**：Spark 4.1 planned write 把 lineitem 写成 **200 文件**，RG 未压缩中位数约 247 MiB；nation / region 为 13 / 5 个百字节级小文件。S3A 走 `FileOutputCommitter` copy-rename（发行版无 `spark-hadoop-cloud`）。
+
+**第一次全量被 `/tmp` ENOSPC 打断**（Q8 shuffle spill）。已把 `spark.local.dir` 指到 `/data/home/haoyueli/track2-scratch` 后重跑；这不是查询方言问题，也不改 Reader 冻结项。作废日志：`/data/home/haoyueli/track2-data/logs/e2_baseline.log.enospc`。
+
+**`report.json` 的 `io` 字段是累加的**：五次 run 写进同一个 NDJSON，后一次包含前一次。每 run 应用相邻两次之差。墙钟数字不受影响。
+
+阶段 E（`analyze_layout.py` / `whatif.py`）未开始。
+
 ### 2026-08-07（r3）—— 跨引擎 Writer 可移植性定为备选项，动作改用引擎中立规范名
 
 **触发**：实际应用中 Writer 未必是 Spark，也可能是 Flink 或 Trino，是否需要增加这种扩展能力。

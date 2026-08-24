@@ -1,0 +1,87 @@
+{
+  "candidate_id": "lineitem-256MB-discount_orders-256MB-orderdate-porderstatus_partsupp-baseline-none",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 268435456,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_discount"
+      ],
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 268435456,
+      "table": "orders"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "orders"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "o_orderdate"
+      ],
+      "table": "orders"
+    },
+    {
+      "canonical": "partition.spec",
+      "value": "o_orderstatus",
+      "table": "orders"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "256MB",
+      "file_bytes": 268435456,
+      "sort_label": "discount",
+      "sort_columns": [
+        "l_discount"
+      ],
+      "sort_ndv": 12,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    },
+    "orders": {
+      "file_label": "256MB",
+      "file_bytes": 268435456,
+      "sort_label": "orderdate",
+      "sort_columns": [
+        "o_orderdate"
+      ],
+      "sort_ndv": 2321,
+      "partition_label": "orderstatus",
+      "partition": "o_orderstatus",
+      "partition_n": 2,
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    },
+    "partsupp": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "baseline",
+      "rg_bytes": null
+    }
+  }
+}

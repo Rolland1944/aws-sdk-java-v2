@@ -1,0 +1,125 @@
+{
+  "gate": "L1 self-consistency vs E2 baseline",
+  "predicted_gets": 62391,
+  "actual_gets": 64032,
+  "gets_rel_error": 0.0256,
+  "predicted_gib": 153.68,
+  "actual_gib": 149.32,
+  "gib_rel_error": 0.0292,
+  "tolerance": 0.1,
+  "pass": true,
+  "t_io_s": 2417.656,
+  "measured_median_s": 3211.324,
+  "per_query": {
+    "1": {
+      "gets": 2800,
+      "t_io_s": 104.585,
+      "measured_s": 183.59
+    },
+    "2": {
+      "gets": 696,
+      "t_io_s": 28.736,
+      "measured_s": 42.029
+    },
+    "3": {
+      "gets": 3302,
+      "t_io_s": 127.436,
+      "measured_s": 156.704
+    },
+    "4": {
+      "gets": 2700,
+      "t_io_s": 104.37,
+      "measured_s": 116.112
+    },
+    "5": {
+      "gets": 3382,
+      "t_io_s": 132.07,
+      "measured_s": 133.381
+    },
+    "6": {
+      "gets": 2400,
+      "t_io_s": 90.751,
+      "measured_s": 151.056
+    },
+    "7": {
+      "gets": 3657,
+      "t_io_s": 141.325,
+      "measured_s": 165.065
+    },
+    "8": {
+      "gets": 3884,
+      "t_io_s": 151.713,
+      "measured_s": 188.391
+    },
+    "9": {
+      "gets": 4407,
+      "t_io_s": 171.594,
+      "measured_s": 222.821
+    },
+    "10": {
+      "gets": 3352,
+      "t_io_s": 129.087,
+      "measured_s": 161.434
+    },
+    "11": {
+      "gets": 555,
+      "t_io_s": 23.571,
+      "measured_s": 45.817
+    },
+    "12": {
+      "gets": 3400,
+      "t_io_s": 128.28,
+      "measured_s": 159.917
+    },
+    "13": {
+      "gets": 785,
+      "t_io_s": 31.89,
+      "measured_s": 71.543
+    },
+    "14": {
+      "gets": 2502,
+      "t_io_s": 96.613,
+      "measured_s": 120.58
+    },
+    "15": {
+      "gets": 2505,
+      "t_io_s": 96.396,
+      "measured_s": 231.289
+    },
+    "16": {
+      "gets": 526,
+      "t_io_s": 21.807,
+      "measured_s": 29.361
+    },
+    "17": {
+      "gets": 3719,
+      "t_io_s": 146.303,
+      "measured_s": 222.032
+    },
+    "18": {
+      "gets": 4102,
+      "t_io_s": 159.615,
+      "measured_s": 170.233
+    },
+    "19": {
+      "gets": 2936,
+      "t_io_s": 111.32,
+      "measured_s": 144.876
+    },
+    "20": {
+      "gets": 3007,
+      "t_io_s": 117.969,
+      "measured_s": 159.812
+    },
+    "21": {
+      "gets": 7155,
+      "t_io_s": 276.643,
+      "measured_s": 295.709
+    },
+    "22": {
+      "gets": 619,
+      "t_io_s": 25.58,
+      "measured_s": 39.572
+    }
+  }
+}

@@ -1,0 +1,232 @@
+WARNING: Using incubator modules: jdk.incubator.vector
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+26/08/20 11:57:52 WARN Utils: Your hostname, VM-82-107-tencentos, resolves to a loopback address: 127.0.0.1; using 21.214.82.107 instead (on interface eth1)
+26/08/20 11:57:52 WARN Utils: Set SPARK_LOCAL_IP if you need to bind to another address
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+26/08/20 11:57:52 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+26/08/20 11:57:52 WARN SparkConf: Note that spark.local.dir will be overridden by the value set by the cluster manager (via SPARK_LOCAL_DIRS in standalone/kubernetes and LOCAL_DIRS in YARN).
+# clickbench scale-up  copies=1  src=/data/home/haoyueli/hitmap_test/data/raw/clickbench/hits.parquet
+# dest /data/home/haoyueli/track2-data/clickbench_sf1/hits
+# source schema (105 cols):
+root
+ |-- WatchID: long (nullable = true)
+ |-- JavaEnable: short (nullable = true)
+ |-- Title: string (nullable = true)
+ |-- GoodEvent: short (nullable = true)
+ |-- EventTime: long (nullable = true)
+ |-- EventDate: integer (nullable = true)
+ |-- CounterID: integer (nullable = true)
+ |-- ClientIP: integer (nullable = true)
+ |-- RegionID: integer (nullable = true)
+ |-- UserID: long (nullable = true)
+ |-- CounterClass: short (nullable = true)
+ |-- OS: short (nullable = true)
+ |-- UserAgent: short (nullable = true)
+ |-- URL: string (nullable = true)
+ |-- Referer: string (nullable = true)
+ |-- IsRefresh: short (nullable = true)
+ |-- RefererCategoryID: short (nullable = true)
+ |-- RefererRegionID: integer (nullable = true)
+ |-- URLCategoryID: short (nullable = true)
+ |-- URLRegionID: integer (nullable = true)
+ |-- ResolutionWidth: short (nullable = true)
+ |-- ResolutionHeight: short (nullable = true)
+ |-- ResolutionDepth: short (nullable = true)
+ |-- FlashMajor: short (nullable = true)
+ |-- FlashMinor: short (nullable = true)
+ |-- FlashMinor2: string (nullable = true)
+ |-- NetMajor: short (nullable = true)
+ |-- NetMinor: short (nullable = true)
+ |-- UserAgentMajor: short (nullable = true)
+ |-- UserAgentMinor: string (nullable = true)
+ |-- CookieEnable: short (nullable = true)
+ |-- JavascriptEnable: short (nullable = true)
+ |-- IsMobile: short (nullable = true)
+ |-- MobilePhone: short (nullable = true)
+ |-- MobilePhoneModel: string (nullable = true)
+ |-- Params: string (nullable = true)
+ |-- IPNetworkID: integer (nullable = true)
+ |-- TraficSourceID: short (nullable = true)
+ |-- SearchEngineID: short (nullable = true)
+ |-- SearchPhrase: string (nullable = true)
+ |-- AdvEngineID: short (nullable = true)
+ |-- IsArtifical: short (nullable = true)
+ |-- WindowClientWidth: short (nullable = true)
+ |-- WindowClientHeight: short (nullable = true)
+ |-- ClientTimeZone: short (nullable = true)
+ |-- ClientEventTime: long (nullable = true)
+ |-- SilverlightVersion1: short (nullable = true)
+ |-- SilverlightVersion2: short (nullable = true)
+ |-- SilverlightVersion3: integer (nullable = true)
+ |-- SilverlightVersion4: short (nullable = true)
+ |-- PageCharset: string (nullable = true)
+ |-- CodeVersion: integer (nullable = true)
+ |-- IsLink: short (nullable = true)
+ |-- IsDownload: short (nullable = true)
+ |-- IsNotBounce: short (nullable = true)
+ |-- FUniqID: long (nullable = true)
+ |-- OriginalURL: string (nullable = true)
+ |-- HID: integer (nullable = true)
+ |-- IsOldCounter: short (nullable = true)
+ |-- IsEvent: short (nullable = true)
+ |-- IsParameter: short (nullable = true)
+ |-- DontCountHits: short (nullable = true)
+ |-- WithHash: short (nullable = true)
+ |-- HitColor: string (nullable = true)
+ |-- LocalEventTime: long (nullable = true)
+ |-- Age: short (nullable = true)
+ |-- Sex: short (nullable = true)
+ |-- Income: short (nullable = true)
+ |-- Interests: short (nullable = true)
+ |-- Robotness: short (nullable = true)
+ |-- RemoteIP: integer (nullable = true)
+ |-- WindowName: integer (nullable = true)
+ |-- OpenerName: integer (nullable = true)
+ |-- HistoryLength: short (nullable = true)
+ |-- BrowserLanguage: string (nullable = true)
+ |-- BrowserCountry: string (nullable = true)
+ |-- SocialNetwork: string (nullable = true)
+ |-- SocialAction: string (nullable = true)
+ |-- HTTPError: short (nullable = true)
+ |-- SendTiming: integer (nullable = true)
+ |-- DNSTiming: integer (nullable = true)
+ |-- ConnectTiming: integer (nullable = true)
+ |-- ResponseStartTiming: integer (nullable = true)
+ |-- ResponseEndTiming: integer (nullable = true)
+ |-- FetchTiming: integer (nullable = true)
+ |-- SocialSourceNetworkID: short (nullable = true)
+ |-- SocialSourcePage: string (nullable = true)
+ |-- ParamPrice: long (nullable = true)
+ |-- ParamOrderID: string (nullable = true)
+ |-- ParamCurrency: string (nullable = true)
+ |-- ParamCurrencyID: short (nullable = true)
+ |-- OpenstatServiceName: string (nullable = true)
+ |-- OpenstatCampaignID: string (nullable = true)
+ |-- OpenstatAdID: string (nullable = true)
+ |-- OpenstatSourceID: string (nullable = true)
+ |-- UTMSource: string (nullable = true)
+ |-- UTMMedium: string (nullable = true)
+ |-- UTMCampaign: string (nullable = true)
+ |-- UTMContent: string (nullable = true)
+ |-- UTMTerm: string (nullable = true)
+ |-- FromTag: string (nullable = true)
+ |-- HasGCLID: short (nullable = true)
+ |-- RefererHash: long (nullable = true)
+ |-- URLHash: long (nullable = true)
+ |-- CLID: integer (nullable = true)
+
+# after EventDate/EventTime promotion:
+root
+ |-- WatchID: long (nullable = true)
+ |-- JavaEnable: short (nullable = true)
+ |-- Title: string (nullable = true)
+ |-- GoodEvent: short (nullable = true)
+ |-- EventTime: timestamp (nullable = true)
+ |-- EventDate: date (nullable = true)
+ |-- CounterID: integer (nullable = true)
+ |-- ClientIP: integer (nullable = true)
+ |-- RegionID: integer (nullable = true)
+ |-- UserID: long (nullable = true)
+ |-- CounterClass: short (nullable = true)
+ |-- OS: short (nullable = true)
+ |-- UserAgent: short (nullable = true)
+ |-- URL: string (nullable = true)
+ |-- Referer: string (nullable = true)
+ |-- IsRefresh: short (nullable = true)
+ |-- RefererCategoryID: short (nullable = true)
+ |-- RefererRegionID: integer (nullable = true)
+ |-- URLCategoryID: short (nullable = true)
+ |-- URLRegionID: integer (nullable = true)
+ |-- ResolutionWidth: short (nullable = true)
+ |-- ResolutionHeight: short (nullable = true)
+ |-- ResolutionDepth: short (nullable = true)
+ |-- FlashMajor: short (nullable = true)
+ |-- FlashMinor: short (nullable = true)
+ |-- FlashMinor2: string (nullable = true)
+ |-- NetMajor: short (nullable = true)
+ |-- NetMinor: short (nullable = true)
+ |-- UserAgentMajor: short (nullable = true)
+ |-- UserAgentMinor: string (nullable = true)
+ |-- CookieEnable: short (nullable = true)
+ |-- JavascriptEnable: short (nullable = true)
+ |-- IsMobile: short (nullable = true)
+ |-- MobilePhone: short (nullable = true)
+ |-- MobilePhoneModel: string (nullable = true)
+ |-- Params: string (nullable = true)
+ |-- IPNetworkID: integer (nullable = true)
+ |-- TraficSourceID: short (nullable = true)
+ |-- SearchEngineID: short (nullable = true)
+ |-- SearchPhrase: string (nullable = true)
+ |-- AdvEngineID: short (nullable = true)
+ |-- IsArtifical: short (nullable = true)
+ |-- WindowClientWidth: short (nullable = true)
+ |-- WindowClientHeight: short (nullable = true)
+ |-- ClientTimeZone: short (nullable = true)
+ |-- ClientEventTime: long (nullable = true)
+ |-- SilverlightVersion1: short (nullable = true)
+ |-- SilverlightVersion2: short (nullable = true)
+ |-- SilverlightVersion3: integer (nullable = true)
+ |-- SilverlightVersion4: short (nullable = true)
+ |-- PageCharset: string (nullable = true)
+ |-- CodeVersion: integer (nullable = true)
+ |-- IsLink: short (nullable = true)
+ |-- IsDownload: short (nullable = true)
+ |-- IsNotBounce: short (nullable = true)
+ |-- FUniqID: long (nullable = true)
+ |-- OriginalURL: string (nullable = true)
+ |-- HID: integer (nullable = true)
+ |-- IsOldCounter: short (nullable = true)
+ |-- IsEvent: short (nullable = true)
+ |-- IsParameter: short (nullable = true)
+ |-- DontCountHits: short (nullable = true)
+ |-- WithHash: short (nullable = true)
+ |-- HitColor: string (nullable = true)
+ |-- LocalEventTime: long (nullable = true)
+ |-- Age: short (nullable = true)
+ |-- Sex: short (nullable = true)
+ |-- Income: short (nullable = true)
+ |-- Interests: short (nullable = true)
+ |-- Robotness: short (nullable = true)
+ |-- RemoteIP: integer (nullable = true)
+ |-- WindowName: integer (nullable = true)
+ |-- OpenerName: integer (nullable = true)
+ |-- HistoryLength: short (nullable = true)
+ |-- BrowserLanguage: string (nullable = true)
+ |-- BrowserCountry: string (nullable = true)
+ |-- SocialNetwork: string (nullable = true)
+ |-- SocialAction: string (nullable = true)
+ |-- HTTPError: short (nullable = true)
+ |-- SendTiming: integer (nullable = true)
+ |-- DNSTiming: integer (nullable = true)
+ |-- ConnectTiming: integer (nullable = true)
+ |-- ResponseStartTiming: integer (nullable = true)
+ |-- ResponseEndTiming: integer (nullable = true)
+ |-- FetchTiming: integer (nullable = true)
+ |-- SocialSourceNetworkID: short (nullable = true)
+ |-- SocialSourcePage: string (nullable = true)
+ |-- ParamPrice: long (nullable = true)
+ |-- ParamOrderID: string (nullable = true)
+ |-- ParamCurrency: string (nullable = true)
+ |-- ParamCurrencyID: short (nullable = true)
+ |-- OpenstatServiceName: string (nullable = true)
+ |-- OpenstatCampaignID: string (nullable = true)
+ |-- OpenstatAdID: string (nullable = true)
+ |-- OpenstatSourceID: string (nullable = true)
+ |-- UTMSource: string (nullable = true)
+ |-- UTMMedium: string (nullable = true)
+ |-- UTMCampaign: string (nullable = true)
+ |-- UTMContent: string (nullable = true)
+ |-- UTMTerm: string (nullable = true)
+ |-- FromTag: string (nullable = true)
+ |-- HasGCLID: short (nullable = true)
+ |-- RefererHash: long (nullable = true)
+ |-- URLHash: long (nullable = true)
+ |-- CLID: integer (nullable = true)
+
+26/08/20 11:57:57 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+[Stage 2:>                                                       (0 + 16) / 111][Stage 2:>                                                       (1 + 16) / 111][Stage 2:=>                                                      (2 + 16) / 111][Stage 2:==>                                                     (4 + 16) / 111][Stage 2:==>                                                     (5 + 16) / 111][Stage 2:===>                                                    (6 + 16) / 111][Stage 2:===>                                                    (7 + 16) / 111][Stage 2:====>                                                   (8 + 16) / 111][Stage 2:====>                                                   (9 + 16) / 111][Stage 2:====>                                                  (10 + 16) / 111][Stage 2:=====>                                                 (11 + 16) / 111][Stage 2:=====>                                                 (12 + 16) / 111][Stage 2:======>                                                (13 + 16) / 111][Stage 2:======>                                                (14 + 16) / 111][Stage 2:=======>                                               (15 + 16) / 111][Stage 2:=======>                                               (16 + 16) / 111][Stage 2:========>                                              (17 + 16) / 111][Stage 2:========>                                              (18 + 16) / 111][Stage 2:=========>                                             (19 + 16) / 111][Stage 2:=========>                                             (20 + 16) / 111][Stage 2:==========>                                            (21 + 16) / 111][Stage 2:==========>                                            (22 + 16) / 111][Stage 2:===========>                                           (23 + 16) / 111][Stage 2:===========>                                           (24 + 16) / 111][Stage 2:============>                                          (25 + 16) / 111][Stage 2:============>                                          (26 + 16) / 111][Stage 2:=============>                                         (27 + 16) / 111][Stage 2:=============>                                         (28 + 16) / 111][Stage 2:==============>                                        (29 + 16) / 111][Stage 2:==============>                                        (30 + 16) / 111][Stage 2:===============>                                       (31 + 16) / 111][Stage 2:===============>                                       (32 + 16) / 111][Stage 2:================>                                      (33 + 16) / 111][Stage 2:================>                                      (34 + 16) / 111][Stage 2:=================>                                     (35 + 16) / 111][Stage 2:=================>                                     (36 + 16) / 111][Stage 2:==================>                                    (37 + 16) / 111][Stage 2:==================>                                    (38 + 16) / 111][Stage 2:===================>                                   (39 + 16) / 111][Stage 2:===================>                                   (40 + 16) / 111][Stage 2:====================>                                  (41 + 16) / 111][Stage 2:====================>                                  (42 + 16) / 111][Stage 2:=====================>                                 (43 + 16) / 111][Stage 2:=====================>                                 (44 + 16) / 111][Stage 2:======================>                                (45 + 16) / 111][Stage 2:======================>                                (46 + 16) / 111][Stage 2:=======================>                               (47 + 16) / 111][Stage 2:=======================>                               (48 + 16) / 111][Stage 2:========================>                              (49 + 16) / 111][Stage 2:========================>                              (50 + 16) / 111][Stage 2:=========================>                             (51 + 16) / 111][Stage 2:=========================>                             (52 + 16) / 111][Stage 2:==========================>                            (53 + 16) / 111][Stage 2:==========================>                            (54 + 16) / 111][Stage 2:===========================>                           (55 + 16) / 111][Stage 2:===========================>                           (56 + 16) / 111][Stage 2:============================>                          (57 + 16) / 111][Stage 2:============================>                          (58 + 16) / 111][Stage 2:=============================>                         (59 + 16) / 111][Stage 2:=============================>                         (60 + 16) / 111][Stage 2:==============================>                        (61 + 16) / 111][Stage 2:==============================>                        (62 + 16) / 111][Stage 2:===============================>                       (63 + 16) / 111][Stage 2:===============================>                       (64 + 16) / 111][Stage 2:================================>                      (65 + 16) / 111][Stage 2:================================>                      (66 + 16) / 111][Stage 2:=================================>                     (67 + 16) / 111][Stage 2:=================================>                     (68 + 16) / 111][Stage 2:==================================>                    (69 + 16) / 111][Stage 2:==================================>                    (70 + 16) / 111][Stage 2:===================================>                   (71 + 16) / 111][Stage 2:===================================>                   (72 + 16) / 111][Stage 2:====================================>                  (73 + 16) / 111][Stage 2:====================================>                  (74 + 16) / 111][Stage 2:=====================================>                 (75 + 16) / 111][Stage 2:=====================================>                 (76 + 16) / 111][Stage 2:======================================>                (77 + 16) / 111][Stage 2:======================================>                (78 + 16) / 111][Stage 2:=======================================>               (79 + 16) / 111][Stage 2:=======================================>               (79 + 17) / 111][Stage 2:=======================================>               (80 + 16) / 111][Stage 2:========================================>              (81 + 16) / 111][Stage 2:========================================>              (82 + 16) / 111][Stage 2:=========================================>             (83 + 16) / 111][Stage 2:=========================================>             (84 + 16) / 111][Stage 2:==========================================>            (85 + 16) / 111][Stage 2:==========================================>            (86 + 16) / 111][Stage 2:===========================================>           (88 + 16) / 111][Stage 2:============================================>          (89 + 16) / 111][Stage 2:============================================>          (90 + 16) / 111][Stage 2:=============================================>         (91 + 16) / 111][Stage 2:=============================================>         (92 + 16) / 111][Stage 2:==============================================>        (93 + 16) / 111][Stage 2:==============================================>        (94 + 16) / 111][Stage 2:===============================================>       (95 + 16) / 111][Stage 2:===============================================>       (96 + 15) / 111][Stage 2:================================================>      (97 + 14) / 111][Stage 2:================================================>      (98 + 13) / 111][Stage 2:=================================================>     (99 + 12) / 111][Stage 2:================================================>     (100 + 11) / 111][Stage 2:===================================================>   (103 + 8) / 111][Stage 2:===================================================>   (104 + 7) / 111][Stage 2:====================================================>  (105 + 6) / 111][Stage 2:====================================================>  (106 + 5) / 111][Stage 2:=====================================================> (107 + 4) / 111][Stage 2:=====================================================> (108 + 3) / 111][Stage 2:======================================================>(109 + 2) / 111][Stage 2:======================================================>(110 + 1) / 111]                                                                                  copy 0/0  +0d  172.7s
+# verify {'status': 'pass', 'files': 110, 'files_sampled': 20, 'row_groups_sampled': 32, 'row_group_bytes_min': 6935571, 'row_group_bytes_median': 263367593, 'row_group_bytes_max': 387076681, 'offset_index_present': True, 'bloom_filter_present': False}
+
+manifest: /data/home/haoyueli/aws-sdk-java-v2/docs/adaptive-range-reader/results/track2/clickbench/_manifest_sf1.json

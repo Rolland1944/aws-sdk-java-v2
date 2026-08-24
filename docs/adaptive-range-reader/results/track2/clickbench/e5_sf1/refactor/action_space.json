@@ -1,0 +1,74 @@
+{
+  "provenance": {
+    "dataset": "clickbench",
+    "layout": "s3a://home-haoyue/track2/clickbench_sf1",
+    "geometry_source": "object listing + sampled parquet footers",
+    "column_stats_source": "docs/adaptive-range-reader/results/track2/clickbench/column_stats_sf1.json",
+    "geometry_collected_at": "2026-08-24T10:12:37.391477+00:00",
+    "eventlog": "docs/adaptive-range-reader/results/track2/clickbench/e2_sf1_s3/eventlogs",
+    "query_id_source": "positional",
+    "workload_collected_at": "2026-08-24T10:12:38.670991+00:00",
+    "n_queries": 43,
+    "n_tables": 1,
+    "parallelism": 16,
+    "large_table_bytes": 2147483648
+  },
+  "physical": {
+    "hits": {
+      "baseline_files": 110,
+      "baseline_rg_per_file": 1.5,
+      "compressed_gib": 13.999,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 110
+        },
+        {
+          "label": "16f",
+          "target_file_bytes": 939470938,
+          "n_files": 17
+        },
+        {
+          "label": "32f",
+          "target_file_bytes": 469735469,
+          "n_files": 33
+        },
+        {
+          "label": "64f",
+          "target_file_bytes": 234867734,
+          "n_files": 65
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        },
+        {
+          "label": "4rg",
+          "rg_bytes": 82291187,
+          "rg_mib": 78.5
+        },
+        {
+          "label": "8rg",
+          "rg_bytes": 41145593,
+          "rg_mib": 39.2
+        }
+      ]
+    }
+  },
+  "sort_and_partition": {
+    "hits": {
+      "sort": [
+        "none",
+        "eventdate"
+      ],
+      "partition": [
+        "none",
+        "eventdate"
+      ]
+    }
+  }
+}

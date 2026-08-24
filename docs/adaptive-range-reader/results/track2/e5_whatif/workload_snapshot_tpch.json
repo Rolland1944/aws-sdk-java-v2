@@ -1,0 +1,1838 @@
+{
+  "collected_at": "2026-08-24T10:00:21.421998+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 3.1/3.2 -> 5.1",
+  "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs",
+  "n_eventlogs": 5,
+  "query_id_source": "positional",
+  "runs": [
+    {
+      "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs/eventlog_v2_local-1786699289490/events_1_local-1786699289490.zstd",
+      "n_executions_with_scan": 22
+    },
+    {
+      "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs/eventlog_v2_local-1786702604798/events_1_local-1786702604798.zstd",
+      "n_executions_with_scan": 22
+    },
+    {
+      "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs/eventlog_v2_local-1786705813830/events_1_local-1786705813830.zstd",
+      "n_executions_with_scan": 22
+    },
+    {
+      "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs/eventlog_v2_local-1786709040720/events_1_local-1786709040720.zstd",
+      "n_executions_with_scan": 22
+    },
+    {
+      "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs/eventlog_v2_local-1786712291309/events_1_local-1786712291309.zstd",
+      "n_executions_with_scan": 22
+    }
+  ],
+  "n_queries": 22,
+  "n_scans": 95,
+  "n_predicates": 81,
+  "tables": [
+    "customer",
+    "lineitem",
+    "nation",
+    "orders",
+    "part",
+    "partsupp",
+    "region",
+    "supplier"
+  ],
+  "disagreements": [],
+  "measured_median_s": {
+    "1": 183.59,
+    "2": 42.029,
+    "3": 156.704,
+    "4": 116.112,
+    "5": 133.381,
+    "6": 151.056,
+    "7": 165.065,
+    "8": 188.391,
+    "9": 222.821,
+    "10": 161.434,
+    "11": 45.817,
+    "12": 159.917,
+    "13": 71.543,
+    "14": 120.58,
+    "15": 231.289,
+    "16": 29.361,
+    "17": 222.032,
+    "18": 170.233,
+    "19": 144.876,
+    "20": 159.812,
+    "21": 295.709,
+    "22": 39.572
+  },
+  "queries": {
+    "1": [
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_quantity",
+          "l_extendedprice",
+          "l_discount",
+          "l_tax",
+          "l_returnflag",
+          "l_linestatus",
+          "l_shipdate"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipdate",
+            "op": "le",
+            "value": "1998-09-02"
+          }
+        ]
+      }
+    ],
+    "2": [
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_mfgr",
+          "p_type",
+          "p_size"
+        ],
+        "predicates": [
+          {
+            "column": "p_size",
+            "op": "eq",
+            "value": "15"
+          },
+          {
+            "column": "p_type",
+            "op": "endswith",
+            "value": "BRASS"
+          }
+        ]
+      },
+      {
+        "table": "partsupp",
+        "columns": [
+          "ps_partkey",
+          "ps_suppkey",
+          "ps_supplycost"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "partsupp",
+        "columns": [
+          "ps_partkey",
+          "ps_suppkey",
+          "ps_supplycost"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_regionkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "region",
+        "columns": [
+          "r_regionkey",
+          "r_name"
+        ],
+        "predicates": [
+          {
+            "column": "r_name",
+            "op": "eq",
+            "value": "EUROPE"
+          }
+        ]
+      },
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_name",
+          "s_address",
+          "s_nationkey",
+          "s_phone",
+          "s_acctbal",
+          "s_comment"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name",
+          "n_regionkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "region",
+        "columns": [
+          "r_regionkey",
+          "r_name"
+        ],
+        "predicates": [
+          {
+            "column": "r_name",
+            "op": "eq",
+            "value": "EUROPE"
+          }
+        ]
+      }
+    ],
+    "3": [
+      {
+        "table": "customer",
+        "columns": [
+          "c_custkey",
+          "c_mktsegment"
+        ],
+        "predicates": [
+          {
+            "column": "c_mktsegment",
+            "op": "eq",
+            "value": "BUILDING"
+          }
+        ]
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_custkey",
+          "o_orderdate",
+          "o_shippriority"
+        ],
+        "predicates": [
+          {
+            "column": "o_orderdate",
+            "op": "lt",
+            "value": "1995-03-15"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_extendedprice",
+          "l_discount",
+          "l_shipdate"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipdate",
+            "op": "gt",
+            "value": "1995-03-15"
+          }
+        ]
+      }
+    ],
+    "4": [
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_orderdate",
+          "o_orderpriority"
+        ],
+        "predicates": [
+          {
+            "column": "o_orderdate",
+            "op": "ge",
+            "value": "1993-07-01"
+          },
+          {
+            "column": "o_orderdate",
+            "op": "lt",
+            "value": "1993-10-01"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_commitdate",
+          "l_receiptdate"
+        ],
+        "predicates": []
+      }
+    ],
+    "5": [
+      {
+        "table": "customer",
+        "columns": [
+          "c_custkey",
+          "c_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_custkey",
+          "o_orderdate"
+        ],
+        "predicates": [
+          {
+            "column": "o_orderdate",
+            "op": "ge",
+            "value": "1994-01-01"
+          },
+          {
+            "column": "o_orderdate",
+            "op": "lt",
+            "value": "1995-01-01"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_suppkey",
+          "l_extendedprice",
+          "l_discount"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name",
+          "n_regionkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "region",
+        "columns": [
+          "r_regionkey",
+          "r_name"
+        ],
+        "predicates": [
+          {
+            "column": "r_name",
+            "op": "eq",
+            "value": "ASIA"
+          }
+        ]
+      },
+      {
+        "table": "region",
+        "columns": [
+          "r_regionkey",
+          "r_name"
+        ],
+        "predicates": [
+          {
+            "column": "r_name",
+            "op": "eq",
+            "value": "ASIA"
+          }
+        ]
+      }
+    ],
+    "6": [
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_quantity",
+          "l_extendedprice",
+          "l_discount",
+          "l_shipdate"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipdate",
+            "op": "ge",
+            "value": "1994-01-01"
+          },
+          {
+            "column": "l_shipdate",
+            "op": "lt",
+            "value": "1995-01-01"
+          },
+          {
+            "column": "l_discount",
+            "op": "ge",
+            "value": "0.05"
+          },
+          {
+            "column": "l_discount",
+            "op": "le",
+            "value": "0.07"
+          },
+          {
+            "column": "l_quantity",
+            "op": "lt",
+            "value": "24.00"
+          }
+        ]
+      }
+    ],
+    "7": [
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_suppkey",
+          "l_extendedprice",
+          "l_discount",
+          "l_shipdate"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipdate",
+            "op": "ge",
+            "value": "1995-01-01"
+          },
+          {
+            "column": "l_shipdate",
+            "op": "le",
+            "value": "1996-12-31"
+          }
+        ]
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_custkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "customer",
+        "columns": [
+          "c_custkey",
+          "c_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "FRANCE"
+          },
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "GERMANY"
+          }
+        ]
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "GERMANY"
+          },
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "FRANCE"
+          }
+        ]
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "FRANCE"
+          },
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "GERMANY"
+          }
+        ]
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "FRANCE"
+          },
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "GERMANY"
+          }
+        ]
+      }
+    ],
+    "8": [
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_type"
+        ],
+        "predicates": [
+          {
+            "column": "p_type",
+            "op": "eq",
+            "value": "ECONOMY ANODIZED STEEL"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_partkey",
+          "l_suppkey",
+          "l_extendedprice",
+          "l_discount"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_custkey",
+          "o_orderdate"
+        ],
+        "predicates": [
+          {
+            "column": "o_orderdate",
+            "op": "ge",
+            "value": "1995-01-01"
+          },
+          {
+            "column": "o_orderdate",
+            "op": "le",
+            "value": "1996-12-31"
+          }
+        ]
+      },
+      {
+        "table": "customer",
+        "columns": [
+          "c_custkey",
+          "c_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_regionkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "region",
+        "columns": [
+          "r_regionkey",
+          "r_name"
+        ],
+        "predicates": [
+          {
+            "column": "r_name",
+            "op": "eq",
+            "value": "AMERICA"
+          }
+        ]
+      },
+      {
+        "table": "region",
+        "columns": [
+          "r_regionkey",
+          "r_name"
+        ],
+        "predicates": [
+          {
+            "column": "r_name",
+            "op": "eq",
+            "value": "AMERICA"
+          }
+        ]
+      }
+    ],
+    "9": [
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_name"
+        ],
+        "predicates": [
+          {
+            "column": "p_name",
+            "op": "contains",
+            "value": "green"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_partkey",
+          "l_suppkey",
+          "l_quantity",
+          "l_extendedprice",
+          "l_discount"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "partsupp",
+        "columns": [
+          "ps_partkey",
+          "ps_suppkey",
+          "ps_supplycost"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_orderdate"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": []
+      }
+    ],
+    "10": [
+      {
+        "table": "customer",
+        "columns": [
+          "c_custkey",
+          "c_name",
+          "c_address",
+          "c_nationkey",
+          "c_phone",
+          "c_acctbal",
+          "c_comment"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_custkey",
+          "o_orderdate"
+        ],
+        "predicates": [
+          {
+            "column": "o_orderdate",
+            "op": "ge",
+            "value": "1993-10-01"
+          },
+          {
+            "column": "o_orderdate",
+            "op": "lt",
+            "value": "1994-01-01"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_extendedprice",
+          "l_discount",
+          "l_returnflag"
+        ],
+        "predicates": [
+          {
+            "column": "l_returnflag",
+            "op": "eq",
+            "value": "R"
+          }
+        ]
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": []
+      }
+    ],
+    "11": [
+      {
+        "table": "partsupp",
+        "columns": [
+          "ps_partkey",
+          "ps_suppkey",
+          "ps_availqty",
+          "ps_supplycost"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "GERMANY"
+          }
+        ]
+      },
+      {
+        "table": "partsupp",
+        "columns": [
+          "ps_suppkey",
+          "ps_availqty",
+          "ps_supplycost"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "GERMANY"
+          }
+        ]
+      }
+    ],
+    "12": [
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_orderpriority"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_shipdate",
+          "l_commitdate",
+          "l_receiptdate",
+          "l_shipmode"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipmode",
+            "op": "in",
+            "value": [
+              "MAIL",
+              "SHIP"
+            ]
+          },
+          {
+            "column": "l_receiptdate",
+            "op": "ge",
+            "value": "1994-01-01"
+          },
+          {
+            "column": "l_receiptdate",
+            "op": "lt",
+            "value": "1995-01-01"
+          }
+        ]
+      }
+    ],
+    "13": [
+      {
+        "table": "customer",
+        "columns": [
+          "c_custkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_custkey",
+          "o_comment"
+        ],
+        "predicates": []
+      }
+    ],
+    "14": [
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_partkey",
+          "l_extendedprice",
+          "l_discount",
+          "l_shipdate"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipdate",
+            "op": "ge",
+            "value": "1995-09-01"
+          },
+          {
+            "column": "l_shipdate",
+            "op": "lt",
+            "value": "1995-10-01"
+          }
+        ]
+      },
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_type"
+        ],
+        "predicates": []
+      }
+    ],
+    "15": [
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_name",
+          "s_address",
+          "s_phone"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_suppkey",
+          "l_extendedprice",
+          "l_discount",
+          "l_shipdate"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipdate",
+            "op": "ge",
+            "value": "1996-01-01"
+          },
+          {
+            "column": "l_shipdate",
+            "op": "lt",
+            "value": "1996-04-01"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_suppkey",
+          "l_extendedprice",
+          "l_discount",
+          "l_shipdate"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipdate",
+            "op": "ge",
+            "value": "1996-01-01"
+          },
+          {
+            "column": "l_shipdate",
+            "op": "lt",
+            "value": "1996-04-01"
+          }
+        ]
+      }
+    ],
+    "16": [
+      {
+        "table": "partsupp",
+        "columns": [
+          "ps_partkey",
+          "ps_suppkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_comment"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_brand",
+          "p_type",
+          "p_size"
+        ],
+        "predicates": [
+          {
+            "column": "p_brand",
+            "op": "ne",
+            "value": "Brand#45"
+          },
+          {
+            "column": "p_size",
+            "op": "in",
+            "value": [
+              "14",
+              "19",
+              "23",
+              "3",
+              "36",
+              "45",
+              "49",
+              "9"
+            ]
+          }
+        ]
+      }
+    ],
+    "17": [
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_partkey",
+          "l_quantity",
+          "l_extendedprice"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_brand",
+          "p_container"
+        ],
+        "predicates": [
+          {
+            "column": "p_brand",
+            "op": "eq",
+            "value": "Brand#23"
+          },
+          {
+            "column": "p_container",
+            "op": "eq",
+            "value": "MED BOX"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_partkey",
+          "l_quantity"
+        ],
+        "predicates": []
+      }
+    ],
+    "18": [
+      {
+        "table": "customer",
+        "columns": [
+          "c_custkey",
+          "c_name"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_custkey",
+          "o_totalprice",
+          "o_orderdate"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_quantity"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_quantity"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_quantity"
+        ],
+        "predicates": []
+      }
+    ],
+    "19": [
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_partkey",
+          "l_quantity",
+          "l_extendedprice",
+          "l_discount",
+          "l_shipinstruct",
+          "l_shipmode"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipmode",
+            "op": "in",
+            "value": [
+              "AIR",
+              "AIR REG"
+            ]
+          },
+          {
+            "column": "l_shipinstruct",
+            "op": "eq",
+            "value": "DELIVER IN PERSON"
+          },
+          {
+            "column": "l_quantity",
+            "op": "ge",
+            "value": "1.00"
+          },
+          {
+            "column": "l_quantity",
+            "op": "le",
+            "value": "11.00"
+          },
+          {
+            "column": "l_quantity",
+            "op": "ge",
+            "value": "10.00"
+          },
+          {
+            "column": "l_quantity",
+            "op": "le",
+            "value": "20.00"
+          },
+          {
+            "column": "l_quantity",
+            "op": "ge",
+            "value": "20.00"
+          },
+          {
+            "column": "l_quantity",
+            "op": "le",
+            "value": "30.00"
+          }
+        ]
+      },
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_brand",
+          "p_size",
+          "p_container"
+        ],
+        "predicates": [
+          {
+            "column": "p_size",
+            "op": "ge",
+            "value": "1"
+          },
+          {
+            "column": "p_brand",
+            "op": "eq",
+            "value": "Brand#12"
+          },
+          {
+            "column": "p_container",
+            "op": "in",
+            "value": [
+              "SM BOX",
+              "SM CASE",
+              "SM PACK",
+              "SM PKG"
+            ]
+          },
+          {
+            "column": "p_size",
+            "op": "le",
+            "value": "5"
+          },
+          {
+            "column": "p_brand",
+            "op": "eq",
+            "value": "Brand#23"
+          },
+          {
+            "column": "p_container",
+            "op": "in",
+            "value": [
+              "MED BAG",
+              "MED BOX",
+              "MED PACK",
+              "MED PKG"
+            ]
+          },
+          {
+            "column": "p_size",
+            "op": "le",
+            "value": "10"
+          },
+          {
+            "column": "p_brand",
+            "op": "eq",
+            "value": "Brand#34"
+          },
+          {
+            "column": "p_container",
+            "op": "in",
+            "value": [
+              "LG BOX",
+              "LG CASE",
+              "LG PACK",
+              "LG PKG"
+            ]
+          },
+          {
+            "column": "p_size",
+            "op": "le",
+            "value": "15"
+          }
+        ]
+      }
+    ],
+    "20": [
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_name",
+          "s_address",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "partsupp",
+        "columns": [
+          "ps_partkey",
+          "ps_suppkey",
+          "ps_availqty"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_name"
+        ],
+        "predicates": [
+          {
+            "column": "p_name",
+            "op": "startswith",
+            "value": "forest"
+          }
+        ]
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_partkey",
+          "l_suppkey",
+          "l_quantity",
+          "l_shipdate"
+        ],
+        "predicates": [
+          {
+            "column": "l_shipdate",
+            "op": "ge",
+            "value": "1994-01-01"
+          },
+          {
+            "column": "l_shipdate",
+            "op": "lt",
+            "value": "1995-01-01"
+          }
+        ]
+      },
+      {
+        "table": "part",
+        "columns": [
+          "p_partkey",
+          "p_name"
+        ],
+        "predicates": [
+          {
+            "column": "p_name",
+            "op": "startswith",
+            "value": "forest"
+          }
+        ]
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "CANADA"
+          }
+        ]
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "CANADA"
+          }
+        ]
+      }
+    ],
+    "21": [
+      {
+        "table": "supplier",
+        "columns": [
+          "s_suppkey",
+          "s_name",
+          "s_nationkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_suppkey",
+          "l_commitdate",
+          "l_receiptdate"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_suppkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "lineitem",
+        "columns": [
+          "l_orderkey",
+          "l_suppkey",
+          "l_commitdate",
+          "l_receiptdate"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_orderkey",
+          "o_orderstatus"
+        ],
+        "predicates": [
+          {
+            "column": "o_orderstatus",
+            "op": "eq",
+            "value": "F"
+          }
+        ]
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "SAUDI ARABIA"
+          }
+        ]
+      },
+      {
+        "table": "nation",
+        "columns": [
+          "n_nationkey",
+          "n_name"
+        ],
+        "predicates": [
+          {
+            "column": "n_name",
+            "op": "eq",
+            "value": "SAUDI ARABIA"
+          }
+        ]
+      }
+    ],
+    "22": [
+      {
+        "table": "customer",
+        "columns": [
+          "c_custkey",
+          "c_phone",
+          "c_acctbal"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "orders",
+        "columns": [
+          "o_custkey"
+        ],
+        "predicates": []
+      },
+      {
+        "table": "customer",
+        "columns": [
+          "c_phone",
+          "c_acctbal"
+        ],
+        "predicates": [
+          {
+            "column": "c_acctbal",
+            "op": "gt",
+            "value": "0.00"
+          }
+        ]
+      }
+    ]
+  },
+  "hand_catalogue_comparison": [
+    {
+      "query": 1,
+      "tables_match": true,
+      "observed_tables": [
+        "lineitem"
+      ],
+      "hand_tables": [
+        "lineitem"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 2,
+      "tables_match": false,
+      "observed_tables": [
+        "nation",
+        "nation",
+        "part",
+        "partsupp",
+        "partsupp",
+        "region",
+        "region",
+        "supplier",
+        "supplier"
+      ],
+      "hand_tables": [
+        "nation",
+        "part",
+        "partsupp",
+        "region",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 3,
+      "tables_match": true,
+      "observed_tables": [
+        "customer",
+        "lineitem",
+        "orders"
+      ],
+      "hand_tables": [
+        "customer",
+        "lineitem",
+        "orders"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 4,
+      "tables_match": true,
+      "observed_tables": [
+        "lineitem",
+        "orders"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "orders"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 5,
+      "tables_match": false,
+      "observed_tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "orders",
+        "region",
+        "region",
+        "supplier"
+      ],
+      "hand_tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "orders",
+        "region",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 6,
+      "tables_match": true,
+      "observed_tables": [
+        "lineitem"
+      ],
+      "hand_tables": [
+        "lineitem"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 7,
+      "tables_match": false,
+      "observed_tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "nation",
+        "nation",
+        "nation",
+        "orders",
+        "supplier"
+      ],
+      "hand_tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "orders",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [
+        "nation.n_name"
+      ],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 8,
+      "tables_match": false,
+      "observed_tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "nation",
+        "orders",
+        "part",
+        "region",
+        "region",
+        "supplier"
+      ],
+      "hand_tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "orders",
+        "part",
+        "region",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 9,
+      "tables_match": true,
+      "observed_tables": [
+        "lineitem",
+        "nation",
+        "orders",
+        "part",
+        "partsupp",
+        "supplier"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "nation",
+        "orders",
+        "part",
+        "partsupp",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 10,
+      "tables_match": true,
+      "observed_tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "orders"
+      ],
+      "hand_tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "orders"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 11,
+      "tables_match": false,
+      "observed_tables": [
+        "nation",
+        "nation",
+        "partsupp",
+        "partsupp",
+        "supplier",
+        "supplier"
+      ],
+      "hand_tables": [
+        "nation",
+        "partsupp",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 12,
+      "tables_match": true,
+      "observed_tables": [
+        "lineitem",
+        "orders"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "orders"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 13,
+      "tables_match": true,
+      "observed_tables": [
+        "customer",
+        "orders"
+      ],
+      "hand_tables": [
+        "customer",
+        "orders"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 14,
+      "tables_match": true,
+      "observed_tables": [
+        "lineitem",
+        "part"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "part"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 15,
+      "tables_match": false,
+      "observed_tables": [
+        "lineitem",
+        "lineitem",
+        "supplier"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 16,
+      "tables_match": true,
+      "observed_tables": [
+        "part",
+        "partsupp",
+        "supplier"
+      ],
+      "hand_tables": [
+        "part",
+        "partsupp",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [
+        "part.p_size"
+      ],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 17,
+      "tables_match": true,
+      "observed_tables": [
+        "lineitem",
+        "lineitem",
+        "part"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "lineitem",
+        "part"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 18,
+      "tables_match": false,
+      "observed_tables": [
+        "customer",
+        "lineitem",
+        "lineitem",
+        "lineitem",
+        "orders"
+      ],
+      "hand_tables": [
+        "customer",
+        "lineitem",
+        "lineitem",
+        "orders"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 19,
+      "tables_match": true,
+      "observed_tables": [
+        "lineitem",
+        "part"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "part"
+      ],
+      "predicates_only_in_plan": [
+        "lineitem.l_quantity",
+        "part.p_brand",
+        "part.p_container",
+        "part.p_size"
+      ],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 20,
+      "tables_match": false,
+      "observed_tables": [
+        "lineitem",
+        "nation",
+        "nation",
+        "part",
+        "part",
+        "partsupp",
+        "supplier"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "nation",
+        "part",
+        "partsupp",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 21,
+      "tables_match": false,
+      "observed_tables": [
+        "lineitem",
+        "lineitem",
+        "lineitem",
+        "nation",
+        "nation",
+        "orders",
+        "supplier"
+      ],
+      "hand_tables": [
+        "lineitem",
+        "lineitem",
+        "lineitem",
+        "nation",
+        "orders",
+        "supplier"
+      ],
+      "predicates_only_in_plan": [],
+      "predicates_only_by_hand": []
+    },
+    {
+      "query": 22,
+      "tables_match": false,
+      "observed_tables": [
+        "customer",
+        "customer",
+        "orders"
+      ],
+      "hand_tables": [
+        "customer",
+        "orders"
+      ],
+      "predicates_only_in_plan": [
+        "customer.c_acctbal"
+      ],
+      "predicates_only_by_hand": []
+    }
+  ]
+}

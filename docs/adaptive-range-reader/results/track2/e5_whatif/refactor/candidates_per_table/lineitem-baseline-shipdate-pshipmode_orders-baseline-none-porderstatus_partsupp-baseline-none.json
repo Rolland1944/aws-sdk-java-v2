@@ -1,0 +1,63 @@
+{
+  "candidate_id": "lineitem-baseline-shipdate-pshipmode_orders-baseline-none-porderstatus_partsupp-baseline-none",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_shipdate"
+      ],
+      "table": "lineitem"
+    },
+    {
+      "canonical": "partition.spec",
+      "value": "l_shipmode",
+      "table": "lineitem"
+    },
+    {
+      "canonical": "partition.spec",
+      "value": "o_orderstatus",
+      "table": "orders"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "shipdate",
+      "sort_columns": [
+        "l_shipdate"
+      ],
+      "sort_ndv": 2505,
+      "partition_label": "shipmode",
+      "partition": "l_shipmode",
+      "partition_n": 7,
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "orders": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "orderstatus",
+      "partition": "o_orderstatus",
+      "partition_n": 2,
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "partsupp": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "baseline",
+      "rg_bytes": null
+    }
+  }
+}

@@ -24,6 +24,7 @@ generate_tpch.py —— 用 DuckDB dbgen 生成 TPC-H Parquet 数据集（PROJEC
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -40,6 +41,8 @@ TABLES = [
     "region",
     "supplier",
 ]
+
+MASK64 = (1 << 64) - 1
 
 
 def human(n: int) -> str:
@@ -66,8 +69,35 @@ def step_outputs(out: str, step: int, children: int) -> dict[str, str]:
     return {t: os.path.join(out, t, f"part-{step:0{width}d}.parquet") for t in TABLES}
 
 
-def generate_step(args, step: int) -> dict[str, int]:
-    """跑一个 dbgen step，把非空表各写成一个 parquet 文件。返回 {table: bytes}。"""
+def checksum_expression(con, table: str) -> str:
+    """Order-independent per-row hash summed over the table.
+
+    Summing is commutative, so a chunked export yields the same value as a
+    single-shot one; that is what lets the checksum be compared across different
+    `--children` settings (TRACK2_M0_CONTRACT.md 2.2 requires content checksums).
+    """
+    cols = [r[1] for r in con.execute(f"PRAGMA table_info('{table}')").fetchall()]
+    quoted = ", ".join(f'"{c}"' for c in cols)
+    return f"hash({quoted})"
+
+
+def export_queries(con, path: str) -> tuple[int, str]:
+    """Freeze the exact 22 TPC-H query texts so E2 cannot silently drift (contract 2.1)."""
+    rows = con.execute("SELECT query_nr, query FROM tpch_queries() ORDER BY query_nr").fetchall()
+    queries = {str(nr): text for nr, text in rows}
+    with open(path, "w") as fh:
+        json.dump(queries, fh, indent=2)
+    digest = hashlib.sha256(
+        "".join(queries[k] for k in sorted(queries, key=int)).encode("utf-8")
+    ).hexdigest()
+    return len(queries), digest
+
+
+def generate_step(args, step: int) -> dict[str, dict]:
+    """跑一个 dbgen step，把非空表各写成一个 parquet 文件。
+
+    返回 {table: {"bytes": int, "rows": int, "checksum": int}}。
+    """
     import duckdb
 
     targets = step_outputs(args.out, step, args.children)
@@ -75,7 +105,10 @@ def generate_step(args, step: int) -> dict[str, int]:
         os.path.exists(p) or t in ("nation", "region") and step > 0
         for t, p in targets.items()
     ):
-        existing = {t: os.path.getsize(p) for t, p in targets.items() if os.path.exists(p)}
+        existing = {
+            t: {"bytes": os.path.getsize(p), "rows": 0, "checksum": 0}
+            for t, p in targets.items() if os.path.exists(p)
+        }
         if existing:
             print(f"[step {step}] skip (already present)", flush=True)
             return existing
@@ -100,7 +133,7 @@ def generate_step(args, step: int) -> dict[str, int]:
             con.execute(f"CALL dbgen(sf={args.sf})")
         gen_s = time.time() - t0
 
-        written: dict[str, int] = {}
+        written: dict[str, dict] = {}
         rowgroup = (
             f", ROW_GROUP_SIZE {args.row_group_size}" if args.row_group_size else ""
         )
@@ -108,6 +141,10 @@ def generate_step(args, step: int) -> dict[str, int]:
             rows = con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             if rows == 0:
                 continue
+            checksum = 0
+            if args.checksum:
+                expr = checksum_expression(con, table)
+                checksum = int(con.execute(f"SELECT SUM({expr}) FROM {table}").fetchone()[0] or 0)
             dest = targets[table]
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             tmp = dest + ".partial"
@@ -116,13 +153,17 @@ def generate_step(args, step: int) -> dict[str, int]:
                 f"(FORMAT PARQUET, COMPRESSION {args.compression}{rowgroup})"
             )
             os.replace(tmp, dest)
-            written[table] = os.path.getsize(dest)
+            written[table] = {
+                "bytes": os.path.getsize(dest),
+                "rows": rows,
+                "checksum": checksum & MASK64,
+            }
 
-        total = sum(written.values())
+        total = sum(w["bytes"] for w in written.values())
         print(
             f"[step {step}/{args.children}] dbgen {gen_s:.1f}s, "
             f"wrote {len(written)} tables, {human(total)} "
-            f"({', '.join(f'{t}={human(b)}' for t, b in sorted(written.items()))})",
+            f"({', '.join(f'{t}={human(w['bytes'])}' for t, w in sorted(written.items()))})",
             flush=True,
         )
         return written
@@ -149,6 +190,8 @@ def main() -> int:
     ap.add_argument("--temp-dir", default=None)
     ap.add_argument("--force", action="store_true", help="regenerate existing steps")
     ap.add_argument("--clean", action="store_true", help="remove --out first")
+    ap.add_argument("--no-checksum", dest="checksum", action="store_false",
+                    help="skip content checksums (contract 2.2 requires them for the real run)")
     args = ap.parse_args()
 
     if args.clean and os.path.exists(args.out):
@@ -165,11 +208,27 @@ def main() -> int:
         steps = list(range(args.children)) if args.children > 1 else [0]
 
     t0 = time.time()
-    per_table: dict[str, int] = {}
+    per_table: dict[str, dict] = {}
+    queries_info = None
     for step in steps:
         written = generate_step(args, step)
-        for t, b in written.items():
-            per_table[t] = per_table.get(t, 0) + b
+        for t, w in written.items():
+            acc = per_table.setdefault(t, {"bytes": 0, "rows": 0, "checksum": 0})
+            acc["bytes"] += w["bytes"]
+            acc["rows"] += w["rows"]
+            acc["checksum"] = (acc["checksum"] + w["checksum"]) & MASK64
+        # freeze the 22 query texts once, on the first step that has a live connection
+        if queries_info is None:
+            import duckdb
+            qc = duckdb.connect(database=":memory:")
+            try:
+                qc.execute("INSTALL tpch")
+                qc.execute("LOAD tpch")
+                qpath = os.path.join(args.out, "_tpch_queries.json")
+                n, digest = export_queries(qc, qpath)
+                queries_info = {"path": qpath, "count": n, "sha256": digest}
+            finally:
+                qc.close()
 
     elapsed = time.time() - t0
     total = dir_bytes(args.out)
@@ -182,7 +241,13 @@ def main() -> int:
         "total_bytes": total,
         "total_human": human(total),
         "bytes_per_sf": total / args.sf if args.sf else None,
-        "per_table_bytes": per_table,
+        "per_table_bytes": {t: w["bytes"] for t, w in per_table.items()},
+        "per_table_rows": {t: w["rows"] for t, w in per_table.items()},
+        "per_table_checksum": {
+            t: (f"{w['checksum']:#018x}" if args.checksum else None)
+            for t, w in per_table.items()
+        },
+        "queries": queries_info,
         "file_count": sum(len(files) for _r, _d, files in os.walk(args.out)),
         "elapsed_seconds": round(elapsed, 1),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),

@@ -1,0 +1,66 @@
+{
+  "experiment": "E2",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 7 E2 / 4.2",
+  "completed_at": "2026-08-14T13:50:27+00:00",
+  "gate": {
+    "metric": "CV of 5 end-to-end query-sum wall-clocks",
+    "threshold": 0.05,
+    "cv": 0.019934468267453355,
+    "pass": true
+  },
+  "layout": {
+    "candidate_id": "baseline",
+    "actions": [],
+    "uri": "s3a://home-haoyue/track2/baseline_sf100",
+    "writer": "Spark 4.1.3 / parquet-mr (library defaults)",
+    "manifest": "_layout_manifest.json"
+  },
+  "workload": {
+    "queries": 22,
+    "runs": 5,
+    "profile": "cold-cache (new Spark session per run; drop_caches unavailable)",
+    "queries_sha256_prefix": "88415ecb315ae9a9",
+    "scale_factor": 100
+  },
+  "end_to_end_s": [3288.746, 3188.203, 3204.965, 3228.264, 3112.871],
+  "median_s": 3204.965,
+  "mean_s": 3204.6098,
+  "stdev_s": 63.88219236767005,
+  "io_per_run_approx": {
+    "note": "report.json io fields are cumulative over one growing NDJSON; subtract consecutive runs",
+    "ranged_gets": 64032,
+    "remote_bytes": 160334348126,
+    "remote_gib": 149.32
+  },
+  "stack": {
+    "spark": "4.1.3",
+    "hadoop": "3.4.2",
+    "java": "17.0.20",
+    "parquet_mr": "1.16.0",
+    "aws_sdk_bundle": "2.29.52",
+    "master": "local[16]",
+    "driver_memory": "32g",
+    "spark_local_dirs": "/data/home/haoyueli/track2-scratch"
+  },
+  "reader_frozen": {
+    "fs.s3a.input.fadvise": "random",
+    "parquet.hadoop.vectored.io.enabled": "true",
+    "interceptor": "Track2IoCollectorInterceptor"
+  },
+  "cloud": {
+    "bucket": "home-haoyue",
+    "region": "us-east-2",
+    "client": "Tencent Cloud VM (not the contract m5d.4xlarge); no /mnt NVMe; no sudo drop_caches"
+  },
+  "artifacts": {
+    "report": "report.json",
+    "per_query": "per_query.csv",
+    "layout_manifest": "_layout_manifest.json",
+    "io_ndjson": "io/track2-io-5b3eb066-8b5c-4b95-bc31-e4e9c5f541a1.ndjson",
+    "eventlogs": "eventlogs/ (5 Spark 4 eventlog_v2 dirs, zstd)",
+    "run_log": "/data/home/haoyueli/track2-data/logs/e2_baseline.log",
+    "aborted_enospc_log": "/data/home/haoyueli/track2-data/logs/e2_baseline.log.enospc",
+    "q6_smoke": "/data/home/haoyueli/track2-data/e2_q6_smoke/report.json"
+  },
+  "repo_head_at_archive": "42f5fc0514d"
+}

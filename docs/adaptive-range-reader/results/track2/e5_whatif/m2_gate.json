@@ -1,0 +1,47 @@
+{
+  "compressed_queries": [21, 15, 9, 17, 8, 1, 18, 7, 10, 12],
+  "l1_top3": [
+    "p-none_f-1GB_rg-128MB_s-l_shipdate",
+    "p-none_f-1GB_rg-128MB_s-l_shipdate_l_suppkey",
+    "p-l_shipdate:year_f-1GB_rg-128MB_s-l_shipdate"
+  ],
+  "l1_pick": "p-none_f-1GB_rg-128MB_s-l_shipdate",
+  "measured": [
+    {
+      "id": "baseline",
+      "measured_s": 2000.481,
+      "source": "e2"
+    },
+    {
+      "id": "p-none_f-1GB_rg-128MB_s-l_shipdate",
+      "measured_s": 1310.378,
+      "source": "docs/adaptive-range-reader/results/track2/e5_whatif/m2_cand_rg128_n5/report.json",
+      "per_query": {
+        "1": 127.852,
+        "7": 65.738,
+        "8": 165.595,
+        "9": 176.94,
+        "10": 85.197,
+        "12": 43.398,
+        "15": 29.683,
+        "17": 171.098,
+        "18": 205.169,
+        "21": 239.708
+      },
+      "run_sums_s": [1424.516, 1351.208, 1395.545, 1521.352, 1334.637],
+      "run_median_s": 1395.545,
+      "run_cv": 0.0526,
+      "n_errors": 0,
+      "missing_or_failed": [],
+      "errors": {}
+    }
+  ],
+  "measured_best": "p-none_f-1GB_rg-128MB_s-l_shipdate",
+  "measured_best_s": 1310.378,
+  "baseline_compressed_s": 2000.481,
+  "improve_frac_vs_baseline": 0.345,
+  "in_l1_top3": true,
+  "selection_regret": 0.0,
+  "gate_pass": true,
+  "note": "n=5 cold-cache compressed workload. Score is sum of per-query medians (same as baseline 2000.5s). End-to-end run-sum median 1395.5s, CV 5.26% — slightly over the E2 5% CV gate, so run_benchmark exited 1; M2 ranking gate still PASS. n=1 session (1978.7s) was inflated by Q18/Q21; 5-run medians are Q18 205s and Q21 240s."
+}

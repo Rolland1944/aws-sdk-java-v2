@@ -1,0 +1,92 @@
+{
+  "candidate_id": "lineitem-32f-shipdate_orders-32f-orderdate_partsupp-16f-none",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 708876870,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_shipdate"
+      ],
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 203029422,
+      "table": "orders"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "orders"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "o_orderdate"
+      ],
+      "table": "orders"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 274643814,
+      "table": "partsupp"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "partsupp"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "32f",
+      "file_bytes": 708876870,
+      "sort_label": "shipdate",
+      "sort_columns": [
+        "l_shipdate"
+      ],
+      "sort_ndv": 2505,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "engine_default",
+      "rg_bytes": 134217728
+    },
+    "orders": {
+      "file_label": "32f",
+      "file_bytes": 203029422,
+      "sort_label": "orderdate",
+      "sort_columns": [
+        "o_orderdate"
+      ],
+      "sort_ndv": 2321,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "engine_default",
+      "rg_bytes": 134217728
+    },
+    "partsupp": {
+      "file_label": "16f",
+      "file_bytes": 274643814,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "engine_default",
+      "rg_bytes": 134217728
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "candidate_id": "p-l_shipdate:month_f-512MB_rg-32MB_s-l_orderkey",
+  "actions": [
+    {
+      "canonical": "partition.spec",
+      "value": "l_shipdate:month"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 536870912
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 33554432
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_orderkey"
+      ]
+    }
+  ]
+}

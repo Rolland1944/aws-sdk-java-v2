@@ -1,0 +1,543 @@
+{
+  "ran_at": "2026-08-17T13:27:12.131540+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 7 E2 / 4.2",
+  "layout_id": "p-none_f-1GB_rg-128MB_s-l_shipdate",
+  "data": "s3a://home-haoyue/track2/cand_rg128_sf100",
+  "master": "local[16]",
+  "driver_memory": "32g",
+  "runs": [
+    {
+      "run": 1,
+      "session_s": 1454.073,
+      "query_sum_s": 1424.516,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 1,
+          "query": 21,
+          "wall_s": 241.006,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 15,
+          "wall_s": 29.683,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 9,
+          "wall_s": 176.345,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 17,
+          "wall_s": 171.098,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 8,
+          "wall_s": 148.944,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 1,
+          "wall_s": 135.734,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 18,
+          "wall_s": 301.776,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 7,
+          "wall_s": 65.002,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 10,
+          "wall_s": 85.197,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 12,
+          "wall_s": 69.731,
+          "rows": 2,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 18840,
+        "ranged_gets": 18808,
+        "remote_bytes": 88431993894
+      }
+    },
+    {
+      "run": 2,
+      "session_s": 1373.57,
+      "query_sum_s": 1351.208,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 2,
+          "query": 21,
+          "wall_s": 239.708,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 15,
+          "wall_s": 56.653,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 9,
+          "wall_s": 176.94,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 17,
+          "wall_s": 169.811,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 8,
+          "wall_s": 169.905,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 1,
+          "wall_s": 125.375,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 18,
+          "wall_s": 231.211,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 7,
+          "wall_s": 65.738,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 10,
+          "wall_s": 75.258,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 12,
+          "wall_s": 40.609,
+          "rows": 2,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 37680,
+        "ranged_gets": 37616,
+        "remote_bytes": 176863987788
+      }
+    },
+    {
+      "run": 3,
+      "session_s": 1417.095,
+      "query_sum_s": 1395.545,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 3,
+          "query": 21,
+          "wall_s": 222.392,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 15,
+          "wall_s": 29.566,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 9,
+          "wall_s": 176.432,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 17,
+          "wall_s": 173.45,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 8,
+          "wall_s": 167.099,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 1,
+          "wall_s": 128.102,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 18,
+          "wall_s": 205.169,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 7,
+          "wall_s": 74.587,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 10,
+          "wall_s": 175.35,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 12,
+          "wall_s": 43.398,
+          "rows": 2,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 56520,
+        "ranged_gets": 56424,
+        "remote_bytes": 265295981682
+      }
+    },
+    {
+      "run": 4,
+      "session_s": 1544.823,
+      "query_sum_s": 1521.352,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 4,
+          "query": 21,
+          "wall_s": 325.45,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 15,
+          "wall_s": 56.286,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 9,
+          "wall_s": 298.892,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 17,
+          "wall_s": 171.051,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 8,
+          "wall_s": 152.391,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 1,
+          "wall_s": 127.053,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 18,
+          "wall_s": 202.621,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 7,
+          "wall_s": 64.465,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 10,
+          "wall_s": 80.557,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 12,
+          "wall_s": 42.586,
+          "rows": 2,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 75360,
+        "ranged_gets": 75232,
+        "remote_bytes": 353727975576
+      }
+    },
+    {
+      "run": 5,
+      "session_s": 1357.565,
+      "query_sum_s": 1334.637,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 5,
+          "query": 21,
+          "wall_s": 212.979,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 15,
+          "wall_s": 29.595,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 9,
+          "wall_s": 186.989,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 17,
+          "wall_s": 206.5,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 8,
+          "wall_s": 165.595,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 1,
+          "wall_s": 127.852,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 18,
+          "wall_s": 202.731,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 7,
+          "wall_s": 70.764,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 10,
+          "wall_s": 86.746,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 12,
+          "wall_s": 44.886,
+          "rows": 2,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 94200,
+        "ranged_gets": 94040,
+        "remote_bytes": 442159969470
+      }
+    }
+  ],
+  "summary": {
+    "n_runs": 5,
+    "end_to_end_s": [
+      1424.516,
+      1351.208,
+      1395.545,
+      1521.352,
+      1334.637
+    ],
+    "median_s": 1395.545,
+    "mean_s": 1405.4516,
+    "stdev_s": 73.9113836042866,
+    "cv": 0.052589063617905156,
+    "gate_threshold": 0.05,
+    "gate_pass": false,
+    "per_query": [
+      {
+        "query": 1,
+        "n": 5,
+        "median_s": 127.852,
+        "mean_s": 128.8232,
+        "min_s": 125.375,
+        "max_s": 135.734,
+        "stdev_s": 4.007686577066629,
+        "errors": []
+      },
+      {
+        "query": 7,
+        "n": 5,
+        "median_s": 65.738,
+        "mean_s": 68.1112,
+        "min_s": 64.465,
+        "max_s": 74.587,
+        "stdev_s": 4.403615298819824,
+        "errors": []
+      },
+      {
+        "query": 8,
+        "n": 5,
+        "median_s": 165.595,
+        "mean_s": 160.7868,
+        "min_s": 148.944,
+        "max_s": 169.905,
+        "stdev_s": 9.445178621921348,
+        "errors": []
+      },
+      {
+        "query": 9,
+        "n": 5,
+        "median_s": 176.94,
+        "mean_s": 203.1196,
+        "min_s": 176.345,
+        "max_s": 298.892,
+        "stdev_s": 53.728548075487765,
+        "errors": []
+      },
+      {
+        "query": 10,
+        "n": 5,
+        "median_s": 85.197,
+        "mean_s": 100.6216,
+        "min_s": 75.258,
+        "max_s": 175.35,
+        "stdev_s": 42.013940261537,
+        "errors": []
+      },
+      {
+        "query": 12,
+        "n": 5,
+        "median_s": 43.398,
+        "mean_s": 48.242,
+        "min_s": 40.609,
+        "max_s": 69.731,
+        "stdev_s": 12.11153600911131,
+        "errors": []
+      },
+      {
+        "query": 15,
+        "n": 5,
+        "median_s": 29.683,
+        "mean_s": 40.3566,
+        "min_s": 29.566,
+        "max_s": 56.653,
+        "stdev_s": 14.70963338428256,
+        "errors": []
+      },
+      {
+        "query": 17,
+        "n": 5,
+        "median_s": 171.098,
+        "mean_s": 178.382,
+        "min_s": 169.811,
+        "max_s": 206.5,
+        "stdev_s": 15.773465107578613,
+        "errors": []
+      },
+      {
+        "query": 18,
+        "n": 5,
+        "median_s": 205.169,
+        "mean_s": 228.7016,
+        "min_s": 202.621,
+        "max_s": 301.776,
+        "stdev_s": 42.587022809771526,
+        "errors": []
+      },
+      {
+        "query": 21,
+        "n": 5,
+        "median_s": 239.708,
+        "mean_s": 248.307,
+        "min_s": 212.979,
+        "max_s": 325.45,
+        "stdev_s": 44.715614331014166,
+        "errors": []
+      }
+    ]
+  }
+}

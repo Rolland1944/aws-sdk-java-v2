@@ -1,0 +1,69 @@
+{
+  "candidate_id": "lineitem-baseline-none_orders-32f-none-porderstatus_partsupp-16f-none",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 203029422,
+      "table": "orders"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "orders"
+    },
+    {
+      "canonical": "partition.spec",
+      "value": "o_orderstatus",
+      "table": "orders"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 274643814,
+      "table": "partsupp"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "partsupp"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "orders": {
+      "file_label": "32f",
+      "file_bytes": 203029422,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "orderstatus",
+      "partition": "o_orderstatus",
+      "partition_n": 2,
+      "rg_label": "engine_default",
+      "rg_bytes": 134217728
+    },
+    "partsupp": {
+      "file_label": "16f",
+      "file_bytes": 274643814,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "engine_default",
+      "rg_bytes": 134217728
+    }
+  }
+}

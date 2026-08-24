@@ -1,0 +1,45 @@
+{
+  "candidate_id": "li-128MB-none_o-baseline-none_ps-baseline",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 134217728,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "lineitem"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "128MB",
+      "file_bytes": 134217728,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    },
+    "orders": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "partsupp": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    }
+  }
+}

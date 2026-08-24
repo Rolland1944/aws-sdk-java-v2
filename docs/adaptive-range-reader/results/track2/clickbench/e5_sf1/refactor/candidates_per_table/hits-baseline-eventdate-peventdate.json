@@ -1,0 +1,34 @@
+{
+  "candidate_id": "hits-baseline-eventdate-peventdate",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "EventDate"
+      ],
+      "table": "hits"
+    },
+    {
+      "canonical": "partition.spec",
+      "value": "EventDate",
+      "table": "hits"
+    }
+  ],
+  "tables": {
+    "hits": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "eventdate",
+      "sort_columns": [
+        "EventDate"
+      ],
+      "sort_ndv": 17,
+      "partition_label": "eventdate",
+      "partition": "EventDate",
+      "partition_n": 17,
+      "rg_label": "baseline",
+      "rg_bytes": null
+    }
+  }
+}

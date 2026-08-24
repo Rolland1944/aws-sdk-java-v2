@@ -1,0 +1,26 @@
+{
+  "candidate_id": "hits-baseline-counterid",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "CounterID"
+      ],
+      "table": "hits"
+    }
+  ],
+  "tables": {
+    "hits": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "counterid",
+      "sort_columns": [
+        "CounterID"
+      ],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    }
+  }
+}

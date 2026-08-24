@@ -1,0 +1,441 @@
+{
+  "probed_at": "2026-08-14T04:04:39.638591+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 6",
+  "contract_revision": "r2",
+  "versions": {
+    "python": "3.12.11",
+    "platform": "Linux-5.4.241-1-tlinux4-0023.4-x86_64-with-glibc2.28",
+    "pyarrow": "25.0.1",
+    "duckdb": "1.5.5",
+    "pyspark": "4.1.3",
+    "numpy": "<not importable: No module named 'numpy'>",
+    "java": "openjdk version \"1.8.0_472\""
+  },
+  "writer_probes": {
+    "baseline_defaults": {
+      "status": "pass",
+      "detail": "Spark default write (contract 2.3 baseline)",
+      "footer": {
+        "part_files": 2,
+        "num_row_groups": 1,
+        "num_rows": 25000,
+        "row_group0_bytes": 723648,
+        "sorting_columns": [],
+        "columns": {
+          "id": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100134
+          },
+          "high_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 118779
+          },
+          "low_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "RLE",
+              "PLAIN_DICTIONARY",
+              "BIT_PACKED"
+            ],
+            "has_dictionary_page": true,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 599
+          },
+          "value": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100134
+          }
+        }
+      }
+    },
+    "page_index_M1": {
+      "status": "pass",
+      "detail": "page index offsets visible in footer",
+      "metadata_attribute": {
+        "has_offset_index": true
+      },
+      "note": "parquet-mr has no switch to disable ColumnIndex/OffsetIndex, so page index is a fixed capability, not a candidate action (contract 5.2). Verify directly with: parquet-cli column-index -c id <part-file>",
+      "mismatch": "M-1"
+    },
+    "row_group_bytes": {
+      "status": "pass",
+      "detail": "written and read back",
+      "options": {
+        "parquet.block.size": "8388608"
+      },
+      "footer": {
+        "part_files": 2,
+        "num_row_groups": 1,
+        "num_rows": 25000,
+        "row_group0_bytes": 723648,
+        "sorting_columns": [],
+        "columns": {
+          "id": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100134
+          },
+          "high_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 118779
+          },
+          "low_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "RLE",
+              "PLAIN_DICTIONARY",
+              "BIT_PACKED"
+            ],
+            "has_dictionary_page": true,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 599
+          },
+          "value": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100134
+          }
+        }
+      }
+    },
+    "page_size": {
+      "status": "pass",
+      "detail": "written and read back",
+      "options": {
+        "parquet.page.size": "65536"
+      },
+      "footer": {
+        "part_files": 2,
+        "num_row_groups": 1,
+        "num_rows": 25000,
+        "row_group0_bytes": 723936,
+        "sorting_columns": [],
+        "columns": {
+          "id": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100193
+          },
+          "high_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 118089
+          },
+          "low_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "RLE",
+              "PLAIN_DICTIONARY",
+              "BIT_PACKED"
+            ],
+            "has_dictionary_page": true,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 690
+          },
+          "value": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100193
+          }
+        }
+      }
+    },
+    "bloom_filter_M2": {
+      "status": "pass",
+      "detail": "written and read back",
+      "options": {
+        "parquet.bloom.filter.enabled#high_ndv": "true",
+        "parquet.bloom.filter.expected.ndv#high_ndv": "200000"
+      },
+      "footer": {
+        "part_files": 2,
+        "num_row_groups": 1,
+        "num_rows": 25000,
+        "row_group0_bytes": 723648,
+        "sorting_columns": [],
+        "columns": {
+          "id": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100134
+          },
+          "high_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": 319961,
+            "total_compressed_size": 118779
+          },
+          "low_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "RLE",
+              "PLAIN_DICTIONARY",
+              "BIT_PACKED"
+            ],
+            "has_dictionary_page": true,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 599
+          },
+          "value": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100134
+          }
+        }
+      }
+    },
+    "dictionary_per_column": {
+      "status": "pass",
+      "detail": "written and read back",
+      "options": {
+        "parquet.enable.dictionary#high_ndv": "false"
+      },
+      "footer": {
+        "part_files": 2,
+        "num_row_groups": 1,
+        "num_rows": 25000,
+        "row_group0_bytes": 723648,
+        "sorting_columns": [],
+        "columns": {
+          "id": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100134
+          },
+          "high_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 118779
+          },
+          "low_ndv": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "RLE",
+              "PLAIN_DICTIONARY",
+              "BIT_PACKED"
+            ],
+            "has_dictionary_page": true,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 599
+          },
+          "value": {
+            "compression": "SNAPPY",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 100134
+          }
+        }
+      }
+    },
+    "compression_zstd": {
+      "status": "pass",
+      "detail": "written and read back",
+      "options": {
+        "parquet.compression": "zstd"
+      },
+      "footer": {
+        "part_files": 2,
+        "num_row_groups": 1,
+        "num_rows": 25000,
+        "row_group0_bytes": 723643,
+        "sorting_columns": [],
+        "columns": {
+          "id": {
+            "compression": "ZSTD",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 43667
+          },
+          "high_ndv": {
+            "compression": "ZSTD",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 15666
+          },
+          "low_ndv": {
+            "compression": "ZSTD",
+            "encodings": [
+              "RLE",
+              "PLAIN_DICTIONARY",
+              "BIT_PACKED"
+            ],
+            "has_dictionary_page": true,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 191
+          },
+          "value": {
+            "compression": "ZSTD",
+            "encodings": [
+              "BIT_PACKED",
+              "PLAIN"
+            ],
+            "has_dictionary_page": false,
+            "bloom_filter_offset": null,
+            "total_compressed_size": 43667
+          }
+        }
+      }
+    },
+    "verdict_bloom_M2": {
+      "status": "pass",
+      "detail": "bloom filter written for the requested column",
+      "bloom_filter_offset": 319961,
+      "mismatch": "M-2"
+    },
+    "verdict_dictionary_per_column": {
+      "status": "pass",
+      "detail": "per-column dictionary honoured: disabled on high_ndv, kept on low_ndv",
+      "high_ndv_has_dictionary": false,
+      "low_ndv_has_dictionary": true
+    },
+    "verdict_row_group_bytes": {
+      "status": "unknown",
+      "detail": "parquet.block.size accepted but row group count unchanged - probe data may be too small",
+      "row_groups_with_8MiB_blocks": 1,
+      "row_groups_baseline": 1
+    },
+    "verdict_compression_M5": {
+      "status": "pass",
+      "detail": "parquet.compression applies globally, as expected - per-column codecs are NOT expressible in parquet-mr (contract 6.2 M-5)",
+      "codecs": {
+        "id": "ZSTD",
+        "high_ndv": "ZSTD",
+        "low_ndv": "ZSTD",
+        "value": "ZSTD"
+      },
+      "mismatch": "M-5"
+    },
+    "duckdb_tpch": {
+      "status": "pass",
+      "detail": "tpch extension loaded and dbgen works",
+      "tables": [
+        "customer",
+        "lineitem",
+        "nation",
+        "orders",
+        "part",
+        "partsupp",
+        "region",
+        "supplier"
+      ],
+      "lineitem_rows_at_sf001": 60175
+    }
+  },
+  "e0_manual_checklist": [
+    {
+      "setting": "fs.s3a.audit.execution.interceptors",
+      "expected": "Track2IoCollectorInterceptor loaded",
+      "why": "Assert the collector emitted at least one record for a known GET. Spark 4.x ships Hadoop 3.4.2 so S3A is on AWS SDK v2 and the hook is supported; still verify, because a typo in the class name fails silently."
+    },
+    {
+      "setting": "parquet.hadoop.vectored.io.enabled",
+      "expected": "true, and actually merging ranges",
+      "why": "Default flips between parquet 1.15 (false) and 1.16+ (true), so it must be set explicitly. Confirm merging really happens by finding GETs that span more than one column chunk; if none do, contract O-2 applies and column ordering goes back to being a dead action."
+    },
+    {
+      "setting": "fs.s3a.vectored.read.min.seek.size",
+      "expected": "128K (default), frozen",
+      "why": "Range merge threshold; must not vary across layout comparisons."
+    },
+    {
+      "setting": "fs.s3a.vectored.read.max.merged.size",
+      "expected": "2M (default), frozen",
+      "why": "Same."
+    },
+    {
+      "setting": "fs.s3a.input.fadvise",
+      "expected": "random",
+      "why": "Frozen reader policy (contract 1.4)."
+    },
+    {
+      "setting": "sustained network throughput",
+      "expected": "measured, with variance",
+      "why": "m5d.4xlarge advertises burst 10 Gbps; sustained baseline is lower and may break the CV < 5% gate (contract 1.2)."
+    }
+  ]
+}

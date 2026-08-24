@@ -1,0 +1,9 @@
+{
+  "dataset": "clickbench_sf1",
+  "tables": {
+    "hits": {"bytes": 15149002747}
+  },
+  "per_table_bytes": {
+    "hits": 15149002747
+  }
+}

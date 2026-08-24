@@ -1,0 +1,36 @@
+{
+  "candidate_id": "hits-1GB-userid",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 1073741824,
+      "table": "hits"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "hits"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "UserID"
+      ],
+      "table": "hits"
+    }
+  ],
+  "tables": {
+    "hits": {
+      "file_label": "1GB",
+      "file_bytes": 1073741824,
+      "sort_label": "userid",
+      "sort_columns": [
+        "UserID"
+      ],
+      "partition": "none",
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    }
+  }
+}

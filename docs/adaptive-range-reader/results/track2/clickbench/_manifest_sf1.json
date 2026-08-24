@@ -1,0 +1,42 @@
+{
+  "written_at": "2026-08-20T04:00:49.894465+00:00",
+  "dataset": "clickbench",
+  "scale": "sf1",
+  "source": {
+    "path": "/data/home/haoyueli/hitmap_test/data/raw/clickbench/hits.parquet",
+    "rows": 99997497,
+    "bytes": 14779976446,
+    "note": "official ClickBench hits.parquet (parquet-cpp 1.5.1-SNAPSHOT)"
+  },
+  "replication": {
+    "copies": 1,
+    "days_per_copy": 30,
+    "user_keys_offset": false,
+    "user_keys_reason": "UserID/WatchID/FUniqID already span int64; copies are additional months of the same users",
+    "event_date_promoted_to": "date",
+    "event_time_promoted_to": "timestamp"
+  },
+  "output": "/data/home/haoyueli/track2-data/clickbench_sf1",
+  "hits_path": "/data/home/haoyueli/track2-data/clickbench_sf1/hits",
+  "expected_rows": 99997497,
+  "copies": [
+    {
+      "copy_id": 0,
+      "day_offset": 0,
+      "elapsed_seconds": 172.7
+    }
+  ],
+  "elapsed_seconds": 172.8,
+  "verified": {
+    "status": "pass",
+    "files": 110,
+    "files_sampled": 20,
+    "row_groups_sampled": 32,
+    "row_group_bytes_min": 6935571,
+    "row_group_bytes_median": 263367593,
+    "row_group_bytes_max": 387076681,
+    "offset_index_present": true,
+    "bloom_filter_present": false
+  },
+  "role": "canonical Spark baseline (contract 2.3 plain write.parquet); not a layout candidate"
+}

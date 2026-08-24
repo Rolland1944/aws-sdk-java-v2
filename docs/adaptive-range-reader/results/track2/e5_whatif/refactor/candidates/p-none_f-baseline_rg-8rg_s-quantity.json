@@ -1,0 +1,15 @@
+{
+  "candidate_id": "p-none_f-baseline_rg-8rg_s-quantity",
+  "actions": [
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 42270123
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_quantity"
+      ]
+    }
+  ]
+}

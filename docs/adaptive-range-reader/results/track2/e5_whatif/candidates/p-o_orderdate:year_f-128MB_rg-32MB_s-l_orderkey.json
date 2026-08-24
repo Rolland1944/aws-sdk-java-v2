@@ -1,0 +1,23 @@
+{
+  "candidate_id": "p-o_orderdate:year_f-128MB_rg-32MB_s-l_orderkey",
+  "actions": [
+    {
+      "canonical": "partition.spec",
+      "value": "o_orderdate:year"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 134217728
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 33554432
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_orderkey"
+      ]
+    }
+  ]
+}

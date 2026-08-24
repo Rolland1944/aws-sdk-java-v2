@@ -1,0 +1,62 @@
+{
+  "experiment": "E8",
+  "variant": "per-table sort, baseline file counts",
+  "stage": "F",
+  "layout_id": "li-baseline-shipdate_o-baseline-odate_ps-baseline",
+  "data": "s3a://home-haoyue/track2/cand_ptable_sort_sf100",
+  "client": "Tencent Cloud VM (not D-8 / E12)",
+  "n_runs": 5,
+  "n_query_errors": 0,
+  "end_to_end_s": [
+    1985.219,
+    2011.025,
+    2019.245,
+    2137.128,
+    2056.302
+  ],
+  "median_s": 2019.245,
+  "baseline_median_s": 3204.965,
+  "improve_frac": 0.37,
+  "improve_pass": true,
+  "cv": 0.0289,
+  "cv_pass": true,
+  "cv_note": "Five runs [1985.219, 2011.025, 2019.245, 2137.128, 2056.302] are tight (CV 2.89%). Previous E8 1GB layout CV was 39.5% with run-1 outlier 4304s.",
+  "vs_previous_e8": {
+    "layout_id": "p-none_f-1GB_rg-128MB_s-l_shipdate",
+    "median_s": 2127.903,
+    "cv": 0.3947,
+    "this_median_delta_frac": 0.0511,
+    "this_cv": 0.0289,
+    "stability": "better",
+    "speed": "similar_slightly_faster_median"
+  },
+  "guardrails": {
+    "single_query_regression_le_10pct": {
+      "pass": false,
+      "failures": [
+        {
+          "query": 18,
+          "e8_median_s": 225.549,
+          "e2_median_s": 170.233,
+          "regression": 0.3249
+        },
+        {
+          "query": 22,
+          "e8_median_s": 45.717,
+          "e2_median_s": 39.572,
+          "regression": 0.1553
+        }
+      ]
+    },
+    "p95_p99_regression_le_5pct": {
+      "pass": true,
+      "e8_p95_s": 225.549,
+      "e2_p95_s": 231.289,
+      "e8_p99_s": 238.11,
+      "e2_p99_s": 295.709
+    }
+  },
+  "gate_pass": false,
+  "note": "Median 2019s vs E2 3205s (37.0%) meets \u226510%. CV 2.89% meets <5% (previous E8 1GB failed at 39.5%). Q11 is fixed (45.0 vs E2 45.8; 1GB was 54.2). Q18 still regresses (225.5 vs 170.2, +32%) \u2014 two full lineitem scans, shipdate sort does not prune. Q22 +16% on unsorted orders scan after o_orderdate sort.",
+  "computed_at": "2026-08-19T10:23:37.441530+00:00"
+}

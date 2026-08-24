@@ -1,0 +1,9 @@
+# hits
+    hits.EventDate             ndv=17          
+    hits.CounterID             ndv=7526        
+    hits.RegionID              ndv=10607       
+    hits.UserID                ndv=18589928    
+    hits.AdvEngineID           ndv=17          
+    hits  3.1s
+
+# done  3.2s  docs/adaptive-range-reader/results/track2/clickbench/column_stats.json

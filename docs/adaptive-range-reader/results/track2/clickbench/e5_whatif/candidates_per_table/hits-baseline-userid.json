@@ -1,0 +1,26 @@
+{
+  "candidate_id": "hits-baseline-userid",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "UserID"
+      ],
+      "table": "hits"
+    }
+  ],
+  "tables": {
+    "hits": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "userid",
+      "sort_columns": [
+        "UserID"
+      ],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    }
+  }
+}

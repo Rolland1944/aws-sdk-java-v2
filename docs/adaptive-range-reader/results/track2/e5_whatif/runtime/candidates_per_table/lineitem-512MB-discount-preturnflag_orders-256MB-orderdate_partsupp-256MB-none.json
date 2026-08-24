@@ -1,0 +1,97 @@
+{
+  "candidate_id": "lineitem-512MB-discount-preturnflag_orders-256MB-orderdate_partsupp-256MB-none",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 536870912,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_discount"
+      ],
+      "table": "lineitem"
+    },
+    {
+      "canonical": "partition.spec",
+      "value": "l_returnflag",
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 268435456,
+      "table": "orders"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "orders"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "o_orderdate"
+      ],
+      "table": "orders"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 268435456,
+      "table": "partsupp"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "partsupp"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "512MB",
+      "file_bytes": 536870912,
+      "sort_label": "discount",
+      "sort_columns": [
+        "l_discount"
+      ],
+      "sort_ndv": 12,
+      "partition_label": "returnflag",
+      "partition": "l_returnflag",
+      "partition_n": 3,
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    },
+    "orders": {
+      "file_label": "256MB",
+      "file_bytes": 268435456,
+      "sort_label": "orderdate",
+      "sort_columns": [
+        "o_orderdate"
+      ],
+      "sort_ndv": 2321,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    },
+    "partsupp": {
+      "file_label": "256MB",
+      "file_bytes": 268435456,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    }
+  }
+}

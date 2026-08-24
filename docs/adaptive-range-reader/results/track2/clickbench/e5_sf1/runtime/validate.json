@@ -1,0 +1,14 @@
+{
+  "gate": "L1 self-consistency vs ClickBench E2 (or deferred)",
+  "predicted_gets": 44880,
+  "actual_gets": null,
+  "gets_rel_error": null,
+  "predicted_gib": 60.1,
+  "actual_gib": null,
+  "gib_rel_error": null,
+  "tolerance": 0.1,
+  "pass": true,
+  "t_io_s": 1862.822,
+  "measured_median_s": 2273.32,
+  "note": "E2 IO not yet available; search still runs"
+}

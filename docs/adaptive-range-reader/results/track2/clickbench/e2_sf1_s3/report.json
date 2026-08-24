@@ -1,0 +1,1090 @@
+{
+  "ran_at": "2026-08-20T07:56:20.562948+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 7 E2 / 4.2",
+  "layout_id": "clickbench_sf1_baseline",
+  "data": "s3a://home-haoyue/track2/clickbench_sf1",
+  "master": "local[16]",
+  "driver_memory": "32g",
+  "n_runs_requested": 5,
+  "n_runs_kept": 2,
+  "note": "User truncated E2 to the first two completed runs. Run 2 Q12 hit FAILED_READ_FILE.",
+  "runs": [
+    {
+      "run": 1,
+      "session_s": 1825.99,
+      "query_sum_s": 1825.99,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 1,
+          "query": 1,
+          "wall_s": 14.59,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 2,
+          "wall_s": 25.92,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 3,
+          "wall_s": 18.52,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 4,
+          "wall_s": 18.45,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 5,
+          "wall_s": 22.49,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 6,
+          "wall_s": 21.74,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 7,
+          "wall_s": 16.38,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 8,
+          "wall_s": 24.46,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 9,
+          "wall_s": 26.5,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 10,
+          "wall_s": 24.22,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 11,
+          "wall_s": 32.08,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 12,
+          "wall_s": 32.45,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 13,
+          "wall_s": 34.45,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 14,
+          "wall_s": 37.48,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 15,
+          "wall_s": 36.26,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 16,
+          "wall_s": 21.18,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 17,
+          "wall_s": 28.29,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 18,
+          "wall_s": 24.05,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 19,
+          "wall_s": 31.56,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 20,
+          "wall_s": 58.56,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 21,
+          "wall_s": 112.39,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 22,
+          "wall_s": 61.71,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 23,
+          "wall_s": 86.36,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 24,
+          "wall_s": 217.54,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 25,
+          "wall_s": 51.16,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 26,
+          "wall_s": 118.22,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 27,
+          "wall_s": 48.0,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 28,
+          "wall_s": 58.05,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 29,
+          "wall_s": 63.77,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 30,
+          "wall_s": 21.05,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 31,
+          "wall_s": 36.07,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 32,
+          "wall_s": 62.05,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 33,
+          "wall_s": 91.41,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 34,
+          "wall_s": 53.63,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 35,
+          "wall_s": 85.58,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 36,
+          "wall_s": 21.23,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 37,
+          "wall_s": 12.74,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 38,
+          "wall_s": 12.49,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 39,
+          "wall_s": 12.49,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 40,
+          "wall_s": 12.79,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 41,
+          "wall_s": 12.64,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 42,
+          "wall_s": 12.46,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 43,
+          "wall_s": 12.53,
+          "rows": null,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": null,
+        "ranged_gets": null,
+        "remote_bytes": null
+      },
+      "note": "reconstructed from e2_sf1_s3.log; E2 truncated after 2/5 at user request"
+    },
+    {
+      "run": 2,
+      "session_s": 2720.65,
+      "query_sum_s": 2720.65,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 2,
+          "query": 1,
+          "wall_s": 11.6,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 2,
+          "wall_s": 24.04,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 3,
+          "wall_s": 17.45,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 4,
+          "wall_s": 17.66,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 5,
+          "wall_s": 23.79,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 6,
+          "wall_s": 22.04,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 7,
+          "wall_s": 15.65,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 8,
+          "wall_s": 24.29,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 9,
+          "wall_s": 23.14,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 10,
+          "wall_s": 24.62,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 11,
+          "wall_s": 31.1,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 12,
+          "wall_s": 132.57,
+          "rows": null,
+          "error": "SparkException: FAILED_READ_FILE.NO_HINT s3a://.../part-00057-*.parquet"
+        },
+        {
+          "run": 2,
+          "query": 13,
+          "wall_s": 399.98,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 14,
+          "wall_s": 260.97,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 15,
+          "wall_s": 40.51,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 16,
+          "wall_s": 23.95,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 17,
+          "wall_s": 27.98,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 18,
+          "wall_s": 26.51,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 19,
+          "wall_s": 54.48,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 20,
+          "wall_s": 27.16,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 21,
+          "wall_s": 101.52,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 22,
+          "wall_s": 64.7,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 23,
+          "wall_s": 137.43,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 24,
+          "wall_s": 456.06,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 25,
+          "wall_s": 37.93,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 26,
+          "wall_s": 35.56,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 27,
+          "wall_s": 43.44,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 28,
+          "wall_s": 58.18,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 29,
+          "wall_s": 77.51,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 30,
+          "wall_s": 21.62,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 31,
+          "wall_s": 37.98,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 32,
+          "wall_s": 45.83,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 33,
+          "wall_s": 40.38,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 34,
+          "wall_s": 138.39,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 35,
+          "wall_s": 80.81,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 36,
+          "wall_s": 22.74,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 37,
+          "wall_s": 12.66,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 38,
+          "wall_s": 12.85,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 39,
+          "wall_s": 12.61,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 40,
+          "wall_s": 12.7,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 41,
+          "wall_s": 12.6,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 42,
+          "wall_s": 13.98,
+          "rows": null,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 43,
+          "wall_s": 13.68,
+          "rows": null,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": null,
+        "ranged_gets": null,
+        "remote_bytes": null
+      },
+      "note": "reconstructed from e2_sf1_s3.log; E2 truncated after 2/5 at user request"
+    }
+  ],
+  "summary": {
+    "n_runs": 2,
+    "end_to_end_s": [
+      1825.99,
+      2720.65
+    ],
+    "median_s": 2273.32,
+    "mean_s": 2273.32,
+    "stdev_s": 632.6201528563566,
+    "cv": 0.27828029175670677,
+    "gate_threshold": 0.05,
+    "gate_pass": false,
+    "per_query": [
+      {
+        "query": 1,
+        "n": 2,
+        "median_s": 13.094999999999999,
+        "mean_s": 13.094999999999999,
+        "min_s": 11.6,
+        "max_s": 14.59,
+        "stdev_s": 2.114249275747777,
+        "errors": []
+      },
+      {
+        "query": 2,
+        "n": 2,
+        "median_s": 24.98,
+        "mean_s": 24.98,
+        "min_s": 24.04,
+        "max_s": 25.92,
+        "stdev_s": 1.329360748630711,
+        "errors": []
+      },
+      {
+        "query": 3,
+        "n": 2,
+        "median_s": 17.985,
+        "mean_s": 17.985,
+        "min_s": 17.45,
+        "max_s": 18.52,
+        "stdev_s": 0.756604255869606,
+        "errors": []
+      },
+      {
+        "query": 4,
+        "n": 2,
+        "median_s": 18.055,
+        "mean_s": 18.055,
+        "min_s": 17.66,
+        "max_s": 18.45,
+        "stdev_s": 0.558614357137372,
+        "errors": []
+      },
+      {
+        "query": 5,
+        "n": 2,
+        "median_s": 23.14,
+        "mean_s": 23.14,
+        "min_s": 22.49,
+        "max_s": 23.79,
+        "stdev_s": 0.9192388155425123,
+        "errors": []
+      },
+      {
+        "query": 6,
+        "n": 2,
+        "median_s": 21.89,
+        "mean_s": 21.89,
+        "min_s": 21.74,
+        "max_s": 22.04,
+        "stdev_s": 0.21213203435596475,
+        "errors": []
+      },
+      {
+        "query": 7,
+        "n": 2,
+        "median_s": 16.015,
+        "mean_s": 16.015,
+        "min_s": 15.65,
+        "max_s": 16.38,
+        "stdev_s": 0.5161879502661787,
+        "errors": []
+      },
+      {
+        "query": 8,
+        "n": 2,
+        "median_s": 24.375,
+        "mean_s": 24.375,
+        "min_s": 24.29,
+        "max_s": 24.46,
+        "stdev_s": 0.12020815280171429,
+        "errors": []
+      },
+      {
+        "query": 9,
+        "n": 2,
+        "median_s": 24.82,
+        "mean_s": 24.82,
+        "min_s": 23.14,
+        "max_s": 26.5,
+        "stdev_s": 2.3758787847867993,
+        "errors": []
+      },
+      {
+        "query": 10,
+        "n": 2,
+        "median_s": 24.42,
+        "mean_s": 24.42,
+        "min_s": 24.22,
+        "max_s": 24.62,
+        "stdev_s": 0.2828427124746205,
+        "errors": []
+      },
+      {
+        "query": 11,
+        "n": 2,
+        "median_s": 31.59,
+        "mean_s": 31.59,
+        "min_s": 31.1,
+        "max_s": 32.08,
+        "stdev_s": 0.6929646455628143,
+        "errors": []
+      },
+      {
+        "query": 12,
+        "n": 2,
+        "median_s": 82.50999999999999,
+        "mean_s": 82.50999999999999,
+        "min_s": 32.45,
+        "max_s": 132.57,
+        "stdev_s": 70.79553093239713,
+        "errors": [
+          "SparkException: FAILED_READ_FILE.NO_HINT s3a://.../part-00057-*.parquet"
+        ]
+      },
+      {
+        "query": 13,
+        "n": 2,
+        "median_s": 217.215,
+        "mean_s": 217.215,
+        "min_s": 34.45,
+        "max_s": 399.98,
+        "stdev_s": 258.46874172711875,
+        "errors": []
+      },
+      {
+        "query": 14,
+        "n": 2,
+        "median_s": 149.22500000000002,
+        "mean_s": 149.22500000000002,
+        "min_s": 37.48,
+        "max_s": 260.97,
+        "stdev_s": 158.03129452738153,
+        "errors": []
+      },
+      {
+        "query": 15,
+        "n": 2,
+        "median_s": 38.385,
+        "mean_s": 38.385,
+        "min_s": 36.26,
+        "max_s": 40.51,
+        "stdev_s": 3.005203820042827,
+        "errors": []
+      },
+      {
+        "query": 16,
+        "n": 2,
+        "median_s": 22.564999999999998,
+        "mean_s": 22.564999999999998,
+        "min_s": 21.18,
+        "max_s": 23.95,
+        "stdev_s": 1.9586857838867364,
+        "errors": []
+      },
+      {
+        "query": 17,
+        "n": 2,
+        "median_s": 28.134999999999998,
+        "mean_s": 28.134999999999998,
+        "min_s": 27.98,
+        "max_s": 28.29,
+        "stdev_s": 0.21920310216782882,
+        "errors": []
+      },
+      {
+        "query": 18,
+        "n": 2,
+        "median_s": 25.28,
+        "mean_s": 25.28,
+        "min_s": 24.05,
+        "max_s": 26.51,
+        "stdev_s": 1.7394826817189075,
+        "errors": []
+      },
+      {
+        "query": 19,
+        "n": 2,
+        "median_s": 43.019999999999996,
+        "mean_s": 43.019999999999996,
+        "min_s": 31.56,
+        "max_s": 54.48,
+        "stdev_s": 16.206887424795667,
+        "errors": []
+      },
+      {
+        "query": 20,
+        "n": 2,
+        "median_s": 42.86,
+        "mean_s": 42.86,
+        "min_s": 27.16,
+        "max_s": 58.56,
+        "stdev_s": 22.203152929257595,
+        "errors": []
+      },
+      {
+        "query": 21,
+        "n": 2,
+        "median_s": 106.955,
+        "mean_s": 106.955,
+        "min_s": 101.52,
+        "max_s": 112.39,
+        "stdev_s": 7.686250711497775,
+        "errors": []
+      },
+      {
+        "query": 22,
+        "n": 2,
+        "median_s": 63.205,
+        "mean_s": 63.205,
+        "min_s": 61.71,
+        "max_s": 64.7,
+        "stdev_s": 2.1142492757477784,
+        "errors": []
+      },
+      {
+        "query": 23,
+        "n": 2,
+        "median_s": 111.89500000000001,
+        "mean_s": 111.89500000000001,
+        "min_s": 86.36,
+        "max_s": 137.43,
+        "stdev_s": 36.11194331519699,
+        "errors": []
+      },
+      {
+        "query": 24,
+        "n": 2,
+        "median_s": 336.8,
+        "mean_s": 336.8,
+        "min_s": 217.54,
+        "max_s": 456.06,
+        "stdev_s": 168.6591094486153,
+        "errors": []
+      },
+      {
+        "query": 25,
+        "n": 2,
+        "median_s": 44.545,
+        "mean_s": 44.545,
+        "min_s": 37.93,
+        "max_s": 51.16,
+        "stdev_s": 9.355022715098022,
+        "errors": []
+      },
+      {
+        "query": 26,
+        "n": 2,
+        "median_s": 76.89,
+        "mean_s": 76.89,
+        "min_s": 35.56,
+        "max_s": 118.22,
+        "stdev_s": 58.44944653288002,
+        "errors": []
+      },
+      {
+        "query": 27,
+        "n": 2,
+        "median_s": 45.72,
+        "mean_s": 45.72,
+        "min_s": 43.44,
+        "max_s": 48.0,
+        "stdev_s": 3.224406922210658,
+        "errors": []
+      },
+      {
+        "query": 28,
+        "n": 2,
+        "median_s": 58.114999999999995,
+        "mean_s": 58.114999999999995,
+        "min_s": 58.05,
+        "max_s": 58.18,
+        "stdev_s": 0.09192388155425299,
+        "errors": []
+      },
+      {
+        "query": 29,
+        "n": 2,
+        "median_s": 70.64,
+        "mean_s": 70.64,
+        "min_s": 63.77,
+        "max_s": 77.51,
+        "stdev_s": 9.715647173503164,
+        "errors": []
+      },
+      {
+        "query": 30,
+        "n": 2,
+        "median_s": 21.335,
+        "mean_s": 21.335,
+        "min_s": 21.05,
+        "max_s": 21.62,
+        "stdev_s": 0.40305086527633227,
+        "errors": []
+      },
+      {
+        "query": 31,
+        "n": 2,
+        "median_s": 37.025,
+        "mean_s": 37.025,
+        "min_s": 36.07,
+        "max_s": 37.98,
+        "stdev_s": 1.3505739520663034,
+        "errors": []
+      },
+      {
+        "query": 32,
+        "n": 2,
+        "median_s": 53.94,
+        "mean_s": 53.94,
+        "min_s": 45.83,
+        "max_s": 62.05,
+        "stdev_s": 11.4692719908458,
+        "errors": []
+      },
+      {
+        "query": 33,
+        "n": 2,
+        "median_s": 65.895,
+        "mean_s": 65.895,
+        "min_s": 40.38,
+        "max_s": 91.41,
+        "stdev_s": 36.08365904394952,
+        "errors": []
+      },
+      {
+        "query": 34,
+        "n": 2,
+        "median_s": 96.00999999999999,
+        "mean_s": 96.00999999999999,
+        "min_s": 53.63,
+        "max_s": 138.39,
+        "stdev_s": 59.934370773371754,
+        "errors": []
+      },
+      {
+        "query": 35,
+        "n": 2,
+        "median_s": 83.195,
+        "mean_s": 83.195,
+        "min_s": 80.81,
+        "max_s": 85.58,
+        "stdev_s": 3.3728993462598287,
+        "errors": []
+      },
+      {
+        "query": 36,
+        "n": 2,
+        "median_s": 21.985,
+        "mean_s": 21.985,
+        "min_s": 21.23,
+        "max_s": 22.74,
+        "stdev_s": 1.0677312395916854,
+        "errors": []
+      },
+      {
+        "query": 37,
+        "n": 2,
+        "median_s": 12.7,
+        "mean_s": 12.7,
+        "min_s": 12.66,
+        "max_s": 12.74,
+        "stdev_s": 0.05656854249492385,
+        "errors": []
+      },
+      {
+        "query": 38,
+        "n": 2,
+        "median_s": 12.67,
+        "mean_s": 12.67,
+        "min_s": 12.49,
+        "max_s": 12.85,
+        "stdev_s": 0.2545584412271567,
+        "errors": []
+      },
+      {
+        "query": 39,
+        "n": 2,
+        "median_s": 12.55,
+        "mean_s": 12.55,
+        "min_s": 12.49,
+        "max_s": 12.61,
+        "stdev_s": 0.08485281374238515,
+        "errors": []
+      },
+      {
+        "query": 40,
+        "n": 2,
+        "median_s": 12.745,
+        "mean_s": 12.745,
+        "min_s": 12.7,
+        "max_s": 12.79,
+        "stdev_s": 0.06363961030678918,
+        "errors": []
+      },
+      {
+        "query": 41,
+        "n": 2,
+        "median_s": 12.620000000000001,
+        "mean_s": 12.620000000000001,
+        "min_s": 12.6,
+        "max_s": 12.64,
+        "stdev_s": 0.028284271247462554,
+        "errors": []
+      },
+      {
+        "query": 42,
+        "n": 2,
+        "median_s": 13.22,
+        "mean_s": 13.22,
+        "min_s": 12.46,
+        "max_s": 13.98,
+        "stdev_s": 1.074802307403552,
+        "errors": []
+      },
+      {
+        "query": 43,
+        "n": 2,
+        "median_s": 13.105,
+        "mean_s": 13.105,
+        "min_s": 12.53,
+        "max_s": 13.68,
+        "stdev_s": 0.8131727983645299,
+        "errors": []
+      }
+    ]
+  }
+}

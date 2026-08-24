@@ -5,8 +5,8 @@
 >
 > **文档优先级**：`PROJECT3.md`（总路线） > `TRACK2_PROJECT.md`（Track 2 执行与变更记录） > 本文件（M0 冻结项） > `TRACK2_PLAN.md`（计划）。
 >
-> **冻结日期**：2026-08-07。**当前修订 r3**：2026-08-07（r2 引擎改 Spark 4.1.x、Writer 改 parquet-mr；
-> r3 动作改用引擎中立规范名、跨引擎适配定为备选项。见 §12 修订记录）。
+> **冻结日期**：2026-08-07。**当前修订 r4**：2026-08-17（r4 记录 E2 客户端 regime 偏离，并预留同区门禁实验 E12。
+> 见 §1.2 与 §12）。
 >
 > **修改规则**：本文件冻结后**不得为了让结果更好看而修改**。任何变更必须在 `TRACK2_PROJECT.md` 变更记录中说明
 > 「改了什么、为什么改、改之前已经观测到什么」，并明确该变更是否影响已产出的结论。
@@ -70,6 +70,12 @@ Spark 4.x 自带 Hadoop 3.4.1+ 与 parquet-mr 1.15.2，**一次解决两个问�
 > **⚠ 网络突发风险**：`m5d.4xlarge` 的 10 Gbps 是**突发**带宽，持续基线显著更低。
 > 长时间大吞吐 scan 可能触发带宽信用耗尽，导致运行间方差上升，**直接威胁 §4.2 的 CV < 5% 要求**。
 > E0 必须实测持续吞吐并记录；若 CV 不达标，优先考虑换用带宽有保证的实例类型，而不是放宽 CV 门槛。
+>
+> **⚠ r4 regime 偏离（不改 D-8）**：已归档的 E2 基线跑在腾讯云 VM 上跨云访问 `us-east-2`
+> （实测 RTT ≈ 228 ms），不是上表的同区 `m5d.4xlarge`（Track 1 同区 RTT ≈ 25 ms）。
+> D-8 的目标环境不变。What-if 把 `(RTT, BW, K)` 做成模型显式输入，当前数字按实测 regime 报告，
+> 25 ms 只作敏感性扫描，**不替代门禁数字**。
+> **之后补充同区门禁实验 E12**：在合同客户端上重跑基线与最终验收；声称「同区 EC2」的 SIGMOD 数字必须以 E12 为准，不得用当前这份 3205 s 顶替。
 
 ### 1.3 Writer 工具链（D-5 / D-6）
 
@@ -499,9 +505,11 @@ parquet-mr 自 1.11 起始终写页索引，README 中没有任何禁用开关�
 | **E9** | 扩展动作消融 | M5 | Default → PTO 四参数 → +page 粒度/Bloom/dictionary 的递增消融 | 证明扩展动作的增量价值 |
 | **E10** | ATUN binary vs empirical branch | M5 | 成本分支细化是否值得 | 仅当稳定降低 selection regret 才保留；否则记录为负结果 |
 | **E11** | vectored IO 敏感性 | M5 | Range 合并开/关对布局收益排序的影响 | 单独进行，不与 Writer 布局同时变化 |
+| **E12** | **同区门禁复核**（预留） | M4 之后 / 论文数字冻结前 | 在 D-8 客户端（同区 `m5d.4xlarge`）重跑 E2 基线与 E8 验收 | 同区 CV < 5%；E8 的 ≥10% 与 guardrail 以本次为准。当前跨云 E2 **不**可当作同区门禁 |
 
 **E8 未通过即止损**：Track 2 降为论文 discussion，保留 Advisor 架构、成本模型误差和负结果，
 不再扩张布局动作空间（`TRACK2_PLAN.md` §7.1）。
+E12 不替代 E8 的止损时钟：M2–M4 继续在当前机器推进；E12 是把对外数字对齐 D-8 的复核，缺席则论文不得声称同区 EC2。
 
 ---
 
@@ -510,13 +518,20 @@ parquet-mr 自 1.11 起始终写页索引，README 中没有任何禁用开关�
 ```text
 tools/track2/
 ├── probe_capability.py      # §6.3 能力探针，E0 必跑
-├── gen_tpch.py              # DuckDB dbgen SF100 → 规范源数据
 ├── write_layout.py          # Spark writer 配置与 DataFrame 变换；★ Code Diff 的目标文件
 ├── parse_footer.py          # FormatMetadataCollector：footer → RG/chunk/page 映射（PyArrow，只读）
 ├── collect_semantic.py      # SemanticCollector：Spark 事件日志/plan → scan fragment
 ├── correlate.py             # 三层关联 → ObservationBundle
 ├── analyze_layout.py        # 共访问矩阵、切碎率、冷字段、候选生成
-└── whatif.py                # L0 静态检查 + L1 解析模型
+├── whatif.py                # L0 静态检查 + L1 解析模型 + 穷举/迭代搜索 + RTT sweep
+├── sysconst.py              # 从 IO NDJSON 拟合 RTT / BW / K（regime 参数）
+├── column_stats.py          # canonical 源列 NDV / null / 分位 CDF
+├── virtual_footer.py        # 候选 → 预测几何与 min/max
+├── workload.py              # TPC-H scan catalog 与 PTO 网格
+└── m2_gate.py               # 压缩负载实测 vs L1 top-3 / regret
+
+scripts/data_collect/
+└── generate_tpch.py         # DuckDB dbgen SF100 → 规范源数据（含 checksum 与查询文本冻结，§2.2）
 
 services-custom/s3-adaptive-range-reader/src/main/java/software/amazon/awssdk/s3/adaptive/telemetry/
 ├── Track2IoCollectorInterceptor.java   # SdkIoCollector；仅实现 ExecutionInterceptor
@@ -557,6 +572,7 @@ M0 门禁要求「主目标与边界无未决项」。以下均**不影响主目
 | O-4 | 默认写出的实际文件大小分布 | E0 从 footer 回读记录 | M1 |
 | O-5 | `m5d.4xlarge` 突发带宽是否满足 CV<5% | E0 实测；不达标则换实例类型，**不放宽 CV 门槛** | M1 |
 | O-6 | 主路径（`CommonAuditContext` 注入）的实际覆盖率 | E1 与兜底路径分别报告 | M1 |
+| O-7 | E2 客户端不是 D-8 的同区 `m5d.4xlarge` | 模型按 regime 参数化；**预留 E12 同区门禁复核**，不改当前 E2 数字、不放宽 CV / ≥10% 门槛 | 论文数字冻结前 |
 
 > r1 的 O-4（PyArrow `row_group_size` 行数↔字节换算）已因 D-6 改用 `parquet.block.size`（字节）而**取消**。
 
@@ -657,6 +673,19 @@ Iceberg 留给「需要实证跨引擎可移植性」的时候。
 ---
 
 ## 12. 修订记录
+
+### r4（2026-08-17）—— 记录 E2 客户端 regime 偏离，预留同区门禁实验 E12
+
+**触发**：阶段 D 归档的 E2 跑在腾讯云 VM 跨云访问 `us-east-2`（RTT ≈ 228 ms），
+与 D-8 / §1.2 冻结的同区 `m5d.4xlarge` 不一致。What-if 已把 `(RTT, BW, K)` 参数化，
+但这只解决模型，不解决「合同写的环境和实际测的环境不是同一台机器」。
+
+**变更**：D-8 目标环境**不改**。§1.2 增加偏离说明；§7 增加预留实验 **E12（同区门禁复核）**；
+§9 增加 O-7。当前跨云 E2（CV 1.99%，median 3205 s）仍是 M2 的工作基线。
+E12 安排在 M4 之后、论文数字冻结前：在同区 `m5d.4xlarge` 重跑基线与最终验收。
+未完成 E12 时，对外数字必须标注实测客户端，不得写成合同 D-8。
+
+**未改**：§4 主指标、CV < 5%、E8 ≥10%、Reader 冻结项。
 
 ### r3（2026-08-07）—— 跨引擎 Writer 可移植性定为备选项，动作改用引擎中立规范名
 

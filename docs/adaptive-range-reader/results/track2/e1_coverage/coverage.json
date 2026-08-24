@@ -1,0 +1,28 @@
+{
+  "correlated_at": "2026-08-14T06:30:07.029126+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 1.2 (M1 gate)",
+  "io_files": [
+    "/data/home/haoyueli/aws-sdk-java-v2/docs/adaptive-range-reader/results/track2/e1_coverage/io/track2-io-c372dff0-63cb-4c2b-b601-4df1e747f5f7.ndjson"
+  ],
+  "ranged_gets": 602,
+  "bytes_total": 190976838,
+  "bytes_chunk_overlap": 189318391,
+  "bytes_format_metadata": 1658447,
+  "bytes_attributed": 189318391,
+  "requests_attributed": 588,
+  "coverage_bytes": 0.9913,
+  "coverage_requests": 0.9767,
+  "gate_threshold": 0.95,
+  "gate_pass": true,
+  "unattributed_reasons": {
+    "format_metadata": 14,
+    "no_query_match": 2
+  },
+  "page_coverage": {
+    "chunks_with_page_index": 0,
+    "chunks_touched": 1619,
+    "fraction": 0.0,
+    "page_level_attribution_claimed": false,
+    "note": "no ColumnIndex/OffsetIndex on touched chunks; page-level attribution is not claimed (contract: report separately, do not claim)"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "candidate_id": "li-baseline-shipdate_o-128MB-none_ps-128MB",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_shipdate"
+      ],
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 134217728,
+      "table": "orders"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "orders"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 134217728,
+      "table": "partsupp"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "partsupp"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "shipdate",
+      "sort_columns": [
+        "l_shipdate"
+      ],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "orders": {
+      "file_label": "128MB",
+      "file_bytes": 134217728,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    },
+    "partsupp": {
+      "file_label": "128MB",
+      "file_bytes": 134217728,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    }
+  }
+}

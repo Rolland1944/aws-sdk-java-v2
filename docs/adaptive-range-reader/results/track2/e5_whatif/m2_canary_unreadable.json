@@ -1,0 +1,80 @@
+{
+  "layout_id": "p-none_f-1GB_rg-256MB_s-l_shipdate",
+  "data": "s3a://home-haoyue/track2/cand_best_sf100",
+  "session_s": 4577.645,
+  "queries": [
+    {
+      "query": 21,
+      "wall_s": 1496.416,
+      "ok": false,
+      "error_kind": "parquet_vectored_300s",
+      "range_bytes": 34694709
+    },
+    {
+      "query": 15,
+      "wall_s": 290.19,
+      "ok": false,
+      "error_kind": "s3_connection_closed",
+      "range_bytes": null
+    },
+    {
+      "query": 9,
+      "wall_s": 872.735,
+      "ok": true,
+      "error_kind": null,
+      "range_bytes": null
+    },
+    {
+      "query": 17,
+      "wall_s": 282.347,
+      "ok": true,
+      "error_kind": null,
+      "range_bytes": null
+    },
+    {
+      "query": 8,
+      "wall_s": 219.205,
+      "ok": true,
+      "error_kind": null,
+      "range_bytes": null
+    },
+    {
+      "query": 1,
+      "wall_s": 173.427,
+      "ok": true,
+      "error_kind": null,
+      "range_bytes": null
+    },
+    {
+      "query": 18,
+      "wall_s": 274.565,
+      "ok": true,
+      "error_kind": null,
+      "range_bytes": null
+    },
+    {
+      "query": 7,
+      "wall_s": 390.477,
+      "ok": false,
+      "error_kind": "parquet_vectored_300s",
+      "range_bytes": 34692568
+    },
+    {
+      "query": 10,
+      "wall_s": 302.14,
+      "ok": false,
+      "error_kind": "parquet_vectored_300s",
+      "range_bytes": 182036000
+    },
+    {
+      "query": 12,
+      "wall_s": 235.475,
+      "ok": false,
+      "error_kind": "s3_connection_closed",
+      "range_bytes": null
+    }
+  ],
+  "n_ok": 5,
+  "n_err": 5,
+  "finding": "parquet-hadoop 1.16 hardcodes a 300s vectored wait. Requested RG=256MiB wrote ~473MiB uncompressed RGs; vectored ranges of 35\u2013182MiB timed out or the HTTP body closed early. Timeout is not a frozen Reader knob. L0 now rejects requested RG > 128MiB (the size E2 proved readable)."
+}

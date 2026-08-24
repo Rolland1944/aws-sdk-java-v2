@@ -1,0 +1,287 @@
+{
+  "provenance": {
+    "dataset": "tpch",
+    "layout": "s3a://home-haoyue/track2/baseline_sf100",
+    "geometry_source": "object listing + sampled parquet footers",
+    "column_stats_source": "docs/adaptive-range-reader/results/track2/e5_whatif/column_stats.json",
+    "geometry_collected_at": "2026-08-24T09:54:37.396461+00:00",
+    "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs",
+    "query_id_source": "positional",
+    "workload_collected_at": "2026-08-24T10:00:21.421998+00:00",
+    "n_queries": 22,
+    "n_tables": 8,
+    "parallelism": 16,
+    "large_table_bytes": 2147483648
+  },
+  "physical": {
+    "customer": {
+      "baseline_files": 17,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 1.154,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 17
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    },
+    "lineitem": {
+      "baseline_files": 200,
+      "baseline_rg_per_file": 2,
+      "compressed_gib": 21.126,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 200
+        },
+        {
+          "label": "16f",
+          "target_file_bytes": 1417753740,
+          "n_files": 16
+        },
+        {
+          "label": "32f",
+          "target_file_bytes": 708876870,
+          "n_files": 32
+        },
+        {
+          "label": "64f",
+          "target_file_bytes": 354438435,
+          "n_files": 64
+        },
+        {
+          "label": "128f",
+          "target_file_bytes": 177219217,
+          "n_files": 129
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        },
+        {
+          "label": "4rg",
+          "rg_bytes": 84540246,
+          "rg_mib": 80.6
+        },
+        {
+          "label": "8rg",
+          "rg_bytes": 42270123,
+          "rg_mib": 40.3
+        }
+      ]
+    },
+    "nation": {
+      "baseline_files": 13,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 0.0,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 13
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    },
+    "orders": {
+      "baseline_files": 100,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 6.051,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 100
+        },
+        {
+          "label": "16f",
+          "target_file_bytes": 406058844,
+          "n_files": 17
+        },
+        {
+          "label": "32f",
+          "target_file_bytes": 203029422,
+          "n_files": 33
+        },
+        {
+          "label": "64f",
+          "target_file_bytes": 101514711,
+          "n_files": 65
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        },
+        {
+          "label": "2rg",
+          "rg_bytes": 73237325,
+          "rg_mib": 69.8
+        },
+        {
+          "label": "4rg",
+          "rg_bytes": 36618662,
+          "rg_mib": 34.9
+        },
+        {
+          "label": "8rg",
+          "rg_bytes": 18309331,
+          "rg_mib": 17.5
+        }
+      ]
+    },
+    "part": {
+      "baseline_files": 17,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 0.578,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 17
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    },
+    "partsupp": {
+      "baseline_files": 50,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 4.093,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 50
+        },
+        {
+          "label": "16f",
+          "target_file_bytes": 274643814,
+          "n_files": 17
+        },
+        {
+          "label": "32f",
+          "target_file_bytes": 137321907,
+          "n_files": 33
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        },
+        {
+          "label": "2rg",
+          "rg_bytes": 121626193,
+          "rg_mib": 116.0
+        },
+        {
+          "label": "4rg",
+          "rg_bytes": 60813096,
+          "rg_mib": 58.0
+        },
+        {
+          "label": "8rg",
+          "rg_bytes": 30406548,
+          "rg_mib": 29.0
+        }
+      ]
+    },
+    "region": {
+      "baseline_files": 5,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 0.0,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 5
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    },
+    "supplier": {
+      "baseline_files": 15,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 0.074,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 15
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    }
+  },
+  "sort_and_partition": {
+    "lineitem": {
+      "sort": [
+        "none",
+        "shipdate",
+        "quantity"
+      ],
+      "partition": [
+        "none",
+        "shipmode",
+        "quantity"
+      ]
+    },
+    "orders": {
+      "sort": [
+        "none",
+        "orderdate"
+      ],
+      "partition": [
+        "none",
+        "orderstatus"
+      ]
+    },
+    "partsupp": {
+      "sort": [
+        "none"
+      ],
+      "partition": [
+        "none"
+      ]
+    }
+  }
+}

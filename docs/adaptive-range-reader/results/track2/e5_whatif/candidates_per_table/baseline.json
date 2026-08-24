@@ -1,0 +1,34 @@
+{
+  "candidate_id": "baseline",
+  "scope": "per_table",
+  "actions": [],
+  "tables": {
+    "lineitem": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "orders": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "partsupp": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    }
+  }
+}

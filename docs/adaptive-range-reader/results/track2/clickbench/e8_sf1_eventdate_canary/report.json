@@ -1,0 +1,105 @@
+{
+  "ran_at": "2026-08-24T04:34:23.092314+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 7 E2 / 4.2",
+  "layout_id": "hits-baseline-eventdate-canary",
+  "data": "s3a://home-haoyue/track2/clickbench_sf1_eventdate",
+  "master": "local[16]",
+  "driver_memory": "32g",
+  "runs": [
+    {
+      "run": 1,
+      "session_s": 221.707,
+      "query_sum_s": 207.808,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 1,
+          "query": 1,
+          "wall_s": 12.269,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 7,
+          "wall_s": 12.711,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 24,
+          "wall_s": 171.449,
+          "rows": 10,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 43,
+          "wall_s": 11.379,
+          "rows": 10,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 1627,
+        "ranged_gets": 1623,
+        "remote_bytes": 15818789051
+      }
+    }
+  ],
+  "summary": {
+    "n_runs": 1,
+    "end_to_end_s": [
+      207.808
+    ],
+    "median_s": 207.808,
+    "mean_s": 207.808,
+    "stdev_s": 0.0,
+    "cv": 0.0,
+    "gate_threshold": 0.05,
+    "gate_pass": false,
+    "per_query": [
+      {
+        "query": 1,
+        "n": 1,
+        "median_s": 12.269,
+        "mean_s": 12.269,
+        "min_s": 12.269,
+        "max_s": 12.269,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 7,
+        "n": 1,
+        "median_s": 12.711,
+        "mean_s": 12.711,
+        "min_s": 12.711,
+        "max_s": 12.711,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 24,
+        "n": 1,
+        "median_s": 171.449,
+        "mean_s": 171.449,
+        "min_s": 171.449,
+        "max_s": 171.449,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 43,
+        "n": 1,
+        "median_s": 11.379,
+        "mean_s": 11.379,
+        "min_s": 11.379,
+        "max_s": 11.379,
+        "stdev_s": 0.0,
+        "errors": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "ran_at": "2026-08-17T11:03:33.889731+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 7 E2 / 4.2",
+  "layout_id": "p-none_f-1GB_rg-128MB_s-l_shipdate",
+  "data": "s3a://home-haoyue/track2/cand_rg128_sf100",
+  "master": "local[16]",
+  "driver_memory": "32g",
+  "runs": [
+    {
+      "run": 1,
+      "session_s": 2106.64,
+      "query_sum_s": 2072.356,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 1,
+          "query": 21,
+          "wall_s": 416.598,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 15,
+          "wall_s": 53.611,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 9,
+          "wall_s": 206.501,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 17,
+          "wall_s": 236.575,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 8,
+          "wall_s": 238.338,
+          "rows": null,
+          "error": "Py4JJavaError: An error occurred while calling o133.collectToPython.\n: org.apache.spark.SparkException: [FAILED_READ_FILE.NO_HINT] Encountered error while reading file s3a://home-haoyue/track2/cand_rg128_sf100/lineitem/part-00001-7c58d312-3707-47f8-aa05-7d2871347739-c000.snappy.parquet.  SQLSTATE: KD001\n\tat org.apache.spark.sql.errors.QueryExecutionErrors$.cannotReadFilesError(QueryExecutionErrors.scala:911)\n\tat org.apache.spark.sql.execution.datasources.v2.FileDataSourceV2$.attachFilePath(FileDataSourceV2.scala:142)\n\tat org.apache.spark.sql.execution.datasources.FileScanRDD$$anon$1.hasNext(FileScanRDD.scala:141)\n\tat org.apache.spark.sql.execution.FileSourceScanExec$$anon$1.hasNext(DataSourceScanExec.scala:773)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage2.columnartorow_nextBatch_0$(Unknown Source)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage2.processNext(Unknown Source)\n\tat org.apache.spark.sql.execution.BufferedRowIterator.hasNext(BufferedRowIterator.java:43)\n\tat org.apache.spark.sql.execution.WholeStageCodegenEvaluatorFactory$WholeStageCodegenPartitionEvaluator$$anon$1.hasNext(WholeStageCodegenEvaluatorFactory.scala:50)\n\tat scala.collection.Iterator$$anon$9.hasNext(Iterator.scala:593)\n\tat org.apache.spark.shuffle.sort.BypassMergeSortShuffleWriter.write(BypassMergeSortShuffleWriter.java:153)\n\tat org.apache.spark.shuffle.ShuffleWriteProcessor.write(ShuffleWriteProcessor.scala:57)\n\tat org.apache.spark.scheduler.ShuffleMapTask.runTask(ShuffleMapTask.scala:111)\n\tat org.apache.spark.scheduler.ShuffleMapTask.runTask(ShuffleMapTask.scala:54)\n\tat org.apache.spark.TaskContext.runTaskWithListeners(TaskContext.scala:180)\n\tat org.apache.spark.scheduler.Task.run(Task.scala:147)\n\tat org.apache.spark.executor.Executor$TaskRunner.$anonfun$run$4(Executor.scala:873)\n\tat org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally(SparkErrorUtils.scala:86)\n\tat org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally$(SparkErrorUtils.scala:83)\n\tat org.apache.spark.util.Utils$.tryWithSafeFinally(Utils.scala:97)\n\tat org.apache.spark.executor.Executor$TaskRunner.run(Executor.scala:876)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)\n\tat java.base/java.lang.Thread.run(Thread.java:840)\nCaused by: software.amazon.awssdk.thirdparty.org.apache.http.ConnectionClosedException: Premature end of Content-Length delimited message body (expected: 53,708,606; received: 36,177,836)\n\tat software.amazon.awssdk.thirdparty.org.apache.http.impl.io.ContentLengthInputStream.read(ContentLengthInputStream.java:178)\n\tat software.amazon.awssdk.thirdparty.org.apache.http.conn.EofSensorInputStream.read(EofSensorInputStream.java:135)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat software.amazon.awssdk.core.io.SdkFilterInputStream.read(SdkFilterInputStream.java:66)\n\tat software.amazon.awssdk.core.internal.metrics.BytesReadTrackingInputStream.read(BytesReadTrackingInputStream.java:49)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat software.amazon.awssdk.core.io.SdkFilterInputStream.read(SdkFilterInputStream.java:66)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.readByteArray(S3AInputStream.java:1126)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.populateBuffer(S3AInputStream.java:1099)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.readSingleRange(S3AInputStream.java:1041)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.lambda$readVectored$4(S3AInputStream.java:883)\n\tat org.apache.hadoop.util.SemaphoredDelegatingExecutor$RunnableWithPermitRelease.run(SemaphoredDelegatingExecutor.java:225)\n\tat org.apache.hadoop.util.SemaphoredDelegatingExecutor$RunnableWithPermitRelease.run(SemaphoredDelegatingExecutor.java:225)\n\tat java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)\n\tat java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)\n\t... 3 more\n"
+        },
+        {
+          "run": 1,
+          "query": 1,
+          "wall_s": 272.559,
+          "rows": null,
+          "error": "Py4JJavaError: An error occurred while calling o140.collectToPython.\n: org.apache.spark.SparkException: [FAILED_READ_FILE.NO_HINT] Encountered error while reading file s3a://home-haoyue/track2/cand_rg128_sf100/lineitem/part-00018-7c58d312-3707-47f8-aa05-7d2871347739-c000.snappy.parquet.  SQLSTATE: KD001\n\tat org.apache.spark.sql.errors.QueryExecutionErrors$.cannotReadFilesError(QueryExecutionErrors.scala:911)\n\tat org.apache.spark.sql.execution.datasources.v2.FileDataSourceV2$.attachFilePath(FileDataSourceV2.scala:142)\n\tat org.apache.spark.sql.execution.datasources.FileScanRDD$$anon$1.hasNext(FileScanRDD.scala:141)\n\tat org.apache.spark.sql.execution.FileSourceScanExec$$anon$1.hasNext(DataSourceScanExec.scala:773)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage1.columnartorow_nextBatch_0$(Unknown Source)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage1.hashAgg_doAggregateWithKeys_0$(Unknown Source)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage1.processNext(Unknown Source)\n\tat org.apache.spark.sql.execution.BufferedRowIterator.hasNext(BufferedRowIterator.java:43)\n\tat org.apache.spark.sql.execution.WholeStageCodegenEvaluatorFactory$WholeStageCodegenPartitionEvaluator$$anon$1.hasNext(WholeStageCodegenEvaluatorFactory.scala:50)\n\tat scala.collection.Iterator$$anon$9.hasNext(Iterator.scala:593)\n\tat org.apache.spark.shuffle.sort.BypassMergeSortShuffleWriter.write(BypassMergeSortShuffleWriter.java:153)\n\tat org.apache.spark.shuffle.ShuffleWriteProcessor.write(ShuffleWriteProcessor.scala:57)\n\tat org.apache.spark.scheduler.ShuffleMapTask.runTask(ShuffleMapTask.scala:111)\n\tat org.apache.spark.scheduler.ShuffleMapTask.runTask(ShuffleMapTask.scala:54)\n\tat org.apache.spark.TaskContext.runTaskWithListeners(TaskContext.scala:180)\n\tat org.apache.spark.scheduler.Task.run(Task.scala:147)\n\tat org.apache.spark.executor.Executor$TaskRunner.$anonfun$run$4(Executor.scala:873)\n\tat org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally(SparkErrorUtils.scala:86)\n\tat org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally$(SparkErrorUtils.scala:83)\n\tat org.apache.spark.util.Utils$.tryWithSafeFinally(Utils.scala:97)\n\tat org.apache.spark.executor.Executor$TaskRunner.run(Executor.scala:876)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)\n\tat java.base/java.lang.Thread.run(Thread.java:840)\nCaused by: software.amazon.awssdk.thirdparty.org.apache.http.ConnectionClosedException: Premature end of Content-Length delimited message body (expected: 24,501,268; received: 10,611,580)\n\tat software.amazon.awssdk.thirdparty.org.apache.http.impl.io.ContentLengthInputStream.read(ContentLengthInputStream.java:178)\n\tat software.amazon.awssdk.thirdparty.org.apache.http.conn.EofSensorInputStream.read(EofSensorInputStream.java:135)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat software.amazon.awssdk.core.io.SdkFilterInputStream.read(SdkFilterInputStream.java:66)\n\tat software.amazon.awssdk.core.internal.metrics.BytesReadTrackingInputStream.read(BytesReadTrackingInputStream.java:49)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat software.amazon.awssdk.core.io.SdkFilterInputStream.read(SdkFilterInputStream.java:66)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.readByteArray(S3AInputStream.java:1126)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.populateBuffer(S3AInputStream.java:1099)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.readSingleRange(S3AInputStream.java:1041)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.lambda$readVectored$4(S3AInputStream.java:883)\n\tat org.apache.hadoop.util.SemaphoredDelegatingExecutor$RunnableWithPermitRelease.run(SemaphoredDelegatingExecutor.java:225)\n\tat org.apache.hadoop.util.SemaphoredDelegatingExecutor$RunnableWithPermitRelease.run(SemaphoredDelegatingExecutor.java:225)\n\tat java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)\n\tat java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)\n\t... 3 more\n"
+        },
+        {
+          "run": 1,
+          "query": 18,
+          "wall_s": 427.965,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 7,
+          "wall_s": 70.843,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 10,
+          "wall_s": 103.884,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 12,
+          "wall_s": 45.482,
+          "rows": 2,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 17636,
+        "ranged_gets": 17604,
+        "remote_bytes": 78309059424
+      }
+    }
+  ],
+  "summary": {
+    "n_runs": 1,
+    "end_to_end_s": [
+      2072.356
+    ],
+    "median_s": 2072.356,
+    "mean_s": 2072.356,
+    "stdev_s": 0.0,
+    "cv": 0.0,
+    "gate_threshold": 0.05,
+    "gate_pass": false,
+    "per_query": [
+      {
+        "query": 1,
+        "n": 1,
+        "median_s": 272.559,
+        "mean_s": 272.559,
+        "min_s": 272.559,
+        "max_s": 272.559,
+        "stdev_s": 0.0,
+        "errors": [
+          "Py4JJavaError: An error occurred while calling o140.collectToPython.\n: org.apache.spark.SparkException: [FAILED_READ_FILE.NO_HINT] Encountered error while reading file s3a://home-haoyue/track2/cand_rg128_sf100/lineitem/part-00018-7c58d312-3707-47f8-aa05-7d2871347739-c000.snappy.parquet.  SQLSTATE: KD001\n\tat org.apache.spark.sql.errors.QueryExecutionErrors$.cannotReadFilesError(QueryExecutionErrors.scala:911)\n\tat org.apache.spark.sql.execution.datasources.v2.FileDataSourceV2$.attachFilePath(FileDataSourceV2.scala:142)\n\tat org.apache.spark.sql.execution.datasources.FileScanRDD$$anon$1.hasNext(FileScanRDD.scala:141)\n\tat org.apache.spark.sql.execution.FileSourceScanExec$$anon$1.hasNext(DataSourceScanExec.scala:773)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage1.columnartorow_nextBatch_0$(Unknown Source)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage1.hashAgg_doAggregateWithKeys_0$(Unknown Source)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage1.processNext(Unknown Source)\n\tat org.apache.spark.sql.execution.BufferedRowIterator.hasNext(BufferedRowIterator.java:43)\n\tat org.apache.spark.sql.execution.WholeStageCodegenEvaluatorFactory$WholeStageCodegenPartitionEvaluator$$anon$1.hasNext(WholeStageCodegenEvaluatorFactory.scala:50)\n\tat scala.collection.Iterator$$anon$9.hasNext(Iterator.scala:593)\n\tat org.apache.spark.shuffle.sort.BypassMergeSortShuffleWriter.write(BypassMergeSortShuffleWriter.java:153)\n\tat org.apache.spark.shuffle.ShuffleWriteProcessor.write(ShuffleWriteProcessor.scala:57)\n\tat org.apache.spark.scheduler.ShuffleMapTask.runTask(ShuffleMapTask.scala:111)\n\tat org.apache.spark.scheduler.ShuffleMapTask.runTask(ShuffleMapTask.scala:54)\n\tat org.apache.spark.TaskContext.runTaskWithListeners(TaskContext.scala:180)\n\tat org.apache.spark.scheduler.Task.run(Task.scala:147)\n\tat org.apache.spark.executor.Executor$TaskRunner.$anonfun$run$4(Executor.scala:873)\n\tat org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally(SparkErrorUtils.scala:86)\n\tat org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally$(SparkErrorUtils.scala:83)\n\tat org.apache.spark.util.Utils$.tryWithSafeFinally(Utils.scala:97)\n\tat org.apache.spark.executor.Executor$TaskRunner.run(Executor.scala:876)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)\n\tat java.base/java.lang.Thread.run(Thread.java:840)\nCaused by: software.amazon.awssdk.thirdparty.org.apache.http.ConnectionClosedException: Premature end of Content-Length delimited message body (expected: 24,501,268; received: 10,611,580)\n\tat software.amazon.awssdk.thirdparty.org.apache.http.impl.io.ContentLengthInputStream.read(ContentLengthInputStream.java:178)\n\tat software.amazon.awssdk.thirdparty.org.apache.http.conn.EofSensorInputStream.read(EofSensorInputStream.java:135)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat software.amazon.awssdk.core.io.SdkFilterInputStream.read(SdkFilterInputStream.java:66)\n\tat software.amazon.awssdk.core.internal.metrics.BytesReadTrackingInputStream.read(BytesReadTrackingInputStream.java:49)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat software.amazon.awssdk.core.io.SdkFilterInputStream.read(SdkFilterInputStream.java:66)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.readByteArray(S3AInputStream.java:1126)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.populateBuffer(S3AInputStream.java:1099)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.readSingleRange(S3AInputStream.java:1041)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.lambda$readVectored$4(S3AInputStream.java:883)\n\tat org.apache.hadoop.util.SemaphoredDelegatingExecutor$RunnableWithPermitRelease.run(SemaphoredDelegatingExecutor.java:225)\n\tat org.apache.hadoop.util.SemaphoredDelegatingExecutor$RunnableWithPermitRelease.run(SemaphoredDelegatingExecutor.java:225)\n\tat java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)\n\tat java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)\n\t... 3 more\n"
+        ]
+      },
+      {
+        "query": 7,
+        "n": 1,
+        "median_s": 70.843,
+        "mean_s": 70.843,
+        "min_s": 70.843,
+        "max_s": 70.843,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 8,
+        "n": 1,
+        "median_s": 238.338,
+        "mean_s": 238.338,
+        "min_s": 238.338,
+        "max_s": 238.338,
+        "stdev_s": 0.0,
+        "errors": [
+          "Py4JJavaError: An error occurred while calling o133.collectToPython.\n: org.apache.spark.SparkException: [FAILED_READ_FILE.NO_HINT] Encountered error while reading file s3a://home-haoyue/track2/cand_rg128_sf100/lineitem/part-00001-7c58d312-3707-47f8-aa05-7d2871347739-c000.snappy.parquet.  SQLSTATE: KD001\n\tat org.apache.spark.sql.errors.QueryExecutionErrors$.cannotReadFilesError(QueryExecutionErrors.scala:911)\n\tat org.apache.spark.sql.execution.datasources.v2.FileDataSourceV2$.attachFilePath(FileDataSourceV2.scala:142)\n\tat org.apache.spark.sql.execution.datasources.FileScanRDD$$anon$1.hasNext(FileScanRDD.scala:141)\n\tat org.apache.spark.sql.execution.FileSourceScanExec$$anon$1.hasNext(DataSourceScanExec.scala:773)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage2.columnartorow_nextBatch_0$(Unknown Source)\n\tat org.apache.spark.sql.catalyst.expressions.GeneratedClass$GeneratedIteratorForCodegenStage2.processNext(Unknown Source)\n\tat org.apache.spark.sql.execution.BufferedRowIterator.hasNext(BufferedRowIterator.java:43)\n\tat org.apache.spark.sql.execution.WholeStageCodegenEvaluatorFactory$WholeStageCodegenPartitionEvaluator$$anon$1.hasNext(WholeStageCodegenEvaluatorFactory.scala:50)\n\tat scala.collection.Iterator$$anon$9.hasNext(Iterator.scala:593)\n\tat org.apache.spark.shuffle.sort.BypassMergeSortShuffleWriter.write(BypassMergeSortShuffleWriter.java:153)\n\tat org.apache.spark.shuffle.ShuffleWriteProcessor.write(ShuffleWriteProcessor.scala:57)\n\tat org.apache.spark.scheduler.ShuffleMapTask.runTask(ShuffleMapTask.scala:111)\n\tat org.apache.spark.scheduler.ShuffleMapTask.runTask(ShuffleMapTask.scala:54)\n\tat org.apache.spark.TaskContext.runTaskWithListeners(TaskContext.scala:180)\n\tat org.apache.spark.scheduler.Task.run(Task.scala:147)\n\tat org.apache.spark.executor.Executor$TaskRunner.$anonfun$run$4(Executor.scala:873)\n\tat org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally(SparkErrorUtils.scala:86)\n\tat org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally$(SparkErrorUtils.scala:83)\n\tat org.apache.spark.util.Utils$.tryWithSafeFinally(Utils.scala:97)\n\tat org.apache.spark.executor.Executor$TaskRunner.run(Executor.scala:876)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)\n\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)\n\tat java.base/java.lang.Thread.run(Thread.java:840)\nCaused by: software.amazon.awssdk.thirdparty.org.apache.http.ConnectionClosedException: Premature end of Content-Length delimited message body (expected: 53,708,606; received: 36,177,836)\n\tat software.amazon.awssdk.thirdparty.org.apache.http.impl.io.ContentLengthInputStream.read(ContentLengthInputStream.java:178)\n\tat software.amazon.awssdk.thirdparty.org.apache.http.conn.EofSensorInputStream.read(EofSensorInputStream.java:135)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat software.amazon.awssdk.core.io.SdkFilterInputStream.read(SdkFilterInputStream.java:66)\n\tat software.amazon.awssdk.core.internal.metrics.BytesReadTrackingInputStream.read(BytesReadTrackingInputStream.java:49)\n\tat java.base/java.io.FilterInputStream.read(FilterInputStream.java:132)\n\tat software.amazon.awssdk.core.io.SdkFilterInputStream.read(SdkFilterInputStream.java:66)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.readByteArray(S3AInputStream.java:1126)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.populateBuffer(S3AInputStream.java:1099)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.readSingleRange(S3AInputStream.java:1041)\n\tat org.apache.hadoop.fs.s3a.S3AInputStream.lambda$readVectored$4(S3AInputStream.java:883)\n\tat org.apache.hadoop.util.SemaphoredDelegatingExecutor$RunnableWithPermitRelease.run(SemaphoredDelegatingExecutor.java:225)\n\tat org.apache.hadoop.util.SemaphoredDelegatingExecutor$RunnableWithPermitRelease.run(SemaphoredDelegatingExecutor.java:225)\n\tat java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)\n\tat java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)\n\t... 3 more\n"
+        ]
+      },
+      {
+        "query": 9,
+        "n": 1,
+        "median_s": 206.501,
+        "mean_s": 206.501,
+        "min_s": 206.501,
+        "max_s": 206.501,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 10,
+        "n": 1,
+        "median_s": 103.884,
+        "mean_s": 103.884,
+        "min_s": 103.884,
+        "max_s": 103.884,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 12,
+        "n": 1,
+        "median_s": 45.482,
+        "mean_s": 45.482,
+        "min_s": 45.482,
+        "max_s": 45.482,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 15,
+        "n": 1,
+        "median_s": 53.611,
+        "mean_s": 53.611,
+        "min_s": 53.611,
+        "max_s": 53.611,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 17,
+        "n": 1,
+        "median_s": 236.575,
+        "mean_s": 236.575,
+        "min_s": 236.575,
+        "max_s": 236.575,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 18,
+        "n": 1,
+        "median_s": 427.965,
+        "mean_s": 427.965,
+        "min_s": 427.965,
+        "max_s": 427.965,
+        "stdev_s": 0.0,
+        "errors": []
+      },
+      {
+        "query": 21,
+        "n": 1,
+        "median_s": 416.598,
+        "mean_s": 416.598,
+        "min_s": 416.598,
+        "max_s": 416.598,
+        "stdev_s": 0.0,
+        "errors": []
+      }
+    ]
+  }
+}

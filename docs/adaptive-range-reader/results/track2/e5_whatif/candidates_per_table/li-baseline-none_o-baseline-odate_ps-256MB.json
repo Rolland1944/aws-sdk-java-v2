@@ -1,0 +1,54 @@
+{
+  "candidate_id": "li-baseline-none_o-baseline-odate_ps-256MB",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "o_orderdate"
+      ],
+      "table": "orders"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 268435456,
+      "table": "partsupp"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "partsupp"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "orders": {
+      "file_label": "baseline",
+      "file_bytes": null,
+      "sort_label": "odate",
+      "sort_columns": [
+        "o_orderdate"
+      ],
+      "partition": "none",
+      "rg_label": "baseline",
+      "rg_bytes": null
+    },
+    "partsupp": {
+      "file_label": "256MB",
+      "file_bytes": 268435456,
+      "sort_label": "none",
+      "sort_columns": [],
+      "partition": "none",
+      "rg_label": "128MB",
+      "rg_bytes": 134217728
+    }
+  }
+}

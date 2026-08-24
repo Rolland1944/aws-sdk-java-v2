@@ -1,0 +1,102 @@
+{
+  "candidate_id": "lineitem-16f-quantity-pquantity_orders-64f-orderdate-porderstatus_partsupp-16f-none",
+  "scope": "per_table",
+  "actions": [
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 1417753740,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "lineitem"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "l_quantity"
+      ],
+      "table": "lineitem"
+    },
+    {
+      "canonical": "partition.spec",
+      "value": "l_quantity",
+      "table": "lineitem"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 101514711,
+      "table": "orders"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "orders"
+    },
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "o_orderdate"
+      ],
+      "table": "orders"
+    },
+    {
+      "canonical": "partition.spec",
+      "value": "o_orderstatus",
+      "table": "orders"
+    },
+    {
+      "canonical": "write.target-file-size-bytes",
+      "value": 274643814,
+      "table": "partsupp"
+    },
+    {
+      "canonical": "write.parquet.row-group-size-bytes",
+      "value": 134217728,
+      "table": "partsupp"
+    }
+  ],
+  "tables": {
+    "lineitem": {
+      "file_label": "16f",
+      "file_bytes": 1417753740,
+      "sort_label": "quantity",
+      "sort_columns": [
+        "l_quantity"
+      ],
+      "sort_ndv": 57,
+      "partition_label": "quantity",
+      "partition": "l_quantity",
+      "partition_n": 57,
+      "rg_label": "engine_default",
+      "rg_bytes": 134217728
+    },
+    "orders": {
+      "file_label": "64f",
+      "file_bytes": 101514711,
+      "sort_label": "orderdate",
+      "sort_columns": [
+        "o_orderdate"
+      ],
+      "sort_ndv": 2321,
+      "partition_label": "orderstatus",
+      "partition": "o_orderstatus",
+      "partition_n": 2,
+      "rg_label": "engine_default",
+      "rg_bytes": 134217728
+    },
+    "partsupp": {
+      "file_label": "16f",
+      "file_bytes": 274643814,
+      "sort_label": "none",
+      "sort_columns": [],
+      "sort_ndv": null,
+      "partition_label": "none",
+      "partition": "none",
+      "partition_n": null,
+      "rg_label": "engine_default",
+      "rg_bytes": 134217728
+    }
+  }
+}

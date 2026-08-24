@@ -1,0 +1,964 @@
+{
+  "analyzed_at": "2026-08-24T10:20:13.351649+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 5.1 / 7 E5",
+  "problems": {
+    "per_run": {
+      "head": 8859,
+      "ranged_get_tiny": 36190,
+      "ranged_get_data": 27842,
+      "ranged_get_total": 64032,
+      "bytes_tiny": 646788199,
+      "bytes_data": 159687559927,
+      "bytes_data_gib": 148.72
+    },
+    "buckets_per_run": {
+      "<64KiB": 36190,
+      "64K-1M": 13979,
+      ">=8M": 7252,
+      "1-8M": 6611
+    },
+    "unique_parquet_paths": 417,
+    "head_per_file_per_run": 21.24,
+    "tiny_get_fraction": 0.5651861569215393,
+    "note": "81%+ of GETs are RTT-dominated (<1 MiB) in the measured regime. Per-file HEAD+footer opens are the layout-sensitive part of that."
+  },
+  "coaccess": {
+    "coaccess_top20": [
+      {
+        "table": "nation",
+        "a": "n_name",
+        "b": "n_nationkey",
+        "weight_s": 2411.0
+      },
+      {
+        "table": "lineitem",
+        "a": "l_discount",
+        "b": "l_extendedprice",
+        "weight_s": 2090.5
+      },
+      {
+        "table": "lineitem",
+        "a": "l_orderkey",
+        "b": "l_suppkey",
+        "weight_s": 1596.8
+      },
+      {
+        "table": "supplier",
+        "a": "s_nationkey",
+        "b": "s_suppkey",
+        "weight_s": 1340.9
+      },
+      {
+        "table": "lineitem",
+        "a": "l_discount",
+        "b": "l_shipdate",
+        "weight_s": 1239.6
+      },
+      {
+        "table": "lineitem",
+        "a": "l_extendedprice",
+        "b": "l_shipdate",
+        "weight_s": 1239.6
+      },
+      {
+        "table": "lineitem",
+        "a": "l_discount",
+        "b": "l_suppkey",
+        "weight_s": 1172.2
+      },
+      {
+        "table": "lineitem",
+        "a": "l_extendedprice",
+        "b": "l_suppkey",
+        "weight_s": 1172.2
+      },
+      {
+        "table": "orders",
+        "a": "o_orderdate",
+        "b": "o_orderkey",
+        "weight_s": 1149.1
+      },
+      {
+        "table": "orders",
+        "a": "o_custkey",
+        "b": "o_orderkey",
+        "weight_s": 1046.8
+      },
+      {
+        "table": "lineitem",
+        "a": "l_discount",
+        "b": "l_orderkey",
+        "weight_s": 1027.8
+      },
+      {
+        "table": "lineitem",
+        "a": "l_extendedprice",
+        "b": "l_orderkey",
+        "weight_s": 1027.8
+      },
+      {
+        "table": "lineitem",
+        "a": "l_partkey",
+        "b": "l_quantity",
+        "weight_s": 971.6
+      },
+      {
+        "table": "lineitem",
+        "a": "l_extendedprice",
+        "b": "l_quantity",
+        "weight_s": 924.4
+      },
+      {
+        "table": "lineitem",
+        "a": "l_extendedprice",
+        "b": "l_partkey",
+        "weight_s": 898.7
+      },
+      {
+        "table": "lineitem",
+        "a": "l_commitdate",
+        "b": "l_orderkey",
+        "weight_s": 867.4
+      },
+      {
+        "table": "lineitem",
+        "a": "l_commitdate",
+        "b": "l_receiptdate",
+        "weight_s": 867.4
+      },
+      {
+        "table": "lineitem",
+        "a": "l_orderkey",
+        "b": "l_receiptdate",
+        "weight_s": 867.4
+      },
+      {
+        "table": "orders",
+        "a": "o_custkey",
+        "b": "o_orderdate",
+        "weight_s": 810.1
+      },
+      {
+        "table": "lineitem",
+        "a": "l_shipdate",
+        "b": "l_suppkey",
+        "weight_s": 787.5
+      }
+    ],
+    "column_weight_s": [
+      {
+        "table": "lineitem",
+        "column": "l_orderkey",
+        "weight_s": 2701.7
+      },
+      {
+        "table": "nation",
+        "column": "n_nationkey",
+        "weight_s": 2641.4
+      },
+      {
+        "table": "nation",
+        "column": "n_name",
+        "weight_s": 2411.0
+      },
+      {
+        "table": "lineitem",
+        "column": "l_extendedprice",
+        "weight_s": 2312.5
+      },
+      {
+        "table": "lineitem",
+        "column": "l_suppkey",
+        "weight_s": 2219.2
+      },
+      {
+        "table": "lineitem",
+        "column": "l_discount",
+        "weight_s": 2090.5
+      },
+      {
+        "table": "orders",
+        "column": "o_orderkey",
+        "weight_s": 1841.3
+      },
+      {
+        "table": "lineitem",
+        "column": "l_quantity",
+        "weight_s": 1816.9
+      },
+      {
+        "table": "supplier",
+        "column": "s_suppkey",
+        "weight_s": 1601.5
+      },
+      {
+        "table": "lineitem",
+        "column": "l_shipdate",
+        "weight_s": 1559.3
+      },
+      {
+        "table": "supplier",
+        "column": "s_nationkey",
+        "weight_s": 1340.9
+      },
+      {
+        "table": "part",
+        "column": "p_partkey",
+        "weight_s": 1289.7
+      },
+      {
+        "table": "lineitem",
+        "column": "l_partkey",
+        "weight_s": 1280.5
+      },
+      {
+        "table": "orders",
+        "column": "o_orderdate",
+        "weight_s": 1149.1
+      },
+      {
+        "table": "customer",
+        "column": "c_custkey",
+        "weight_s": 1086.3
+      },
+      {
+        "table": "orders",
+        "column": "o_custkey",
+        "weight_s": 1086.3
+      },
+      {
+        "table": "lineitem",
+        "column": "l_commitdate",
+        "weight_s": 867.4
+      },
+      {
+        "table": "lineitem",
+        "column": "l_receiptdate",
+        "weight_s": 867.4
+      },
+      {
+        "table": "supplier",
+        "column": "s_name",
+        "weight_s": 728.8
+      },
+      {
+        "table": "region",
+        "column": "r_regionkey",
+        "weight_s": 727.6
+      },
+      {
+        "table": "region",
+        "column": "r_name",
+        "weight_s": 727.6
+      },
+      {
+        "table": "customer",
+        "column": "c_nationkey",
+        "weight_s": 648.3
+      },
+      {
+        "table": "partsupp",
+        "column": "ps_suppkey",
+        "weight_s": 587.7
+      },
+      {
+        "table": "part",
+        "column": "p_name",
+        "weight_s": 542.4
+      },
+      {
+        "table": "partsupp",
+        "column": "ps_partkey",
+        "weight_s": 541.9
+      },
+      {
+        "table": "supplier",
+        "column": "s_address",
+        "weight_s": 433.1
+      },
+      {
+        "table": "nation",
+        "column": "n_regionkey",
+        "weight_s": 405.8
+      },
+      {
+        "table": "partsupp",
+        "column": "ps_supplycost",
+        "weight_s": 398.5
+      },
+      {
+        "table": "part",
+        "column": "p_brand",
+        "weight_s": 396.3
+      },
+      {
+        "table": "part",
+        "column": "p_type",
+        "weight_s": 380.4
+      },
+      {
+        "table": "part",
+        "column": "p_container",
+        "weight_s": 366.9
+      },
+      {
+        "table": "lineitem",
+        "column": "l_returnflag",
+        "weight_s": 345.0
+      },
+      {
+        "table": "customer",
+        "column": "c_name",
+        "weight_s": 331.7
+      },
+      {
+        "table": "lineitem",
+        "column": "l_shipmode",
+        "weight_s": 304.8
+      },
+      {
+        "table": "orders",
+        "column": "o_orderstatus",
+        "weight_s": 295.7
+      },
+      {
+        "table": "orders",
+        "column": "o_orderpriority",
+        "weight_s": 276.0
+      },
+      {
+        "table": "supplier",
+        "column": "s_phone",
+        "weight_s": 273.3
+      },
+      {
+        "table": "partsupp",
+        "column": "ps_availqty",
+        "weight_s": 251.4
+      },
+      {
+        "table": "customer",
+        "column": "c_phone",
+        "weight_s": 240.6
+      },
+      {
+        "table": "customer",
+        "column": "c_acctbal",
+        "weight_s": 240.6
+      },
+      {
+        "table": "part",
+        "column": "p_size",
+        "weight_s": 216.3
+      },
+      {
+        "table": "lineitem",
+        "column": "l_tax",
+        "weight_s": 183.6
+      },
+      {
+        "table": "lineitem",
+        "column": "l_linestatus",
+        "weight_s": 183.6
+      },
+      {
+        "table": "orders",
+        "column": "o_totalprice",
+        "weight_s": 170.2
+      },
+      {
+        "table": "customer",
+        "column": "c_address",
+        "weight_s": 161.4
+      },
+      {
+        "table": "customer",
+        "column": "c_comment",
+        "weight_s": 161.4
+      },
+      {
+        "table": "customer",
+        "column": "c_mktsegment",
+        "weight_s": 156.7
+      },
+      {
+        "table": "orders",
+        "column": "o_shippriority",
+        "weight_s": 156.7
+      },
+      {
+        "table": "lineitem",
+        "column": "l_shipinstruct",
+        "weight_s": 144.9
+      },
+      {
+        "table": "orders",
+        "column": "o_comment",
+        "weight_s": 71.5
+      },
+      {
+        "table": "supplier",
+        "column": "s_comment",
+        "weight_s": 71.4
+      },
+      {
+        "table": "part",
+        "column": "p_mfgr",
+        "weight_s": 42.0
+      },
+      {
+        "table": "supplier",
+        "column": "s_acctbal",
+        "weight_s": 42.0
+      }
+    ],
+    "cold_columns": [
+      {
+        "table": "lineitem",
+        "column": "l_linenumber",
+        "action": "report_only_do_not_drop"
+      },
+      {
+        "table": "lineitem",
+        "column": "l_comment",
+        "action": "report_only_do_not_drop"
+      },
+      {
+        "table": "nation",
+        "column": "n_comment",
+        "action": "report_only_do_not_drop"
+      },
+      {
+        "table": "orders",
+        "column": "o_clerk",
+        "action": "report_only_do_not_drop"
+      },
+      {
+        "table": "part",
+        "column": "p_retailprice",
+        "action": "report_only_do_not_drop"
+      },
+      {
+        "table": "part",
+        "column": "p_comment",
+        "action": "report_only_do_not_drop"
+      },
+      {
+        "table": "partsupp",
+        "column": "ps_comment",
+        "action": "report_only_do_not_drop"
+      },
+      {
+        "table": "region",
+        "column": "r_comment",
+        "action": "report_only_do_not_drop"
+      }
+    ],
+    "cold_policy": "DB2 \u00a75.5 / TRACK2_PLAN \u00a71.3: never recommend deletion"
+  },
+  "provenance": {
+    "dataset": "tpch",
+    "layout": "s3a://home-haoyue/track2/baseline_sf100",
+    "geometry_source": "object listing + sampled parquet footers",
+    "column_stats_source": "docs/adaptive-range-reader/results/track2/e5_whatif/column_stats.json",
+    "geometry_collected_at": "2026-08-24T09:54:37.396461+00:00",
+    "eventlog": "docs/adaptive-range-reader/results/track2/e2_baseline/eventlogs",
+    "query_id_source": "positional",
+    "workload_collected_at": "2026-08-24T10:00:21.421998+00:00",
+    "n_queries": 22,
+    "n_tables": 8,
+    "parallelism": 16,
+    "large_table_bytes": 2147483648
+  },
+  "sort_key_evidence": [
+    {
+      "table": "lineitem",
+      "column": "l_shipdate",
+      "weight_s": 5839.2,
+      "n_executions": 35,
+      "ops": {
+        "le": 10,
+        "gt": 5,
+        "ge": 30,
+        "lt": 25
+      },
+      "source": "runtime_pushdown"
+    },
+    {
+      "table": "orders",
+      "column": "o_orderdate",
+      "weight_s": 3732.5,
+      "n_executions": 25,
+      "ops": {
+        "lt": 20,
+        "ge": 20,
+        "le": 5
+      },
+      "source": "runtime_pushdown"
+    },
+    {
+      "table": "lineitem",
+      "column": "l_quantity",
+      "weight_s": 1482.0,
+      "n_executions": 10,
+      "ops": {
+        "lt": 5,
+        "ge": 15,
+        "le": 15
+      },
+      "source": "runtime_pushdown"
+    },
+    {
+      "table": "part",
+      "column": "p_size",
+      "weight_s": 727.7,
+      "n_executions": 5,
+      "ops": {
+        "ge": 5,
+        "le": 15
+      },
+      "source": "runtime_pushdown"
+    },
+    {
+      "table": "customer",
+      "column": "c_acctbal",
+      "weight_s": 195.7,
+      "n_executions": 5,
+      "ops": {
+        "gt": 5
+      },
+      "source": "runtime_pushdown"
+    }
+  ],
+  "key_source": "runtime_pushdown",
+  "runtime_predicates": "docs/adaptive-range-reader/results/track2/e5_whatif/runtime_predicates.json",
+  "physical_options": {
+    "customer": {
+      "baseline_files": 17,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 1.154,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 17
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    },
+    "lineitem": {
+      "baseline_files": 200,
+      "baseline_rg_per_file": 2,
+      "compressed_gib": 21.126,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 200
+        },
+        {
+          "label": "16f",
+          "target_file_bytes": 1417753740,
+          "n_files": 16
+        },
+        {
+          "label": "32f",
+          "target_file_bytes": 708876870,
+          "n_files": 32
+        },
+        {
+          "label": "64f",
+          "target_file_bytes": 354438435,
+          "n_files": 64
+        },
+        {
+          "label": "128f",
+          "target_file_bytes": 177219217,
+          "n_files": 129
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        },
+        {
+          "label": "4rg",
+          "rg_bytes": 84540246,
+          "rg_mib": 80.6
+        },
+        {
+          "label": "8rg",
+          "rg_bytes": 42270123,
+          "rg_mib": 40.3
+        }
+      ]
+    },
+    "nation": {
+      "baseline_files": 13,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 0.0,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 13
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    },
+    "orders": {
+      "baseline_files": 100,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 6.051,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 100
+        },
+        {
+          "label": "16f",
+          "target_file_bytes": 406058844,
+          "n_files": 17
+        },
+        {
+          "label": "32f",
+          "target_file_bytes": 203029422,
+          "n_files": 33
+        },
+        {
+          "label": "64f",
+          "target_file_bytes": 101514711,
+          "n_files": 65
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        },
+        {
+          "label": "2rg",
+          "rg_bytes": 73237325,
+          "rg_mib": 69.8
+        },
+        {
+          "label": "4rg",
+          "rg_bytes": 36618662,
+          "rg_mib": 34.9
+        },
+        {
+          "label": "8rg",
+          "rg_bytes": 18309331,
+          "rg_mib": 17.5
+        }
+      ]
+    },
+    "part": {
+      "baseline_files": 17,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 0.578,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 17
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    },
+    "partsupp": {
+      "baseline_files": 50,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 4.093,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 50
+        },
+        {
+          "label": "16f",
+          "target_file_bytes": 274643814,
+          "n_files": 17
+        },
+        {
+          "label": "32f",
+          "target_file_bytes": 137321907,
+          "n_files": 33
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        },
+        {
+          "label": "2rg",
+          "rg_bytes": 121626193,
+          "rg_mib": 116.0
+        },
+        {
+          "label": "4rg",
+          "rg_bytes": 60813096,
+          "rg_mib": 58.0
+        },
+        {
+          "label": "8rg",
+          "rg_bytes": 30406548,
+          "rg_mib": 29.0
+        }
+      ]
+    },
+    "region": {
+      "baseline_files": 5,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 0.0,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 5
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    },
+    "supplier": {
+      "baseline_files": 15,
+      "baseline_rg_per_file": 1,
+      "compressed_gib": 0.074,
+      "file_options": [
+        {
+          "label": "baseline",
+          "target_file_bytes": null,
+          "n_files": 15
+        }
+      ],
+      "rg_options": [
+        {
+          "label": "baseline",
+          "rg_bytes": null,
+          "rg_mib": null
+        }
+      ]
+    }
+  },
+  "partition_key_candidates": {
+    "lineitem": [
+      {
+        "column": "l_shipmode",
+        "weight_s": 1527.7,
+        "n_executions": 10,
+        "driver": "equality",
+        "ndv": 7,
+        "n_partitions": 7
+      },
+      {
+        "column": "l_quantity",
+        "weight_s": 1482.0,
+        "n_executions": 10,
+        "driver": "range",
+        "ndv": 57,
+        "n_partitions": 57
+      },
+      {
+        "column": "l_returnflag",
+        "weight_s": 788.1,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 3,
+        "n_partitions": 3
+      },
+      {
+        "column": "l_discount",
+        "weight_s": 754.3,
+        "n_executions": 5,
+        "driver": "range",
+        "ndv": 12,
+        "n_partitions": 12
+      },
+      {
+        "column": "l_shipinstruct",
+        "weight_s": 727.7,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 4,
+        "n_partitions": 4
+      },
+      {
+        "column": "l_shipdate",
+        "weight_s": 5839.2,
+        "n_executions": 35,
+        "driver": "range",
+        "ndv": 2505,
+        "rejected": "ndv 2505 > max 64"
+      },
+      {
+        "column": "l_receiptdate",
+        "weight_s": 800.1,
+        "n_executions": 5,
+        "driver": "range",
+        "ndv": 2505,
+        "rejected": "ndv 2505 > max 64"
+      }
+    ],
+    "part": [
+      {
+        "column": "p_brand",
+        "weight_s": 1838.9,
+        "n_executions": 10,
+        "driver": "equality",
+        "ndv": 29,
+        "n_partitions": 29
+      },
+      {
+        "column": "p_container",
+        "weight_s": 1838.9,
+        "n_executions": 10,
+        "driver": "equality",
+        "ndv": 37,
+        "n_partitions": 37
+      },
+      {
+        "column": "p_size",
+        "weight_s": 1097.3,
+        "n_executions": 10,
+        "driver": "range",
+        "ndv": 45,
+        "n_partitions": 45
+      },
+      {
+        "column": "p_type",
+        "weight_s": 897.2,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 141,
+        "rejected": "ndv 141 > max 64"
+      }
+    ],
+    "nation": [
+      {
+        "column": "n_name",
+        "weight_s": 3330.8,
+        "n_executions": 20,
+        "driver": "equality",
+        "ndv": 30,
+        "n_partitions": 30
+      }
+    ],
+    "region": [
+      {
+        "column": "r_name",
+        "weight_s": 1828.2,
+        "n_executions": 15,
+        "driver": "equality",
+        "ndv": 5,
+        "n_partitions": 5
+      }
+    ],
+    "customer": [
+      {
+        "column": "c_mktsegment",
+        "weight_s": 759.2,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 4,
+        "n_partitions": 4
+      },
+      {
+        "column": "c_acctbal",
+        "weight_s": 195.7,
+        "n_executions": 5,
+        "driver": "range",
+        "ndv": 1060470,
+        "rejected": "ndv 1060470 > max 64"
+      }
+    ],
+    "orders": [
+      {
+        "column": "o_orderstatus",
+        "weight_s": 1478.8,
+        "n_executions": 5,
+        "driver": "equality",
+        "ndv": 2,
+        "n_partitions": 2
+      },
+      {
+        "column": "o_orderdate",
+        "weight_s": 3732.5,
+        "n_executions": 25,
+        "driver": "range",
+        "ndv": 2321,
+        "rejected": "ndv 2321 > max 64"
+      }
+    ]
+  },
+  "workload_compression": {
+    "low": {
+      "x": 0.6,
+      "queries": [
+        21,
+        15,
+        9,
+        17,
+        8,
+        1,
+        18,
+        7,
+        10,
+        12
+      ],
+      "kept_cost_frac": 0.6229,
+      "n": 10
+    },
+    "medium": {
+      "x": 0.25,
+      "queries": [
+        21,
+        15,
+        9,
+        17
+      ],
+      "kept_cost_frac": 0.3026,
+      "n": 4
+    },
+    "high": {
+      "x": 0.05,
+      "queries": [
+        21
+      ],
+      "kept_cost_frac": 0.0921,
+      "n": 1
+    }
+  },
+  "n_candidates": 46,
+  "candidate_index": "docs/adaptive-range-reader/results/track2/e5_whatif/refactor/candidates.json"
+}

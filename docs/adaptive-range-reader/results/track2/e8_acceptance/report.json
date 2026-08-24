@@ -1,0 +1,1083 @@
+{
+  "ran_at": "2026-08-18T14:39:26.457160+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 7 E2 / 4.2",
+  "layout_id": "p-none_f-1GB_rg-128MB_s-l_shipdate",
+  "data": "s3a://home-haoyue/track2/cand_rg128_sf100",
+  "master": "local[16]",
+  "driver_memory": "32g",
+  "runs": [
+    {
+      "run": 1,
+      "session_s": 4335.96,
+      "query_sum_s": 4303.989,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 1,
+          "query": 1,
+          "wall_s": 175.613,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 2,
+          "wall_s": 81.584,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 3,
+          "wall_s": 104.277,
+          "rows": 10,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 4,
+          "wall_s": 113.021,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 5,
+          "wall_s": 161.54,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 6,
+          "wall_s": 23.948,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 7,
+          "wall_s": 92.729,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 8,
+          "wall_s": 288.842,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 9,
+          "wall_s": 624.378,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 10,
+          "wall_s": 389.006,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 11,
+          "wall_s": 61.57,
+          "rows": 0,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 12,
+          "wall_s": 102.302,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 13,
+          "wall_s": 154.908,
+          "rows": 45,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 14,
+          "wall_s": 31.602,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 15,
+          "wall_s": 42.744,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 16,
+          "wall_s": 55.888,
+          "rows": 27840,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 17,
+          "wall_s": 213.989,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 18,
+          "wall_s": 551.884,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 19,
+          "wall_s": 332.099,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 20,
+          "wall_s": 80.847,
+          "rows": 17971,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 21,
+          "wall_s": 545.473,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 1,
+          "query": 22,
+          "wall_s": 75.745,
+          "rows": 7,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 30072,
+        "ranged_gets": 30040,
+        "remote_bytes": 132584405880
+      }
+    },
+    {
+      "run": 2,
+      "session_s": 2395.224,
+      "query_sum_s": 2373.538,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 2,
+          "query": 1,
+          "wall_s": 145.777,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 2,
+          "wall_s": 47.198,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 3,
+          "wall_s": 79.778,
+          "rows": 10,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 4,
+          "wall_s": 92.549,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 5,
+          "wall_s": 252.567,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 6,
+          "wall_s": 119.156,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 7,
+          "wall_s": 89.833,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 8,
+          "wall_s": 173.629,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 9,
+          "wall_s": 222.309,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 10,
+          "wall_s": 93.509,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 11,
+          "wall_s": 54.4,
+          "rows": 0,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 12,
+          "wall_s": 42.674,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 13,
+          "wall_s": 67.396,
+          "rows": 45,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 14,
+          "wall_s": 17.252,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 15,
+          "wall_s": 29.587,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 16,
+          "wall_s": 28.832,
+          "rows": 27840,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 17,
+          "wall_s": 199.447,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 18,
+          "wall_s": 210.923,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 19,
+          "wall_s": 75.639,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 20,
+          "wall_s": 64.235,
+          "rows": 17971,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 21,
+          "wall_s": 225.664,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 2,
+          "query": 22,
+          "wall_s": 41.184,
+          "rows": 7,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 60144,
+        "ranged_gets": 60080,
+        "remote_bytes": 265168811760
+      }
+    },
+    {
+      "run": 3,
+      "session_s": 2147.954,
+      "query_sum_s": 2127.903,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 3,
+          "query": 1,
+          "wall_s": 132.779,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 2,
+          "wall_s": 36.227,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 3,
+          "wall_s": 78.502,
+          "rows": 10,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 4,
+          "wall_s": 97.391,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 5,
+          "wall_s": 117.733,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 6,
+          "wall_s": 24.084,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 7,
+          "wall_s": 64.425,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 8,
+          "wall_s": 153.767,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 9,
+          "wall_s": 185.282,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 10,
+          "wall_s": 84.408,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 11,
+          "wall_s": 49.185,
+          "rows": 0,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 12,
+          "wall_s": 45.111,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 13,
+          "wall_s": 68.557,
+          "rows": 45,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 14,
+          "wall_s": 27.827,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 15,
+          "wall_s": 33.594,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 16,
+          "wall_s": 30.673,
+          "rows": 27840,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 17,
+          "wall_s": 316.269,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 18,
+          "wall_s": 202.502,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 19,
+          "wall_s": 89.82,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 20,
+          "wall_s": 44.219,
+          "rows": 17971,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 21,
+          "wall_s": 214.227,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 3,
+          "query": 22,
+          "wall_s": 31.321,
+          "rows": 7,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 90216,
+        "ranged_gets": 90120,
+        "remote_bytes": 397753217640
+      }
+    },
+    {
+      "run": 4,
+      "session_s": 1978.228,
+      "query_sum_s": 1958.434,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 4,
+          "query": 1,
+          "wall_s": 129.584,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 2,
+          "wall_s": 38.859,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 3,
+          "wall_s": 88.895,
+          "rows": 10,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 4,
+          "wall_s": 82.279,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 5,
+          "wall_s": 122.227,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 6,
+          "wall_s": 23.312,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 7,
+          "wall_s": 63.995,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 8,
+          "wall_s": 162.833,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 9,
+          "wall_s": 185.448,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 10,
+          "wall_s": 81.893,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 11,
+          "wall_s": 54.157,
+          "rows": 0,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 12,
+          "wall_s": 43.376,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 13,
+          "wall_s": 66.869,
+          "rows": 45,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 14,
+          "wall_s": 16.944,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 15,
+          "wall_s": 29.111,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 16,
+          "wall_s": 28.007,
+          "rows": 27840,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 17,
+          "wall_s": 167.911,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 18,
+          "wall_s": 202.675,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 19,
+          "wall_s": 73.203,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 20,
+          "wall_s": 47.179,
+          "rows": 17971,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 21,
+          "wall_s": 216.348,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 4,
+          "query": 22,
+          "wall_s": 33.329,
+          "rows": 7,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 120288,
+        "ranged_gets": 120160,
+        "remote_bytes": 530337623520
+      }
+    },
+    {
+      "run": 5,
+      "session_s": 1951.708,
+      "query_sum_s": 1931.667,
+      "drop_caches": false,
+      "queries": [
+        {
+          "run": 5,
+          "query": 1,
+          "wall_s": 130.36,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 2,
+          "wall_s": 37.217,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 3,
+          "wall_s": 78.506,
+          "rows": 10,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 4,
+          "wall_s": 81.103,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 5,
+          "wall_s": 117.955,
+          "rows": 5,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 6,
+          "wall_s": 23.417,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 7,
+          "wall_s": 64.409,
+          "rows": 4,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 8,
+          "wall_s": 154.7,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 9,
+          "wall_s": 185.169,
+          "rows": 175,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 10,
+          "wall_s": 76.934,
+          "rows": 20,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 11,
+          "wall_s": 45.628,
+          "rows": 0,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 12,
+          "wall_s": 44.002,
+          "rows": 2,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 13,
+          "wall_s": 67.529,
+          "rows": 45,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 14,
+          "wall_s": 17.973,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 15,
+          "wall_s": 28.53,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 16,
+          "wall_s": 27.966,
+          "rows": 27840,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 17,
+          "wall_s": 171.8,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 18,
+          "wall_s": 205.371,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 19,
+          "wall_s": 73.534,
+          "rows": 1,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 20,
+          "wall_s": 46.407,
+          "rows": 17971,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 21,
+          "wall_s": 219.938,
+          "rows": 100,
+          "error": null
+        },
+        {
+          "run": 5,
+          "query": 22,
+          "wall_s": 33.219,
+          "rows": 7,
+          "error": null
+        }
+      ],
+      "io": {
+        "gets": 150360,
+        "ranged_gets": 150200,
+        "remote_bytes": 662922029400
+      }
+    }
+  ],
+  "summary": {
+    "n_runs": 5,
+    "end_to_end_s": [
+      4303.989,
+      2373.538,
+      2127.903,
+      1958.434,
+      1931.667
+    ],
+    "median_s": 2127.903,
+    "mean_s": 2539.1061999999997,
+    "stdev_s": 1002.181967487292,
+    "cv": 0.39469872015880714,
+    "gate_threshold": 0.05,
+    "gate_pass": false,
+    "per_query": [
+      {
+        "query": 1,
+        "n": 5,
+        "median_s": 132.779,
+        "mean_s": 142.8226,
+        "min_s": 129.584,
+        "max_s": 175.613,
+        "stdev_s": 19.464002936189665,
+        "errors": []
+      },
+      {
+        "query": 2,
+        "n": 5,
+        "median_s": 38.859,
+        "mean_s": 48.217,
+        "min_s": 36.227,
+        "max_s": 81.584,
+        "stdev_s": 19.148938051495183,
+        "errors": []
+      },
+      {
+        "query": 3,
+        "n": 5,
+        "median_s": 79.778,
+        "mean_s": 85.9916,
+        "min_s": 78.502,
+        "max_s": 104.277,
+        "stdev_s": 11.107685686046397,
+        "errors": []
+      },
+      {
+        "query": 4,
+        "n": 5,
+        "median_s": 92.549,
+        "mean_s": 93.2686,
+        "min_s": 81.103,
+        "max_s": 113.021,
+        "stdev_s": 13.00425356566074,
+        "errors": []
+      },
+      {
+        "query": 5,
+        "n": 5,
+        "median_s": 122.227,
+        "mean_s": 154.4044,
+        "min_s": 117.733,
+        "max_s": 252.567,
+        "stdev_s": 57.86956936767372,
+        "errors": []
+      },
+      {
+        "query": 6,
+        "n": 5,
+        "median_s": 23.948,
+        "mean_s": 42.7834,
+        "min_s": 23.312,
+        "max_s": 119.156,
+        "stdev_s": 42.694867230148404,
+        "errors": []
+      },
+      {
+        "query": 7,
+        "n": 5,
+        "median_s": 64.425,
+        "mean_s": 75.0782,
+        "min_s": 63.995,
+        "max_s": 92.729,
+        "stdev_s": 14.827463410846779,
+        "errors": []
+      },
+      {
+        "query": 8,
+        "n": 5,
+        "median_s": 162.833,
+        "mean_s": 186.7542,
+        "min_s": 153.767,
+        "max_s": 288.842,
+        "stdev_s": 57.623868090401565,
+        "errors": []
+      },
+      {
+        "query": 9,
+        "n": 5,
+        "median_s": 185.448,
+        "mean_s": 280.5172,
+        "min_s": 185.169,
+        "max_s": 624.378,
+        "stdev_s": 192.89091455716624,
+        "errors": []
+      },
+      {
+        "query": 10,
+        "n": 5,
+        "median_s": 84.408,
+        "mean_s": 145.15,
+        "min_s": 76.934,
+        "max_s": 389.006,
+        "stdev_s": 136.45237528713085,
+        "errors": []
+      },
+      {
+        "query": 11,
+        "n": 5,
+        "median_s": 54.157,
+        "mean_s": 52.988,
+        "min_s": 45.628,
+        "max_s": 61.57,
+        "stdev_s": 6.034141156784451,
+        "errors": []
+      },
+      {
+        "query": 12,
+        "n": 5,
+        "median_s": 44.002,
+        "mean_s": 55.493,
+        "min_s": 42.674,
+        "max_s": 102.302,
+        "stdev_s": 26.18234107179876,
+        "errors": []
+      },
+      {
+        "query": 13,
+        "n": 5,
+        "median_s": 67.529,
+        "mean_s": 85.0518,
+        "min_s": 66.869,
+        "max_s": 154.908,
+        "stdev_s": 39.055592156565744,
+        "errors": []
+      },
+      {
+        "query": 14,
+        "n": 5,
+        "median_s": 17.973,
+        "mean_s": 22.3196,
+        "min_s": 16.944,
+        "max_s": 31.602,
+        "stdev_s": 6.891389214084488,
+        "errors": []
+      },
+      {
+        "query": 15,
+        "n": 5,
+        "median_s": 29.587,
+        "mean_s": 32.7132,
+        "min_s": 28.53,
+        "max_s": 42.744,
+        "stdev_s": 5.950648930999038,
+        "errors": []
+      },
+      {
+        "query": 16,
+        "n": 5,
+        "median_s": 28.832,
+        "mean_s": 34.2732,
+        "min_s": 27.966,
+        "max_s": 55.888,
+        "stdev_s": 12.132741969563186,
+        "errors": []
+      },
+      {
+        "query": 17,
+        "n": 5,
+        "median_s": 199.447,
+        "mean_s": 213.88320000000002,
+        "min_s": 167.911,
+        "max_s": 316.269,
+        "stdev_s": 60.36494429882297,
+        "errors": []
+      },
+      {
+        "query": 18,
+        "n": 5,
+        "median_s": 205.371,
+        "mean_s": 274.671,
+        "min_s": 202.502,
+        "max_s": 551.884,
+        "stdev_s": 155.00413982374795,
+        "errors": []
+      },
+      {
+        "query": 19,
+        "n": 5,
+        "median_s": 75.639,
+        "mean_s": 128.859,
+        "min_s": 73.203,
+        "max_s": 332.099,
+        "stdev_s": 113.82152200045472,
+        "errors": []
+      },
+      {
+        "query": 20,
+        "n": 5,
+        "median_s": 47.179,
+        "mean_s": 56.5774,
+        "min_s": 44.219,
+        "max_s": 80.847,
+        "stdev_s": 15.749201021004206,
+        "errors": []
+      },
+      {
+        "query": 21,
+        "n": 5,
+        "median_s": 219.938,
+        "mean_s": 284.33,
+        "min_s": 214.227,
+        "max_s": 545.473,
+        "stdev_s": 146.04766225619633,
+        "errors": []
+      },
+      {
+        "query": 22,
+        "n": 5,
+        "median_s": 33.329,
+        "mean_s": 42.9596,
+        "min_s": 31.321,
+        "max_s": 75.745,
+        "stdev_s": 18.715768506796618,
+        "errors": []
+      }
+    ]
+  }
+}

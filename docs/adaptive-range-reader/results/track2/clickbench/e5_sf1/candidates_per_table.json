@@ -1,0 +1,819 @@
+[
+  {
+    "candidate_id": "hits-baseline-eventdate",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "EventDate"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "baseline",
+        "file_bytes": null,
+        "sort_label": "eventdate",
+        "sort_columns": [
+          "EventDate"
+        ],
+        "partition": "none",
+        "rg_label": "baseline",
+        "rg_bytes": null
+      }
+    },
+    "partition": "none",
+    "file_label": "baseline",
+    "file_bytes": null,
+    "rg_label": "baseline",
+    "rg_bytes": null,
+    "sort_label": "eventdate",
+    "sort_columns": [
+      "EventDate"
+    ]
+  },
+  {
+    "candidate_id": "hits-baseline-counterid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "CounterID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "baseline",
+        "file_bytes": null,
+        "sort_label": "counterid",
+        "sort_columns": [
+          "CounterID"
+        ],
+        "partition": "none",
+        "rg_label": "baseline",
+        "rg_bytes": null
+      }
+    },
+    "partition": "none",
+    "file_label": "baseline",
+    "file_bytes": null,
+    "rg_label": "baseline",
+    "rg_bytes": null,
+    "sort_label": "counterid",
+    "sort_columns": [
+      "CounterID"
+    ]
+  },
+  {
+    "candidate_id": "hits-baseline-userid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "UserID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "baseline",
+        "file_bytes": null,
+        "sort_label": "userid",
+        "sort_columns": [
+          "UserID"
+        ],
+        "partition": "none",
+        "rg_label": "baseline",
+        "rg_bytes": null
+      }
+    },
+    "partition": "none",
+    "file_label": "baseline",
+    "file_bytes": null,
+    "rg_label": "baseline",
+    "rg_bytes": null,
+    "sort_label": "userid",
+    "sort_columns": [
+      "UserID"
+    ]
+  },
+  {
+    "candidate_id": "hits-baseline-eventdate_counterid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "EventDate",
+          "CounterID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "baseline",
+        "file_bytes": null,
+        "sort_label": "eventdate_counterid",
+        "sort_columns": [
+          "EventDate",
+          "CounterID"
+        ],
+        "partition": "none",
+        "rg_label": "baseline",
+        "rg_bytes": null
+      }
+    },
+    "partition": "none",
+    "file_label": "baseline",
+    "file_bytes": null,
+    "rg_label": "baseline",
+    "rg_bytes": null,
+    "sort_label": "eventdate_counterid",
+    "sort_columns": [
+      "EventDate",
+      "CounterID"
+    ]
+  },
+  {
+    "candidate_id": "hits-128MB-none",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "128MB",
+        "file_bytes": 134217728,
+        "sort_label": "none",
+        "sort_columns": [],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "128MB",
+    "file_bytes": 134217728,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "none",
+    "sort_columns": []
+  },
+  {
+    "candidate_id": "hits-128MB-eventdate",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "EventDate"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "128MB",
+        "file_bytes": 134217728,
+        "sort_label": "eventdate",
+        "sort_columns": [
+          "EventDate"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "128MB",
+    "file_bytes": 134217728,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "eventdate",
+    "sort_columns": [
+      "EventDate"
+    ]
+  },
+  {
+    "candidate_id": "hits-128MB-counterid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "CounterID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "128MB",
+        "file_bytes": 134217728,
+        "sort_label": "counterid",
+        "sort_columns": [
+          "CounterID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "128MB",
+    "file_bytes": 134217728,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "counterid",
+    "sort_columns": [
+      "CounterID"
+    ]
+  },
+  {
+    "candidate_id": "hits-128MB-userid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "UserID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "128MB",
+        "file_bytes": 134217728,
+        "sort_label": "userid",
+        "sort_columns": [
+          "UserID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "128MB",
+    "file_bytes": 134217728,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "userid",
+    "sort_columns": [
+      "UserID"
+    ]
+  },
+  {
+    "candidate_id": "hits-128MB-eventdate_counterid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "EventDate",
+          "CounterID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "128MB",
+        "file_bytes": 134217728,
+        "sort_label": "eventdate_counterid",
+        "sort_columns": [
+          "EventDate",
+          "CounterID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "128MB",
+    "file_bytes": 134217728,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "eventdate_counterid",
+    "sort_columns": [
+      "EventDate",
+      "CounterID"
+    ]
+  },
+  {
+    "candidate_id": "hits-256MB-none",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 268435456,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "256MB",
+        "file_bytes": 268435456,
+        "sort_label": "none",
+        "sort_columns": [],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "256MB",
+    "file_bytes": 268435456,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "none",
+    "sort_columns": []
+  },
+  {
+    "candidate_id": "hits-256MB-eventdate",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 268435456,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "EventDate"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "256MB",
+        "file_bytes": 268435456,
+        "sort_label": "eventdate",
+        "sort_columns": [
+          "EventDate"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "256MB",
+    "file_bytes": 268435456,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "eventdate",
+    "sort_columns": [
+      "EventDate"
+    ]
+  },
+  {
+    "candidate_id": "hits-256MB-counterid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 268435456,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "CounterID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "256MB",
+        "file_bytes": 268435456,
+        "sort_label": "counterid",
+        "sort_columns": [
+          "CounterID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "256MB",
+    "file_bytes": 268435456,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "counterid",
+    "sort_columns": [
+      "CounterID"
+    ]
+  },
+  {
+    "candidate_id": "hits-256MB-userid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 268435456,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "UserID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "256MB",
+        "file_bytes": 268435456,
+        "sort_label": "userid",
+        "sort_columns": [
+          "UserID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "256MB",
+    "file_bytes": 268435456,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "userid",
+    "sort_columns": [
+      "UserID"
+    ]
+  },
+  {
+    "candidate_id": "hits-256MB-eventdate_counterid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 268435456,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "EventDate",
+          "CounterID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "256MB",
+        "file_bytes": 268435456,
+        "sort_label": "eventdate_counterid",
+        "sort_columns": [
+          "EventDate",
+          "CounterID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "256MB",
+    "file_bytes": 268435456,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "eventdate_counterid",
+    "sort_columns": [
+      "EventDate",
+      "CounterID"
+    ]
+  },
+  {
+    "candidate_id": "hits-512MB-none",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 536870912,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "512MB",
+        "file_bytes": 536870912,
+        "sort_label": "none",
+        "sort_columns": [],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "512MB",
+    "file_bytes": 536870912,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "none",
+    "sort_columns": []
+  },
+  {
+    "candidate_id": "hits-512MB-eventdate",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 536870912,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "EventDate"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "512MB",
+        "file_bytes": 536870912,
+        "sort_label": "eventdate",
+        "sort_columns": [
+          "EventDate"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "512MB",
+    "file_bytes": 536870912,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "eventdate",
+    "sort_columns": [
+      "EventDate"
+    ]
+  },
+  {
+    "candidate_id": "hits-512MB-counterid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 536870912,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "CounterID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "512MB",
+        "file_bytes": 536870912,
+        "sort_label": "counterid",
+        "sort_columns": [
+          "CounterID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "512MB",
+    "file_bytes": 536870912,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "counterid",
+    "sort_columns": [
+      "CounterID"
+    ]
+  },
+  {
+    "candidate_id": "hits-512MB-userid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 536870912,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "UserID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "512MB",
+        "file_bytes": 536870912,
+        "sort_label": "userid",
+        "sort_columns": [
+          "UserID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "512MB",
+    "file_bytes": 536870912,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "userid",
+    "sort_columns": [
+      "UserID"
+    ]
+  },
+  {
+    "candidate_id": "hits-512MB-eventdate_counterid",
+    "scope": "per_table",
+    "actions": [
+      {
+        "canonical": "write.target-file-size-bytes",
+        "value": 536870912,
+        "table": "hits"
+      },
+      {
+        "canonical": "write.parquet.row-group-size-bytes",
+        "value": 134217728,
+        "table": "hits"
+      },
+      {
+        "canonical": "sort.columns",
+        "value": [
+          "EventDate",
+          "CounterID"
+        ],
+        "table": "hits"
+      }
+    ],
+    "tables": {
+      "hits": {
+        "file_label": "512MB",
+        "file_bytes": 536870912,
+        "sort_label": "eventdate_counterid",
+        "sort_columns": [
+          "EventDate",
+          "CounterID"
+        ],
+        "partition": "none",
+        "rg_label": "128MB",
+        "rg_bytes": 134217728
+      }
+    },
+    "partition": "none",
+    "file_label": "512MB",
+    "file_bytes": 536870912,
+    "rg_label": "128MB",
+    "rg_bytes": 134217728,
+    "sort_label": "eventdate_counterid",
+    "sort_columns": [
+      "EventDate",
+      "CounterID"
+    ]
+  },
+  {
+    "candidate_id": "baseline",
+    "scope": "per_table",
+    "actions": [],
+    "tables": {
+      "hits": {
+        "file_label": "baseline",
+        "file_bytes": null,
+        "sort_label": "none",
+        "sort_columns": [],
+        "partition": "none",
+        "rg_label": "baseline",
+        "rg_bytes": null
+      }
+    },
+    "partition": "none",
+    "file_label": "baseline",
+    "file_bytes": null,
+    "rg_label": "baseline",
+    "rg_bytes": null,
+    "sort_label": "none",
+    "sort_columns": []
+  }
+]

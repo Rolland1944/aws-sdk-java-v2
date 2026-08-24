@@ -1,0 +1,77 @@
+{
+  "written_at": "2026-08-19T13:57:38.088336+00:00",
+  "dataset": "clickbench",
+  "scale": "sf8",
+  "source": {
+    "path": "/data/home/haoyueli/hitmap_test/data/raw/clickbench/hits.parquet",
+    "rows": 99997497,
+    "bytes": 14779976446,
+    "note": "official ClickBench hits.parquet (parquet-cpp 1.5.1-SNAPSHOT)"
+  },
+  "replication": {
+    "copies": 8,
+    "days_per_copy": 30,
+    "user_keys_offset": false,
+    "user_keys_reason": "UserID/WatchID/FUniqID already span int64; copies are additional months of the same users",
+    "event_date_promoted_to": "date",
+    "event_time_promoted_to": "timestamp"
+  },
+  "output": "s3a://home-haoyue/track2/clickbench_sf8",
+  "hits_path": "s3a://home-haoyue/track2/clickbench_sf8/hits",
+  "expected_rows": 799979976,
+  "copies": [
+    {
+      "copy_id": 0,
+      "day_offset": 0,
+      "elapsed_seconds": 918.6
+    },
+    {
+      "copy_id": 1,
+      "day_offset": 30,
+      "elapsed_seconds": 902.7
+    },
+    {
+      "copy_id": 2,
+      "day_offset": 60,
+      "elapsed_seconds": 884.4
+    },
+    {
+      "copy_id": 3,
+      "day_offset": 90,
+      "elapsed_seconds": 812.2
+    },
+    {
+      "copy_id": 4,
+      "day_offset": 120,
+      "elapsed_seconds": 918.5
+    },
+    {
+      "copy_id": 5,
+      "day_offset": 150,
+      "elapsed_seconds": 844.3
+    },
+    {
+      "copy_id": 6,
+      "day_offset": 180,
+      "elapsed_seconds": 832.7
+    },
+    {
+      "copy_id": 7,
+      "day_offset": 210,
+      "elapsed_seconds": 844.4
+    }
+  ],
+  "elapsed_seconds": 6972.0,
+  "verified": {
+    "status": "pass",
+    "files": 880,
+    "files_sampled": 20,
+    "row_groups_sampled": 28,
+    "row_group_bytes_min": 89095000,
+    "row_group_bytes_median": 302188482,
+    "row_group_bytes_max": 409645439,
+    "offset_index_present": true,
+    "bloom_filter_present": false
+  },
+  "role": "canonical Spark baseline (contract 2.3 plain write.parquet); not a layout candidate"
+}

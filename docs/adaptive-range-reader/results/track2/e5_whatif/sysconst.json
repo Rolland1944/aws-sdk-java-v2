@@ -1,0 +1,141 @@
+{
+  "fitted_at": "2026-08-17T07:58:56.303739+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md r4",
+  "io_files": [
+    "/data/home/haoyueli/aws-sdk-java-v2/docs/adaptive-range-reader/results/track2/e2_baseline/io/track2-io-5b3eb066-8b5c-4b95-bc31-e4e9c5f541a1.ndjson"
+  ],
+  "n_runs": 5,
+  "regimes": {
+    "measured_cross_cloud": {
+      "name": "measured_cross_cloud",
+      "rtt_s": 0.22846963450000002,
+      "bw_bps": 237055696.23308626,
+      "bw_mib_s": 226.0739290552962,
+      "K_metadata": 4.212076216681045,
+      "K_data": 4.06805048836287,
+      "K_busy": 6.770175591429655,
+      "note": "Fitted from E2 NDJSON on the Tencent Cloud VM (contract r4)."
+    },
+    "same_region_m5d": {
+      "name": "same_region_m5d",
+      "rtt_s": 0.025,
+      "bw_bps": 237055696.23308626,
+      "bw_mib_s": 226.0739290552962,
+      "K_metadata": 4.212076216681045,
+      "K_data": 4.06805048836287,
+      "K_busy": 6.770175591429655,
+      "note": "RTT replaced with Track 1 same-region ~25 ms; BW/K kept from this host until E12 re-fits them on m5d.4xlarge. Sensitivity only \u2014 not a gate number (contract r4 / E12)."
+    }
+  },
+  "default_regime": "measured_cross_cloud",
+  "size_buckets": {
+    "<64KiB": {
+      "n": 180950,
+      "median_latency_s": 0.22846963450000002,
+      "p90_latency_s": 0.264337377,
+      "median_bytes": 5528.0,
+      "mean_bytes": 17872.01434097817
+    },
+    "64K-1M": {
+      "n": 69895,
+      "median_latency_s": 0.232860947,
+      "p90_latency_s": 0.305421351,
+      "median_bytes": 65536,
+      "mean_bytes": 113712.6619214536
+    },
+    "1-8M": {
+      "n": 33055,
+      "median_latency_s": 0.282771797,
+      "p90_latency_s": 0.324432046,
+      "median_bytes": 4405405,
+      "mean_bytes": 4452926.8983512325
+    },
+    ">=8M": {
+      "n": 36260,
+      "median_latency_s": 0.294547667,
+      "p90_latency_s": 0.338346514,
+      "median_bytes": 15669702.0,
+      "mean_bytes": 17741267.36086597
+    }
+  },
+  "concurrency": {
+    "n_records": 364615,
+    "n_head": 44295,
+    "n_ranged_get_tiny": 180950,
+    "n_ranged_get_data": 139210,
+    "wall_span_s": 16120.153864733,
+    "union_busy_s": 13561.29914875,
+    "busy_fraction_of_span": 0.8412636295252023,
+    "sum_latency_s": 91812.376484943,
+    "K_busy": 6.770175591429655,
+    "K_metadata": 4.212076216681045,
+    "K_data": 4.06805048836287,
+    "inflight_p50": 18,
+    "inflight_p90": 28,
+    "inflight_max": 60,
+    "high_inflight_union_s": 7507.680011482,
+    "high_inflight_fraction_of_busy": 0.5536106776447014,
+    "ops": {
+      "op_open": 320160,
+      "op_get_file_status": 44175,
+      "op_exists": 240,
+      "op_list_files": 40
+    },
+    "thread_kinds": {
+      "other": 240,
+      "listing": 120,
+      "s3a_transfer": 89935,
+      "footer_thread": 80,
+      "task": 274240
+    },
+    "explanation": "K_busy is average concurrency only while at least one request is in flight, so inter-query and inter-run idle time is already excluded. It is still far below local[16] because most of the busy union is metadata: HEAD + sub-64KiB footer/page-index GETs, which run at K_metadata \u2248 1\u20134. Peak inflight (~60) occurs only during vectored column-chunk scans (K_data, local[16] \u00d7 up to 4 ranged reads). L1 must use K_data for chunk transfers and K_metadata for per-file open cost; a single global K=6.8 would mix the two regimes."
+  },
+  "per_run": [
+    {
+      "run": 1,
+      "n_records": 72923,
+      "n_head": 8859,
+      "n_ranged_get": 64032,
+      "remote_bytes": 160334348126,
+      "remote_gib": 149.32299789600074
+    },
+    {
+      "run": 2,
+      "n_records": 72923,
+      "n_head": 8859,
+      "n_ranged_get": 64032,
+      "remote_bytes": 160334348126,
+      "remote_gib": 149.32299789600074
+    },
+    {
+      "run": 3,
+      "n_records": 72923,
+      "n_head": 8859,
+      "n_ranged_get": 64032,
+      "remote_bytes": 160334348126,
+      "remote_gib": 149.32299789600074
+    },
+    {
+      "run": 4,
+      "n_records": 72923,
+      "n_head": 8859,
+      "n_ranged_get": 64032,
+      "remote_bytes": 160334348126,
+      "remote_gib": 149.32299789600074
+    },
+    {
+      "run": 5,
+      "n_records": 72923,
+      "n_head": 8859,
+      "n_ranged_get": 64032,
+      "remote_bytes": 160334348126,
+      "remote_gib": 149.32299789600074
+    }
+  ],
+  "vectored": {
+    "min_seek_bytes": 131072,
+    "max_merged_bytes": 2097152,
+    "active_ranged_reads": 4,
+    "source": "s3a_session.apply_frozen_reader (contract 1.4)"
+  }
+}
