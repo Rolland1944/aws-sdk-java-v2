@@ -461,6 +461,7 @@ public final class Track2IoCollectorInterceptor implements ExecutionInterceptor 
                 try {
                     writer.write(line);
                     writer.write('\n');
+                    writer.flush();
                 } catch (IOException e) {
                     // drop the record
                 }

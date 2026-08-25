@@ -34,6 +34,6 @@ target/
 # Project-local (do not commit)
 .venv/
 .venv-track2/
-traces/**/*.strace
-# Track2 IO trace dumps (per-run ndjson, often >100MB)
-docs/adaptive-range-reader/results/track2/**/io/track2-io-*.ndjson
+traces/
+traces.tar.gz
+docs/adaptive-range-reader/results/
