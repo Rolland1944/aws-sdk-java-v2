@@ -1,0 +1,62 @@
+{
+  "written_at": "2026-08-26T03:54:00.054886+00:00",
+  "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 1.3 / 5",
+  "contract_revision": "r3",
+  "candidate_id": "hits-baseline-eventdate",
+  "actions": [
+    {
+      "canonical": "sort.columns",
+      "value": [
+        "EventDate"
+      ],
+      "table": "hits"
+    }
+  ],
+  "rendered": {
+    "writer": "parquet-mr",
+    "writer_options": {},
+    "target_file_size": null,
+    "sort_columns": [],
+    "sort_mode": "global",
+    "partition": null,
+    "per_table": {
+      "hits": {
+        "writer_options": {},
+        "target_file_size": null,
+        "sort_columns": [
+          "EventDate"
+        ],
+        "sort_mode": "global",
+        "partition": null
+      }
+    }
+  },
+  "versions": {
+    "spark": "4.1.0",
+    "hadoop": "3.4.2",
+    "java": "17.0.19"
+  },
+  "source": "s3a://home-haoyue/track2/clickbench_sf8",
+  "output": "s3a://home-haoyue/track2/clickbench_sf8_eventdate",
+  "tables": {
+    "hits": {
+      "path": "s3a://home-haoyue/track2/clickbench_sf8_eventdate/hits",
+      "requested_files": null,
+      "partition_by": [],
+      "elapsed_seconds": 3075.8,
+      "verified": {
+        "status": "pass",
+        "files": 135,
+        "files_sampled": 8,
+        "row_groups_sampled": 71,
+        "row_group_bytes_min": 25499444,
+        "row_group_bytes_median": 347116931,
+        "row_group_bytes_max": 416364682,
+        "offset_index_present": true,
+        "bloom_filter_present": false
+      }
+    }
+  },
+  "warnings": [],
+  "notes": []
+}

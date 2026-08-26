@@ -41,7 +41,7 @@ INTERCEPTOR_JAR = os.path.join(
 S3A_JARS = os.path.expanduser("~/track2-env/s3a-jars")
 BUNDLE_JAR = os.path.join(S3A_JARS, "bundle-2.29.52.jar")
 HADOOP_AWS_JAR = os.path.join(S3A_JARS, "hadoop-aws-3.4.2.jar")
-PY = os.path.join(TRACK2_ROOT, ".venv-track2/bin/python")
+PY = os.path.join(TRACK2_ROOT, ".venv/bin/python")
 Q6_PATH = os.path.expanduser("~/track2-data/tpch_sf100/_tpch_queries.json")
 
 

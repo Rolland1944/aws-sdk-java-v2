@@ -94,7 +94,13 @@ def io_stats(collector_dir, since_mtime):
                 line = line.strip()
                 if not line:
                     continue
-                rec = json.loads(line)
+                # The interceptor writes NDJSON asynchronously; a record may be
+                # truncated if read while the JVM is tearing down after spark.stop().
+                # Skip those few lines rather than aborting the whole run.
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
                 if rec.get("method") != "GET":
                     continue
                 gets += 1
