@@ -450,10 +450,6 @@ Identity 分区通过 DataFrame 和 `partitionBy(column)` 实现。派生变换�
 7. 排序间接产生超大实际 Row Group 的可读性检查；
 8. AWS EC2 同区正式 E2/E8 实验。
 
----
-
-## 10. 正式实验结果
-
 实验在两种网络环境下运行：
 
 - **跨云（腾讯云 VM → AWS S3 us-east-2）**：RTT ≈ 228 ms，BW ≈ 226 MiB/s，K\_busy ≈ 6.77。
@@ -494,3 +490,86 @@ Identity 分区通过 DataFrame 和 `partitionBy(column)` 实现。派生变换�
 | Amdahl 上限（同区） | 28.4% | 38.8% |
 | within-winner 节省 | 40% | 13% |
 | 主要回退查询 | Q18（join 局部性） | Q37/Q40（并行度）+ Q24（列局部性） |
+
+---
+
+## 11. 后续优化方向
+
+同区实验暴露了三个结构性问题：改善率随 RTT 衰减（37%→6%）、成本模型对 join 局部性盲区（Q18 +59.5% 未预测）、无反馈链路（模型错误只能靠 E8 兜底发现）。以下按优先级排列后续优化方向。
+
+### 11.1 `execution_residual` 的结构化分解
+
+**问题**：当前 `t_exec_residual` 是从 E2 实测墙钟减去预测 IO 时间得到的常数，评估候选时只按行数比例缩放。它把解码 CPU、join shuffle、聚合、调度开销混在一起，无法表达"排序打乱 join key 局部性导致 shuffle 代价上升"这类候选相关的效应。Q18 的 59.5% 回退完全来自这个盲区。
+
+**方向**：将 residual 拆成各有明确物理含义的项，每项是候选属性的函数：
+
+```text
+t_exec_residual(q, candidate) =
+    t_decode(q, candidate)       # 解码压缩页的 CPU
+  + t_aggregate(q, candidate)    # 聚合 / hash 计算
+  + t_join(q, candidate)        # join 计算 + shuffle
+  + t_schedule(q, candidate)    # task 调度与并行度
+```
+
+各项的建模方式：
+
+| 项 | 依赖的候选属性 | 新增数据需求 | 能解决的盲区 |
+|---|---|---|---|
+| `t_decode` | `rows_scanned × scatter_factor(projection, sort_key)` | `scatter_factor` 从 virtual footer 预测几何算 | ClickBench 字节 +5% |
+| `t_aggregate` | `rows_scanned, group_cardinality`；若 `sort_key = group_key` 则减半 | 无（已有） | 暂不紧急 |
+| `t_join` | `shuffle_volume(q, sort_key, join_keys) / shuffle_bw` | join keys 从 eventlog `Join` 节点提取；`shuffle_bw` 从 E2 shuffle metrics 标定 | **Q18 的 join 局部性回退** |
+| `t_schedule` | `n_tasks × task_launch_overhead` | `task_launch_overhead` 从 E2 eventlog 标定 | ClickBench Q37/Q40 并行度下降 |
+
+其中 `t_join` 是最关键的：如果排序键和 join key 重合，数据已按 join key 聚簇，shuffle 代价 ≈ 0；如果正交，shuffle 代价 = `join_side_rows × row_width / shuffle_bw`。这需要从 semantic 层提取 join 条件——当前 `collect_semantic.py` 只解析了 `Scan parquet` 节点的谓词和投影，没有解析 `Join` 节点的 condition。扩展解析范围即可，不需要跑新查询。
+
+分解后 residual 随候选变化，advisor 就能在低 RTT 下选出不同候选——因为低 RTT 下 `t_io` 小、residual 大，residual 的候选间差异会主导排名。
+
+### 11.2 预测-实测反馈链路
+
+**问题**：当前流程是开环的——L1 预测一次、物化一次、E8 验收一次，没有回路。模型预测 Q18 持平，E8 实测 +59.5%，但这个误差不会自动喂回模型。唯一的发现途径是跑完整 E8，而这正是模型本来要帮你省掉的那一步。
+
+**方向**：三层反馈：
+
+1. **逐查询对账**：每次跑完查询（E2 或 E8），将 L1 预测的 `t_io` 和实测的 `t_io` 逐查询对比。偏差超过阈值的查询标记为"模型不可信"。当前 `whatif.py --validate` 只对基线做一次全局 GET/字节自洽检查，不做候选的逐查询对账。
+
+2. **用实测修正模型结构**：发现偏差后，不是调 RTT/BW 参数（Q18 的误差不是参数问题），而是修正 residual 的结构——比如从 E8 实测中学习"排序键与 join key 重合度如何影响 shuffle 代价"，把经验标定进 `t_join` 项。
+
+3. **主动探索搜索**：有了反馈后，搜索从穷举转向"先用 L1 粗筛 top-k → 对 top-k 做小规模 canary（跑 2-3 条代表性查询）→ 用 canary 实测修正模型 → 重新排名 → 只对修正后仍排第一的候选做完整 E8"。这把 E8 的成本从"每个候选都跑"降到"只跑最终候选一次"。
+
+TRACK2_PROJECT.md §7.8 画的 `CanaryValidator` 就是这个角色，但代码里未实现。
+
+### 11.3 E2 前置条件的去除
+
+**问题**：当前 advisor 必须先跑一次完整 E2（22×5，数小时）才能生成候选，因为 semantic（eventlog）和 physical（IO NDJSON）都从 E2 提取。在实际部署中，要求用户先跑一轮完整基准测试才能获得建议，门槛过高。
+
+**方向**：advisor 的三类输入都可以用更轻量的方式获取：
+
+| 输入 | 当前来源 | 轻量替代 | 成本 |
+|---|---|---|---|
+| Semantic | E2 eventlog | 从查询引擎的生产日志被动采集，或 `EXPLAIN` 生成计划 | 零成本 |
+| Physical | E2 IO NDJSON | 轻量网络探针（几十个 GET，几秒） | 秒级 |
+| Format | `dataset_snapshot.py` 扫 footer | 已经独立于 E2 | 分钟级 |
+
+实际部署流程应改为：被动收集查询计划（零成本）→ 扫 footer（分钟级）→ 探测 RTT（秒级）→ 离线枚举估价 → 物化最优 → canary 验证。E2 在原型中扮演的是"校准锚点"（标定 residual），但这个锚点可以是一条代表性查询的实测、历史运行统计、甚至从 footer 几何解析估算，不需要是完整 22×5。
+
+### 11.4 低 RTT 环境下的目标函数重设计
+
+**问题**：当前成本公式 `RTT × GETs + bytes / BW` 是仿射的。如果一个候选同时减 GETs 和减 bytes（如 TPC-H 的 `l_shipdate` 排序），RTT 怎么变它都是第一。但在低 RTT 下，减字节的杠杆（带宽项占 48%）和减 GET 的杠杆（RTT 项占 52%）已经平分秋色，而当前候选省了 GET 但在字节侧是零收益（TPC-H −23% 尚可）甚至负收益（ClickBench +5.3%）。
+
+**方向**：低 RTT 下应优先考虑减字节的动作，而非减 GET 的动作。具体包括：
+
+- **列裁剪与投影列聚簇**：把查询经常一起读的列物理上放在一起，减少非连续读取。
+- **编码/压缩优化**：更高压缩比直接减字节，不依赖排序剪枝。
+- **列顺序优化**：把高选择性谓词列排在前面，使 page index 裁剪更有效（需要 parquet-mr ≥ 1.14 的 vectored IO 支持）。
+
+这些动作在当前动作空间里没有，需要扩展 Virtual Footer 模型来预测它们的字节收益。
+
+### 11.5 优先级
+
+| 方向 | 紧迫度 | 理由 |
+|---|---|---|
+| residual 结构化分解（11.1） | **最高** | 直接修复 Q18 盲区，是其他所有改进的基础 |
+| 反馈链路（11.2） | **高** | 没有反馈，模型改进无法验证和迭代 |
+| E2 前置去除（11.3） | 中 | 影响可用性，但不影响研究结论的正确性 |
+| 目标函数重设计（11.4） | 中 | 需要扩展动作空间，工作量大 |
+| 大动作空间搜索（§7 第 2 项） | 低 | 当前穷举够用，等动作空间扩展后再需要 |
