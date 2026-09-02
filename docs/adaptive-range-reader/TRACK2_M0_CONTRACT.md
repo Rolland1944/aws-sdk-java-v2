@@ -5,12 +5,94 @@
 >
 > **文档优先级**：`PROJECT3.md`（总路线） > `TRACK2_PROJECT.md`（Track 2 执行与变更记录） > 本文件（M0 冻结项） > `TRACK2_PLAN.md`（计划）。
 >
-> **冻结日期**：2026-08-07。**当前修订 r4**：2026-08-17（r4 记录 E2 客户端 regime 偏离，并预留同区门禁实验 E12。
-> 见 §1.2 与 §12）。
+> **冻结日期**：2026-08-07。**当前修订 r5**：2026-09-01（r5 替换动作词表、移除 Semantic 层、
+> 新增 PyArrow writer 为一等 writer。见 §0.1 与 [TRACK2_V2_PLAN.md](TRACK2_V2_PLAN.md)）。
+> r4：2026-08-17（记录 E2 客户端 regime 偏离，并预留同区门禁实验 E12。见 §1.2 与 §12）。
 >
 > **修改规则**：本文件冻结后**不得为了让结果更好看而修改**。任何变更必须在 `TRACK2_PROJECT.md` 变更记录中说明
 > 「改了什么、为什么改、改之前已经观测到什么」，并明确该变更是否影响已产出的结论。
 > 尤其禁止在看到实验结果后更换 §4 的主指标。
+
+---
+
+## 0.1 r5 修订：动作词表替换与 Semantic 层移除
+
+r5 不是为了让结果更好看，而是**缩小研究范围**：v1 的四维动作里有两维（sort、partition）
+被判定为偏离 SDK+footer 主线，随之而来的 Semantic 采集层也不再是计划生成的必要输入。
+r1–r4 已产出的 sort/partition 结论**不被撤销**，它们保留为历史对照，只是不再扩展。
+
+### 变更 1：动作词表
+
+**移出动作空间**（不再生成候选、不再进 L0/L1）：
+
+| 动作 | 移出理由 |
+| --- | --- |
+| `sort.columns` | 流式到达的数据只能局部排序，无法全局排序；行顺序不是文件格式属性 |
+| `partition.spec` | 表级目录布局，不是文件内部格式；r1–r4 已证明派生变换分区在 bare Parquet 上惰性 |
+
+**新的六维动作空间**（全部是 writer 公开 API 的构造参数）：
+
+| 维 | Canonical | parquet-mr | PyArrow |
+| --- | --- | --- | --- |
+| 1 列顺序 | `write.parquet.column-order` | 写前 `df.select` | `pa.schema` 字段顺序 |
+| 2 行组大小 | `write.parquet.row-group-size-bytes` | `parquet.block.size` | `row_group_size`（行数） |
+| 3 文件大小 | `write.target-file-size-bytes` | `repartition(n)` | 应用层文件旋转 |
+| 4 压缩 | `write.parquet.compression-codec`(+`.column.X`) | `parquet.compression`（仅全局） | `compression`（per-column） |
+| 5 页几何 | `write.parquet.page-size-bytes`、`write.parquet.page-row-limit` | `parquet.page.size`、`parquet.page.row.count.limit` | `data_page_size`、`max_rows_per_page` |
+| 6 encoding 族 | `write.parquet.encoding.column.X` | 仅 `parquet.enable.dictionary#X` | `column_encoding` |
+
+D-10 的「列顺序不进入首轮门禁」被 r5 **推翻**：列顺序改为 v2 的核心动作。
+前提条件（parquet-mr ≥ 1.14 + vectored IO）在 D-1/D-11 冻结的栈上已满足。
+
+**页级索引不是动作**：§6.1 记录 parquet-mr 恒写、PyArrow 默认关。r5 把它固定为
+**写出约束**——PyArrow 路径必须 `write_page_index=True`，`--verify` 回读 footer 校验
+`has_column_index`/`has_offset_index`，缺失即判写出失败。它不进入搜索空间。
+
+**Bloom filter**：M-2 的写侧默认关问题仍然成立，但 r5 不搜 bloom——决策依赖等值谓词，
+而 Semantic 层已移除。词表保留，候选网格不生成。
+
+### 变更 2：Semantic 层移出计划生成链路
+
+§3 的三层 telemetry 中，**SemanticCollector 不再是计划生成的输入**。
+关联从 `query/span id + object key + time window` 退化为纯几何：
+
+```text
+GET [offset, offset+length) ∩ column chunk [byte_start, byte_end)
+```
+
+查询身份由 **access episode** 替代：同一 `(thread, object)` 上间隔不超过阈值的连续请求。
+这不依赖任何引擎语义，因此同一套方法对非 SQL 负载也成立。
+
+§1.2 的 M1 覆盖率门禁相应改口径：从「GET 字节映射到 query → object → row group/column chunk」
+改为「GET 字节映射到 object → row group/column chunk」。Spark eventlog 仍可采集，
+但只用于实验分析与归因验证，不进入 Advisor 输入。
+
+### 变更 3：PyArrow 升为一等 writer
+
+§6.4 的 writer 能力矩阵中，PyArrow 从「备选项」升为 **UC1 的正式 writer**。
+D-6 冻结的 Spark/parquet-mr 仍是 UC2 的 writer。两个 use case 共用同一份中间计划：
+
+- **UC1**：用户手写代码直接调用 `pq.ParquetWriter` 公开 API。能表达 per-column 压缩与 encoding。
+- **UC2**：用户用 Spark SQL，只能改 SQL 与参数。per-column 压缩/encoding 不可表达（M-5），
+  渲染时跳过并记 warning。
+
+§6.2 M-5 记录的「per-column compression/encoding 在 Spark 不可表达」由此从**缺陷**
+变成**两个 use case 的正式差异点**，是 r5 要验证的内容之一。
+
+### 变更 4：L0 / L1
+
+L0 删除 Gate A（聚簇度余量）、Gate C（剪枝后并行度）、Gate D（分区有效性）——
+三者都依赖已移除的谓词/排序语义。新增：列顺序必须是原 schema 的排列；
+codec/encoding 与物理类型匹配；`page_size ≤ row_group_size`。
+
+L1 删除剪枝选择率模型与 `partitionBy` 的 F×P 几何。`merge_gets` 改为 order-aware，
+成为列顺序收益的主要来源。
+
+### 变更 5：验收顺序
+
+§12 的实验清单前面插入 **E-0：ClickBench SF1 墙钟冒烟**。E-0 只看方向
+（墙钟 median 相对同环境 baseline 下降），不设 10% 门禁。E-0 不通过则不进入消融实验，
+也不上 LLM 计划生成器。
 
 ---
 

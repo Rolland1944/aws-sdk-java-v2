@@ -5,21 +5,22 @@ The L1 model needs four things, and they used to arrive as one hand-written
 Python module per dataset:
 
     layout geometry + column facts  <- dataset_snapshot   (footers, listing, stats)
-    scans per query                 <- workload_snapshot  (event logs)
+    what the workload reads         <- access_profile     (SDK bytes + footers)
     physical action space           <- adaptive_physical_options (from geometry)
     thresholds and assumptions      <- advisor_policy
 
-This class bundles them behind the attribute names `virtual_footer` and
-`whatif` already read, so those modules did not need rewriting around a new
-interface -- they just get handed a catalog instead of importing a module.
-The point of the shape being unchanged is that the *values* changed source:
-every number below is now traceable to a file that was measured, and
-`provenance()` says which one.
+The second line is the r5 change. It used to read `workload_snapshot` (Spark
+event logs -> `QUERIES`, one entry per query with its predicates and
+projection). Two problems retired it. The advisor could only advise where an
+event log existed, which excluded every non-SQL reader; and the predicates it
+supplied fed only the sort and partition actions, both of which left the action
+space. What survives is the projection -- which columns are read together --
+and that is recoverable from bytes alone.
 
-The split matters for a reason beyond tidiness. A dataset snapshot describes
-one directory at one moment. When the writer materialises a candidate layout,
-the right thing to do is snapshot *that* and re-price against it, which is
-impossible while the geometry is a literal in a module shared by every run.
+So the unit changed from a query to an **access pattern**: a table plus the set
+of columns one episode read, with a count of how often that happened. The
+attribute is `PATTERNS`, not `QUERIES`, deliberately: code still asking for
+`QUERIES` is asking for predicates that no longer exist anywhere.
 """
 
 from __future__ import annotations
@@ -28,18 +29,18 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import access_profile  # noqa: E402
 import adaptive_physical_options as physical  # noqa: E402
 import advisor_policy as policy  # noqa: E402
 import dataset_snapshot  # noqa: E402
-import workload_snapshot  # noqa: E402
 
 
 class AdvisorCatalog:
-    def __init__(self, dataset, workload, dataset_name="tpch",
+    def __init__(self, dataset, profile, dataset_name="clickbench",
                  parallelism=policy.PARALLELISM,
                  large_table_bytes=policy.LARGE_TABLE_BYTES):
         self.dataset = dataset
-        self.workload = workload
+        self.profile = profile
         self.dataset_name = dataset_name
         self.parallelism = parallelism
 
@@ -50,9 +51,25 @@ class AdvisorCatalog:
         self.COLUMN_STATS = dataset.COLUMN_STATS
         self.BASELINE_RG_BYTES = dataset.BASELINE_RG_BYTES
         self.LARGE_TABLE_BYTES = large_table_bytes
-        self.CORRELATED_WITH = policy.correlations(dataset_name)
-        self.QUERIES = workload.QUERIES
-        self.measured_median_s = workload.measured_median_s
+
+        self.PATTERNS = profile.PATTERNS
+        self.COLUMN_WEIGHT = profile.COLUMN_WEIGHT
+        self.REQUEST_SHAPE = profile.REQUEST_SHAPE
+
+    # -- what the workload reads -------------------------------------------
+
+    def patterns_for(self, table):
+        return self.profile.patterns_for(table)
+
+    def coaccess_matrix(self, table):
+        return self.profile.coaccess_matrix(table)
+
+    def column_weight(self, table, column):
+        return ((self.COLUMN_WEIGHT.get(table) or {}).get(column) or {})
+
+    def tables_observed(self):
+        """Tables with observed traffic, intersected with tables that exist."""
+        return [t for t in self.profile.tables() if t in self.BASELINE_GEOMETRY]
 
     # -- action space ------------------------------------------------------
 
@@ -77,24 +94,23 @@ class AdvisorCatalog:
         return {
             "dataset": self.dataset_name,
             "layout": self.dataset.layout,
+            "contract": "TRACK2_M0_CONTRACT.md r5 (SDK + footer only)",
             "geometry_source": (self.dataset.doc.get("source") or {}).get("geometry"),
             "column_stats_source": (self.dataset.doc.get("source") or {}).get("column_stats"),
             "geometry_collected_at": self.dataset.doc.get("collected_at"),
-            "eventlog": self.workload.doc.get("eventlog"),
-            "query_id_source": self.workload.query_id_source,
-            "workload_collected_at": self.workload.doc.get("collected_at"),
-            "n_queries": len(self.QUERIES),
+            "access_profile": self.profile.provenance(),
+            "n_patterns": len(self.PATTERNS),
             "n_tables": len(self.BASELINE_GEOMETRY),
             "parallelism": self.parallelism,
             "large_table_bytes": self.LARGE_TABLE_BYTES,
         }
 
 
-def load(dataset_snapshot_path, workload_snapshot_path, dataset_name="tpch",
+def load(dataset_snapshot_path, access_profile_path, dataset_name="clickbench",
          **kwargs):
     return AdvisorCatalog(
         dataset_snapshot.load(dataset_snapshot_path),
-        workload_snapshot.load(workload_snapshot_path),
+        access_profile.load(access_profile_path),
         dataset_name=dataset_name, **kwargs)
 
 
@@ -102,12 +118,12 @@ def add_arguments(ap):
     """The three flags every advisor entry point needs."""
     ap.add_argument("--dataset-snapshot", required=True,
                     help="dataset_snapshot.py output: measured layout geometry")
-    ap.add_argument("--workload-snapshot", required=True,
-                    help="workload_snapshot.py output: scans per query")
-    ap.add_argument("--dataset", choices=("tpch", "clickbench"), default="tpch",
-                    help="selects the correlation assumptions in advisor_policy")
+    ap.add_argument("--access-profile", required=True,
+                    help="access_profile.py output: column weight, co-access, patterns")
+    ap.add_argument("--dataset", choices=("tpch", "clickbench"), default="clickbench",
+                    help="selects dataset-specific policy in advisor_policy")
 
 
 def from_args(args, **kwargs):
-    return load(args.dataset_snapshot, args.workload_snapshot, args.dataset,
+    return load(args.dataset_snapshot, args.access_profile, args.dataset,
                 **kwargs)

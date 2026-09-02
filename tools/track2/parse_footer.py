@@ -109,7 +109,11 @@ def parse_file(fs, path):
                     "encodings": list(col.encodings),
                     "has_column_index": bool(col.has_column_index),
                     "has_offset_index": bool(col.has_offset_index),
-                    "has_bloom_filter": col.bloom_filter_offset is not None,
+                    # bloom_filter_offset only appears on ColumnChunkMetaData in
+                    # pyarrow >= 19; older builds report None rather than
+                    # failing the whole footer pass over a field r5 does not
+                    # search on anyway.
+                    "has_bloom_filter": getattr(col, "bloom_filter_offset", None) is not None,
                     "min": _safe_stat(stats, "min"),
                     "max": _safe_stat(stats, "max"),
                     "null_count": stats.null_count if stats and stats.has_null_count else None,
@@ -121,8 +125,10 @@ def _safe_stat(stats, attr):
     """min/max as a string, or None.
 
     Column types differ (int, decimal-as-str, date), so a single output column
-    must hold one type. Stringifying keeps the value comparable for the
-    clustering/overlap analysis in analyze_layout.py without a per-type schema.
+    must hold one type. Stringifying keeps the value readable and comparable
+    without a per-type schema. Since r5 nothing plans on these bounds -- the
+    pruning model they fed left with the sort action -- but they remain the
+    cheapest way to describe how a baseline is ordered.
     """
     if stats is None or not stats.has_min_max:
         return None

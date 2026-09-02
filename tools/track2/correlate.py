@@ -1,38 +1,41 @@
 #!/usr/bin/env python3
-"""Correlate the three telemetry layers into an ObservationBundle.
+"""Correlate SDK byte access with Parquet footers into an ObservationBundle.
 
-Contract role (TRACK2_M0_CONTRACT.md 3.1/3.2, TRACK2_PLAN.md 6 step 2): join
+Contract role (TRACK2_M0_CONTRACT.md r5 §0.1, TRACK2_V2_PLAN.md §3.2): join
 
   * physical  -- SdkIoCollector NDJSON: one record per GET with ts_wall_ms,
-                 range_offset, range_length, path, audit_* fields
+                 range_offset, range_length, path, thread
   * format    -- parse_footer.py output: (file, column, row_group) -> [byte_start, byte_end)
-  * semantic  -- collect_semantic.py output: per execution_id a time window,
-                 scanned files, projected columns, pushed filters
 
-into one ObservationBundle per GET, and report the attribution coverage that the
-M1 gate measures (contract 1.2: >=95% of GET bytes map to query -> object ->
-row group/column chunk).
+into one ObservationBundle per GET, and report chunk-attribution coverage.
 
-Two independent joins happen here:
+r5 removed the third join. v1 also placed each GET inside a Spark execution
+window, which made every downstream conclusion conditional on there *being* a
+Spark event log -- so the advisor could only ever advise a SQL engine on a
+layout, and a Lance or ML data loader got nothing. The geometric join is the
+part that carries layout information, and it needs no engine at all:
 
-  * physical -> format: a GET's [offset, offset+length) is intersected with every
-    column-chunk range of the same object; each overlapping chunk gets the
-    overlapping byte count. This is the layer that must be exact, and it is what
-    the coverage gate measures.
-  * physical -> semantic: the GET's ts_wall_ms is placed inside a query's time
-    window. The MVP runs queries serially, so the window is an exact assignment.
-    When the collector carried an audit_sqlid (CommonAuditContext injection), that
-    is preferred over the window because it survives concurrency.
+    GET [offset, offset+length) ∩ chunk [byte_start, byte_end)
 
-A GET is counted as attributed when it maps to at least one column chunk AND to a
-query. The coverage metric is bytes-weighted, not request-count-weighted, because
-a handful of large footer/metadata reads would otherwise dominate a count.
+What the execution id was actually used for downstream was grouping: which
+columns get read *together*. That is recoverable without semantics. An
+**access episode** is a run of requests on the same (thread, object) with no
+gap longer than --episode-gap-ms. One Spark task reading one file is one
+episode; so is one PyArrow `read_table`. Columns co-occurring in an episode is
+the evidence the column-order action is built on (access_profile.py).
+
+Two things episodes are not. They are not queries: a query that scans 40 files
+across 16 threads is 640 episodes, not 1, so episode *counts* mean nothing on
+their own. And they are not exact under thread reuse -- a pool thread that
+picks up a new task within the gap threshold merges two episodes. The gap is
+therefore a knob, and --report prints the episode size distribution so a
+degenerate setting (everything one episode, or every GET its own) is visible
+rather than silent.
 
 Usage:
   python3 tools/track2/correlate.py \
-      --io track2-io-*.ndjson \
-      --footer footer_lineitem.parquet \
-      --semantic semantic.json \
+      --io 'track2-io-*.ndjson' \
+      --footer footer_hits.parquet \
       --out observation_bundle.parquet --report coverage.json
 """
 
@@ -41,9 +44,19 @@ import bisect
 import glob
 import json
 import os
+import statistics
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
+
+# One task's requests on one object arrive back to back. 2s is far above the
+# inter-request spacing inside a vectored read even at cross-cloud RTT (228ms
+# measured), and far below the gap between two Spark tasks on the same pool
+# thread. Both ends are visible in the episode histogram the report prints.
+DEFAULT_EPISODE_GAP_MS = 2000
+
+# Chunk attribution is the only gate left after the semantic join was removed.
+DEFAULT_COVERAGE_GATE = 0.95
 
 
 def load_io_records(patterns):
@@ -103,19 +116,6 @@ def load_footer(path):
     return index
 
 
-def load_semantic(path):
-    """Per-execution time windows + scan fragments, plus a sorted window list."""
-    with open(path) as fh:
-        data = json.load(fh)
-    executions = data.get("executions", [])
-    windows = []
-    for e in executions:
-        if e.get("start_ms") is not None and e.get("end_ms") is not None and e.get("scans"):
-            windows.append((e["start_ms"], e["end_ms"], e))
-    windows.sort(key=lambda w: w[0])
-    return windows
-
-
 def resolve_object(index, object_key):
     """Map an IO path onto a footer index key."""
     key = _norm_path(object_key)
@@ -163,23 +163,198 @@ def object_data_end(index, object_key):
     return max(c["byte_end"] for c in chunks) if chunks else None
 
 
-def find_query(windows, ts_ms):
-    """The execution whose [start_ms, end_ms] contains ts_ms, or None."""
-    starts = [w[0] for w in windows]
-    i = bisect.bisect_right(starts, ts_ms) - 1
-    if i >= 0:
-        start, end, e = windows[i]
-        if start <= ts_ms <= end:
-            return e
-    return None
+def assign_episodes(records, gap_ms=DEFAULT_EPISODE_GAP_MS):
+    """Group requests into access episodes; returns a list of episode ids.
+
+    An episode is a maximal run of requests on one (thread, object) whose
+    consecutive timestamps differ by at most `gap_ms`. Records with no usable
+    timestamp fall back to one episode per (thread, object), which keeps the
+    co-access signal rather than dropping the request.
+
+    Returned ids are positional and parallel to `records`.
+    """
+    buckets = defaultdict(list)
+    for i, rec in enumerate(records):
+        thread = rec.get("thread") or "?"
+        obj = _norm_path(rec.get("audit_path") or rec.get("path")) or "?"
+        buckets[(thread, obj)].append(i)
+
+    episode_of = [None] * len(records)
+    next_id = 0
+    for (thread, obj), idxs in sorted(buckets.items()):
+        idxs.sort(key=lambda i: (records[i].get("ts_wall_ms") or 0,
+                                 records[i].get("ts_start_ns") or 0))
+        prev_ts = None
+        current = None
+        for i in idxs:
+            ts = records[i].get("ts_wall_ms")
+            if current is None or (ts is not None and prev_ts is not None
+                                   and ts - prev_ts > gap_ms):
+                current = next_id
+                next_id += 1
+            episode_of[i] = current
+            if ts is not None:
+                prev_ts = ts
+    return episode_of, next_id
+
+
+def episode_summary(observations, n_episodes):
+    """Size distribution, so a degenerate --episode-gap-ms is visible."""
+    sizes = defaultdict(int)
+    columns = defaultdict(set)
+    for obs in observations:
+        eid = obs["episode_id"]
+        if eid is None:
+            continue
+        sizes[eid] += 1
+        for chunk in obs["chunks"]:
+            columns[eid].add(chunk["column"])
+    counts = sorted(sizes.values())
+    col_counts = sorted(len(c) for c in columns.values()) or [0]
+    if not counts:
+        return {"n_episodes": 0}
+    return {
+        "n_episodes": n_episodes,
+        "requests_per_episode": {
+            "min": counts[0],
+            "median": int(statistics.median(counts)),
+            "max": counts[-1],
+            "mean": round(sum(counts) / len(counts), 2),
+        },
+        "columns_per_episode": {
+            "min": col_counts[0],
+            "median": int(statistics.median(col_counts)),
+            "max": col_counts[-1],
+        },
+        "note": ("an episode is one (thread, object) run within the gap "
+                 "threshold; it is not a query. Degenerate settings show up "
+                 "here as median=1 (gap too small) or n_episodes≈n_objects "
+                 "(gap too large)."),
+    }
+
+
+def build(io_records, footer_index, gap_ms=DEFAULT_EPISODE_GAP_MS):
+    """Attribute every ranged GET to column chunks and an access episode."""
+    episode_of, n_episodes = assign_episodes(io_records, gap_ms)
+
+    observations = []
+    stats = {
+        "bytes_total": 0,
+        "bytes_overlap": 0,
+        "bytes_metadata": 0,
+        "requests_attributed": 0,
+        "page_index_chunks": 0,
+        "page_index_total": 0,
+    }
+    unattributed = defaultdict(int)
+
+    for i, rec in enumerate(io_records):
+        offset = rec["range_offset"]
+        length = rec["range_length"]
+        path = rec.get("audit_path") or rec.get("path")
+        ts = rec.get("ts_wall_ms")
+        stats["bytes_total"] += length
+
+        chunks = find_chunks(footer_index, path, offset, length)
+        overlap = sum(ov for _c, ov in chunks)
+        stats["bytes_overlap"] += overlap
+        data_end = object_data_end(footer_index, path)
+        is_metadata = overlap == 0 and data_end is not None and offset >= data_end
+        if is_metadata:
+            stats["bytes_metadata"] += length
+
+        # r5: attribution is chunk-only. A GET either lands in a column chunk
+        # (layout-relevant) or it is footer/page-index traffic (accounted
+        # separately, and priced by L1 as per-open overhead).
+        attributed = overlap > 0
+        if attributed:
+            stats["requests_attributed"] += 1
+        elif is_metadata:
+            unattributed["format_metadata"] += 1
+        else:
+            unattributed["no_chunk_match"] += 1
+
+        for c, _ov in chunks:
+            stats["page_index_total"] += 1
+            if c.get("has_offset_index") or c.get("has_column_index"):
+                stats["page_index_chunks"] += 1
+
+        observations.append({
+            "ts_wall_ms": ts,
+            "thread": rec.get("thread"),
+            "episode_id": episode_of[i],
+            "object": _norm_path(path),
+            "range_offset": offset,
+            "range_length": length,
+            "overlap_bytes": overlap,
+            "is_metadata": is_metadata,
+            "latency_ns": rec.get("latency_ns"),
+            "http_status": rec.get("http_status"),
+            "chunks": [
+                {"column": c["column"], "row_group": c["row_group"],
+                 "overlap_bytes": ov, "byte_start": c["byte_start"],
+                 "byte_end": c["byte_end"]}
+                for c, ov in chunks
+            ],
+            "attributed": attributed,
+        })
+
+    return observations, stats, dict(unattributed), n_episodes
+
+
+def coverage_report(io_files, io_records, observations, stats, unattributed,
+                    n_episodes, gap_ms, gate=DEFAULT_COVERAGE_GATE):
+    total = stats["bytes_total"]
+    # Denominator excludes footer/page-index reads: they are real traffic but
+    # by construction cannot land in a column chunk, so counting them as
+    # unattributed would cap coverage below 100% no matter how exact the join.
+    data_bytes = total - stats["bytes_metadata"]
+    coverage = stats["bytes_overlap"] / data_bytes if data_bytes else 0.0
+    page_total = stats["page_index_total"]
+    page_frac = (stats["page_index_chunks"] / page_total) if page_total else 0.0
+    return {
+        "correlated_at": datetime.now(timezone.utc).isoformat(),
+        "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md r5 §0.1",
+        "layers": ["sdk_io", "parquet_footer"],
+        "io_files": io_files,
+        "ranged_gets": len(io_records),
+        "bytes_total": total,
+        "bytes_chunk_overlap": stats["bytes_overlap"],
+        "bytes_format_metadata": stats["bytes_metadata"],
+        "bytes_data": data_bytes,
+        "requests_attributed": stats["requests_attributed"],
+        "coverage_bytes": round(coverage, 4),
+        "coverage_requests": (round(stats["requests_attributed"] / len(io_records), 4)
+                              if io_records else 0.0),
+        "gate_threshold": gate,
+        "gate_pass": coverage >= gate,
+        "gate_note": ("chunk attribution only; the query-attribution half of the "
+                      "v1 gate was removed with the Semantic layer (r5)"),
+        "unattributed_reasons": unattributed,
+        "episodes": dict(episode_summary(observations, n_episodes),
+                         gap_ms=gap_ms),
+        "page_coverage": {
+            "chunks_with_page_index": stats["page_index_chunks"],
+            "chunks_touched": page_total,
+            "fraction": round(page_frac, 4),
+            "note": ("page index present on touched chunks; page-range "
+                     "intersection not implemented — do not claim page-level "
+                     "attribution"),
+        },
+    }
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--io", nargs="+", required=True, help="SdkIoCollector NDJSON file(s)/glob")
-    ap.add_argument("--footer", required=True, help="parse_footer.py output (parquet or json)")
-    ap.add_argument("--semantic", required=True, help="collect_semantic.py output JSON")
+    ap.add_argument("--io", nargs="+", required=True,
+                    help="SdkIoCollector NDJSON file(s)/glob")
+    ap.add_argument("--footer", required=True,
+                    help="parse_footer.py output (parquet or json)")
+    ap.add_argument("--episode-gap-ms", type=int, default=DEFAULT_EPISODE_GAP_MS,
+                    help="max gap within one (thread, object) access episode")
+    ap.add_argument("--coverage-gate", type=float, default=DEFAULT_COVERAGE_GATE,
+                    help="minimum chunk-attributed fraction of data bytes")
     ap.add_argument("--out", default=None, help="ObservationBundle parquet output")
     ap.add_argument("--report", default=None, help="coverage report JSON")
     args = ap.parse_args()
@@ -188,109 +363,12 @@ def main():
     if not io_records:
         sys.exit("no ranged-GET records found in the IO input")
     footer_index = load_footer(args.footer)
-    windows = load_semantic(args.semantic)
 
-    observations = []
-    bytes_total = 0
-    bytes_overlap = 0
-    bytes_metadata = 0
-    bytes_attributed = 0
-    reqs_attributed = 0
-    page_index_chunks = 0
-    page_index_total = 0
-    unattributed_reasons = defaultdict(int)
-
-    for rec in io_records:
-        offset = rec["range_offset"]
-        length = rec["range_length"]
-        path = rec.get("audit_path") or rec.get("path")
-        ts = rec.get("ts_wall_ms")
-        bytes_total += length
-
-        chunks = find_chunks(footer_index, path, offset, length)
-        overlap = sum(ov for _c, ov in chunks)
-        bytes_overlap += overlap
-        data_end = object_data_end(footer_index, path)
-        is_metadata = overlap == 0 and data_end is not None and offset >= data_end
-        if is_metadata:
-            bytes_metadata += length
-
-        query = None
-        sqlid = rec.get("audit_sqlid")
-        if sqlid is not None:
-            query = {"execution_id": sqlid, "via": "sqlid"}
-        elif ts is not None:
-            match = find_query(windows, ts)
-            if match:
-                query = {"execution_id": match["execution_id"], "via": "time_window"}
-
-        # gate: GET bytes that land in a column chunk AND a query
-        attributed = overlap > 0 and query is not None
-        if attributed:
-            bytes_attributed += overlap
-            reqs_attributed += 1
-        else:
-            if overlap == 0 and not is_metadata:
-                unattributed_reasons["no_chunk_match"] += 1
-            if is_metadata:
-                unattributed_reasons["format_metadata"] += 1
-            if query is None:
-                unattributed_reasons["no_query_match"] += 1
-
-        for c, _ov in chunks:
-            page_index_total += 1
-            if c.get("has_offset_index") or c.get("has_column_index"):
-                page_index_chunks += 1
-
-        observations.append({
-            "ts_wall_ms": ts,
-            "object": _norm_path(path),
-            "range_offset": offset,
-            "range_length": length,
-            "overlap_bytes": overlap,
-            "is_metadata": is_metadata,
-            "latency_ns": rec.get("latency_ns"),
-            "http_status": rec.get("http_status"),
-            "execution_id": query["execution_id"] if query else None,
-            "attribution_via": query["via"] if query else None,
-            "chunks": [
-                {"column": c["column"], "row_group": c["row_group"],
-                 "overlap_bytes": ov, "byte_start": c["byte_start"], "byte_end": c["byte_end"]}
-                for c, ov in chunks
-            ],
-            "attributed": attributed,
-        })
-
-    coverage = bytes_attributed / bytes_total if bytes_total else 0.0
-    page_index_frac = (page_index_chunks / page_index_total) if page_index_total else 0.0
-    page_level_claimed = page_index_frac >= 0.95
-    report = {
-        "correlated_at": datetime.now(timezone.utc).isoformat(),
-        "contract": "docs/adaptive-range-reader/TRACK2_M0_CONTRACT.md 1.2 (M1 gate)",
-        "io_files": io_files,
-        "ranged_gets": len(io_records),
-        "bytes_total": bytes_total,
-        "bytes_chunk_overlap": bytes_overlap,
-        "bytes_format_metadata": bytes_metadata,
-        "bytes_attributed": bytes_attributed,
-        "requests_attributed": reqs_attributed,
-        "coverage_bytes": round(coverage, 4),
-        "coverage_requests": round(reqs_attributed / len(io_records), 4) if io_records else 0.0,
-        "gate_threshold": 0.95,
-        "gate_pass": coverage >= 0.95,
-        "unattributed_reasons": dict(unattributed_reasons),
-        "page_coverage": {
-            "chunks_with_page_index": page_index_chunks,
-            "chunks_touched": page_index_total,
-            "fraction": round(page_index_frac, 4),
-            "page_level_attribution_claimed": page_level_claimed,
-            "note": ("page index present on touched chunks; page-range intersection not yet "
-                     "implemented — do not claim page-level attribution")
-                     if page_index_frac > 0 else
-                     ("no ColumnIndex/OffsetIndex on touched chunks; page-level attribution "
-                      "is not claimed (contract: report separately, do not claim)"),
-        },
-    }
+    observations, stats, unattributed, n_episodes = build(
+        io_records, footer_index, args.episode_gap_ms)
+    report = coverage_report(io_files, io_records, observations, stats,
+                             unattributed, n_episodes, args.episode_gap_ms,
+                             args.coverage_gate)
 
     if args.out:
         os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
@@ -306,17 +384,21 @@ def main():
         with open(args.report, "w") as fh:
             json.dump(report, fh, indent=2)
 
+    ep = report["episodes"]
     print(f"# correlate: {len(io_records)} ranged GETs from {len(io_files)} file(s)")
-    print(f"  bytes attributed   {bytes_attributed:,} / {bytes_total:,}")
-    print(f"  chunk overlap      {bytes_overlap:,}")
-    print(f"  format metadata    {bytes_metadata:,}")
-    print(f"  coverage (bytes)   {coverage*100:.2f}%   (gate >= 95%)")
+    print(f"  chunk overlap      {stats['bytes_overlap']:,} / {report['bytes_data']:,} data bytes")
+    print(f"  format metadata    {stats['bytes_metadata']:,}")
+    print(f"  coverage (bytes)   {report['coverage_bytes']*100:.2f}%   "
+          f"(gate >= {args.coverage_gate*100:.0f}%)")
     print(f"  coverage (requests){report['coverage_requests']*100:6.2f}%")
-    print(f"  page index         {page_index_chunks}/{page_index_total} "
-          f"claimed={page_level_claimed}")
+    if ep.get("n_episodes"):
+        print(f"  episodes           {ep['n_episodes']} "
+              f"(median {ep['requests_per_episode']['median']} req, "
+              f"{ep['columns_per_episode']['median']} cols)")
+    print(f"  page index         {stats['page_index_chunks']}/{stats['page_index_total']}")
     print(f"  gate               {'PASS' if report['gate_pass'] else 'FAIL'}")
-    if unattributed_reasons:
-        print(f"  unattributed       {dict(unattributed_reasons)}")
+    if unattributed:
+        print(f"  unattributed       {unattributed}")
     if args.report:
         print(f"  report             {args.report}")
     return 0 if report["gate_pass"] else 1

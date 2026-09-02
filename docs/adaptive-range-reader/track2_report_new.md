@@ -1,5 +1,18 @@
 # Track 2 阶段进展汇报：面向对象存储的 Parquet 布局优化
 
+> **范围变更提示（v1 存档）**
+>
+> 本文描述的是 Track 2 **v1** 架构：Semantic + Format + Physical 三层采集，
+> 动作空间为 `partition × file size × row group size × sort`。
+>
+> 现行方案是 [TRACK2_V2_PLAN.md](TRACK2_V2_PLAN.md)，相对本文有四处收敛：
+> 采集降为 SDK + footer 两层（Semantic 层移出计划生成链路）；
+> 动作空间换成文件格式层六维（列顺序、行组大小、文件大小、压缩、页几何、encoding 族），
+> `sort` 与 `partition` 移出动作空间；产出拆成"引擎无关的中间计划"与"按 use case 落地"两层；
+> 计划生成先做确定性算法，LLM 作为后续对照。
+>
+> 本文保留为 v1 记录，其中的三层观测、Virtual Footer 和 L1 代价模型描述仍是 v2 的基础。
+
 ## 1. 研究目的
 
 在不修改 Parquet 格式和查询语义的前提下，通过改变 Parquet 文件的物理布局，减少对象存储上的文件打开、Range GET 和远端读取字节，最终缩短查询时间。

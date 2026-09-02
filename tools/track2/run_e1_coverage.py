@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
 """M1 coverage gate: run one TPC-H query on S3 and measure GET attribution.
 
-Contract (TRACK2_M0_CONTRACT.md 1.2 / TRACK2_PLAN.md step 2): >=95% of ranged-GET
-bytes must map to query -> object -> row group/column chunk. Page-level coverage
-is reported separately and is not claimed unless page indexes are present.
+Contract (TRACK2_M0_CONTRACT.md r5 §0.1): >=95% of ranged-GET *data* bytes must
+map to object -> row group/column chunk. Page-level coverage is reported
+separately and is not claimed unless page indexes are present.
 
 This is the real gate, not the synthetic correlate.py unit test. It:
   1. parses footers of the objects that will be scanned
   2. runs TPC-H Q6 (lineitem-only) through Spark/S3A with the interceptor
-  3. collects the Spark event log (semantic layer)
-  4. correlates the three layers and writes the coverage report
+  3. correlates bytes to chunks and writes the coverage report
+  4. builds an access profile, so the gate also proves the planner's input
+     can be produced end to end
 
-Q6 is the coverage vehicle because it is a single-table scan with pushed
-predicates, so the query window is unambiguous and the GET mix is dominated by
-column-chunk reads rather than joins. SF300 on S3 is used because that is the
-dataset already uploaded; the mapping machinery does not depend on scale factor.
+r5 removed a step: the Spark event log used to be collected and joined as the
+semantic layer, and the gate measured query attribution as well as chunk
+attribution. Query identity is no longer an advisor input, so measuring it here
+would gate the pipeline on a signal nothing downstream consumes. The event log
+is still written (the Spark config below leaves it on) but only as run evidence.
+
+Q6 is the coverage vehicle because it is a single-table scan, so the GET mix is
+dominated by column-chunk reads rather than joins. SF300 on S3 is used because
+that is the dataset already uploaded; the mapping machinery does not depend on
+scale factor.
 
 Usage:
   python3 tools/track2/run_e1_coverage.py
@@ -130,14 +137,6 @@ def main():
     print(f"  elapsed     {elapsed:.1f}s")
     spark.stop()
 
-    semantic_out = os.path.join(args.out_dir, "semantic.json")
-    print("# E1 coverage: collect semantic")
-    rc = subprocess.call(
-        [PY, os.path.join(TRACK2_ROOT, "tools/track2/collect_semantic.py"),
-         "--eventlog", eventlog_dir, "--out", semantic_out])
-    if rc != 0:
-        return rc
-
     ndjson = glob.glob(os.path.join(collector_dir, "track2-io-*.ndjson"))
     if not ndjson:
         print("FAIL: no interceptor NDJSON")
@@ -146,13 +145,22 @@ def main():
     report_out = os.path.join(args.out_dir, "coverage.json")
     bundle_out = os.path.join(args.out_dir, "observation_bundle.parquet")
     print("# E1 coverage: correlate")
-    return subprocess.call(
+    rc = subprocess.call(
         [PY, os.path.join(TRACK2_ROOT, "tools/track2/correlate.py"),
          "--io", *ndjson,
          "--footer", footer_out,
-         "--semantic", semantic_out,
          "--out", bundle_out,
          "--report", report_out])
+    if rc != 0:
+        return rc
+
+    # Producing the profile is part of the gate: coverage on its own says the
+    # bytes were attributed, not that the attribution supports a plan.
+    print("# E1 coverage: access profile")
+    return subprocess.call(
+        [PY, os.path.join(TRACK2_ROOT, "tools/track2/access_profile.py"),
+         "--observations", bundle_out,
+         "--out", os.path.join(args.out_dir, "access_profile.json")])
 
 
 if __name__ == "__main__":

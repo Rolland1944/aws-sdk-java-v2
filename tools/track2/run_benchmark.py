@@ -156,9 +156,9 @@ def run_once(args, run_id, queries, collector_dir, eventlog_dir):
         err = None
         nout = None
         # Stamp the query number into the event log. Spark records this as the
-        # SQL execution's description, which makes the log self-describing:
-        # workload_snapshot.py can then read scans back per query instead of
-        # assuming the k-th execution is the k-th query.
+        # SQL execution's description, which makes the log self-describing when
+        # a run has to be explained after the fact. Since r5 nothing in the
+        # advisor reads it -- the event log is run evidence, not advisor input.
         spark.sparkContext.setLocalProperty("callSite.short", f"track2:q{qnr}")
         try:
             result = spark.sql(sql).collect()

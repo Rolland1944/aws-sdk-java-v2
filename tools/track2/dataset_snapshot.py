@@ -14,18 +14,21 @@ already tells you:
 
   * object listing  -> file count and compressed bytes, exactly.
   * footers (sampled) -> row groups per file, row-group bytes, physical column
-    order, per-column byte share, and the baseline clustering `rg_span` that
-    Gate A reads.
-  * column_stats.json -> NDV, null fraction and the quantile CDF that L1's
-    selectivity estimate needs. This one is a separate DuckDB pass because it
-    needs the data, not the metadata.
+    order, per-column byte share and physical type, plus the baseline
+    clustering statistic `rg_span`.
+  * column_stats.json -> NDV and null fraction, which the encoding rule reads.
+    This one is a separate DuckDB pass because it needs the data, not the
+    metadata.
 
-`rg_span` = avg(rg.max - rg.min) / (global.max - global.min). 1.0 means every
-row group covers the whole domain, so the baseline cannot prune on that column
-and a sort has headroom. Near 0 means it is already ordered. This single number
-is what separates TPC-H (l_shipdate 0.999, sorting was a 37% win) from
-ClickBench (CounterID 0.080, sorting was a loss), and it used to be a literal
-someone typed in.
+`physical_type` is what makes the encoding dimension checkable: BYTE_STREAM_SPLIT
+on an integer column is not rejected by any writer, it is silently downgraded to
+PLAIN, so without the type an ablation would measure nothing and report it as a
+null result.
+
+`rg_span` = avg(rg.max - rg.min) / (global.max - global.min) survives r5 as a
+descriptive statistic only. It used to drive Gate A, which vetoed re-sorting an
+already-clustered column; sort left the action space in r5 and the gate went
+with it. It is still collected because it explains a baseline's shape.
 
 Usage:
   python3 tools/track2/dataset_snapshot.py \
@@ -104,6 +107,7 @@ def scan_footers(fs, files, sample_n):
     rg_counts, rg_bytes, rows_per_file = [], [], []
     order = []
     share = {}
+    ptypes = {}
     spans = {}  # column -> [(lo, hi)]
     for path, _size in sampled:
         with fs.open_input_file(path) as handle:
@@ -111,6 +115,12 @@ def scan_footers(fs, files, sample_n):
         names = [md.schema.column(i).name for i in range(md.num_columns)]
         if not order:
             order = names
+        # Physical type decides whether an encoding is legal. Without it the
+        # encoding dimension can only be guessed, and a mismatched encoding is
+        # not an error -- the writer falls back to PLAIN and the experiment
+        # records a null result that looks like "encoding did not help".
+        for i in range(md.num_columns):
+            ptypes[md.schema.column(i).name] = md.schema.column(i).physical_type
         rg_counts.append(md.num_row_groups)
         rows_per_file.append(md.num_rows)
         for rg_idx in range(md.num_row_groups):
@@ -127,16 +137,16 @@ def scan_footers(fs, files, sample_n):
                 if lo is not None and hi is not None:
                     spans.setdefault(name, []).append((lo, hi))
 
-    clustering = {}
+    clustering = {name: {"physical_type": ptype} for name, ptype in ptypes.items()}
     for name, pairs in spans.items():
         glo = min(p[0] for p in pairs)
         ghi = max(p[1] for p in pairs)
         domain = ghi - glo
         avg = sum(p[1] - p[0] for p in pairs) / len(pairs)
-        clustering[name] = {
+        clustering.setdefault(name, {}).update({
             "rg_span": round((avg / domain) if domain else 0.0, 4),
             "n_rg_sampled": len(pairs),
-        }
+        })
     # rg_bytes is the *mean*, not the median, because L1 consumes it only as
     # `n_rg x rg_bytes = total uncompressed bytes` when rescaling row-group
     # counts. Spark's lineitem output is trimodal (1 / 161 / 236 MiB row
