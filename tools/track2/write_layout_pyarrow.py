@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -72,6 +73,37 @@ def list_parquet(fs, base):
                   if f.type == pafs.FileType.File and f.path.endswith(".parquet"))
 
 
+def _sized(fs, paths):
+    """(path, size) for each path, so footer bytes can be derived."""
+    out = []
+    for path in paths:
+        try:
+            out.append((path, fs.get_file_info(path).size))
+        except Exception:
+            out.append((path, None))
+    return out
+
+
+def source_file_size_target(fs, files):
+    """Median source file size, used when the plan leaves file size at baseline.
+
+    A plan that picks `file=baseline` emits no target-file-size action, so
+    `rendered.target_file_size` is None. Without a rotation target the
+    RotatingWriter would collapse the whole table into one giant file, which
+    is a massive layout change (parallelism collapses from N files to 1) and
+    nothing to do with the planned dimensions. The faithful rendering of
+    `file=baseline` is to keep the baseline file count, so rotate at the
+    baseline median file size.
+    """
+    import statistics
+    sizes = []
+    for path in files:
+        info = fs.get_file_info(path)
+        if info.size:
+            sizes.append(info.size)
+    return statistics.median(sizes) if sizes else None
+
+
 def source_row_width(fs, files, sample=4):
     """Mean uncompressed bytes per row, for the byte -> row-count conversion."""
     import pyarrow.parquet as pq
@@ -84,6 +116,42 @@ def source_row_width(fs, files, sample=4):
             total_bytes += rg.total_byte_size
             total_rows += rg.num_rows
     return (total_bytes / total_rows) if total_rows else None
+
+
+def rows_per_rg_to_match(n_rows, n_rg):
+    """Row-group size that reproduces `n_rg` groups for `n_rows` rows.
+
+    PyArrow fills groups of N and writes a leftover group at the end. A
+    sample median understates the mean (554k vs 592k on ClickBench) and
+    `floor(n_rows / n_rg)` leaves a tiny extra group, so both produce more
+    row groups than the plan priced. `ceil` yields exactly `n_rg` groups:
+    `n_rg - 1` full ones and a last group slightly smaller.
+    """
+    if not n_rows or not n_rg:
+        return None
+    return max(1, math.ceil(n_rows / n_rg))
+
+
+def source_row_group_geometry(fs, files):
+    """Exact baseline row-group count and the row size that keeps it."""
+    import pyarrow.parquet as pq
+    n_rg = n_rows = 0
+    for path in files:
+        with fs.open_input_file(path) as handle:
+            md = pq.ParquetFile(handle).metadata
+        n_rg += md.num_row_groups
+        n_rows += md.num_rows
+    return rows_per_rg_to_match(n_rows, n_rg), n_rg, n_rows
+
+
+def source_row_group_rows(fs, files, sample=8):
+    """Row count used when the plan leaves RG at baseline.
+
+    `sample` is ignored: a faithful `rg=baseline` has to see every source
+    footer, not the first eight. Kept so older callers still resolve.
+    """
+    rows, _n_rg, _n_rows = source_row_group_geometry(fs, files)
+    return rows
 
 
 def resolve_column_order(requested, available, notes, table):
@@ -140,10 +208,48 @@ def writer_kwargs(rendered, order, notes, table):
 
     if rendered.page_size:
         kwargs["data_page_size"] = int(rendered.page_size)
+    if rendered.page_row_limit:
+        # max_rows_per_page arrived in PyArrow 15. On a build without it the
+        # page-row axis is unreachable, and quietly dropping it would produce
+        # a file the plan does not describe.
+        if _writer_supports("max_rows_per_page"):
+            kwargs["max_rows_per_page"] = int(rendered.page_row_limit)
+        else:
+            raise ValueError(
+                f"{table}: the plan sets a page row limit but this PyArrow "
+                f"build's ParquetWriter has no max_rows_per_page; refusing to "
+                f"write a layout that silently ignores it")
     if rendered.column_dictionary and "use_dictionary" not in kwargs:
         kwargs["use_dictionary"] = [c for c, on in rendered.column_dictionary.items()
                                     if on and c in set(order)]
     return kwargs
+
+
+def _writer_supports(name):
+    """Is `name` a real ParquetWriter argument on this build?"""
+    import inspect
+    import pyarrow.parquet as pq
+    try:
+        params = inspect.signature(pq.ParquetWriter.__init__).parameters
+    except (TypeError, ValueError):
+        return False
+    if name in params:
+        return True
+    # Several page knobs reach the writer through **options rather than the
+    # visible signature, so probe by writing a one-row file.
+    if not any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return False
+    import io as _io
+    import pyarrow as pa
+    probe = pa.table({"a": pa.array([1])})
+    try:
+        writer = pq.ParquetWriter(_io.BytesIO(), probe.schema, **{name: 1024})
+        writer.close()
+    except TypeError:
+        return False
+    except Exception:
+        return True
+    return True
 
 
 def _codec(value):
@@ -211,25 +317,75 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
     row_group_size = None
     rg_bytes = rendered.row_group_size or DEFAULT_ROW_GROUP_BYTES
     width = source_row_width(source_fs, source_files)
-    if width:
-        row_group_size = max(1024, int(rg_bytes / width))
+    if rendered.row_group_size:
+        row_group_size = max(1024, int(rg_bytes / width)) if width else None
         notes.append(f"{table}: row group {rg_bytes // 2 ** 20} MiB -> "
                      f"{row_group_size} rows at {width:.1f} B/row measured")
     else:
-        notes.append(f"{table}: could not measure row width; row group size "
-                     f"left to the writer default")
+        # `row_group=baseline` -> no action -> cut so the written RG count
+        # equals the source footer count, which is what L1 priced.
+        row_group_size, src_rg, src_rows = source_row_group_geometry(
+            source_fs, source_files)
+        if row_group_size:
+            notes.append(
+                f"{table}: row group size left at baseline by the plan; "
+                f"using {row_group_size} rows/RG = ceil({src_rows}/{src_rg}) "
+                f"to keep {src_rg} row groups")
+        else:
+            notes.append(f"{table}: could not measure source row groups; "
+                         f"row group size left to the writer default")
 
     kwargs = writer_kwargs(rendered, order, notes, table)
-    writer = RotatingWriter(out_fs, out_dir, schema, rendered.target_file_size, kwargs)
+    # PyArrow writes tz-less timestamps as INT64 with isAdjustedToUTC=false, which
+    # Spark's parquet-mr reader refuses (PARQUET_COLUMN_DATA_TYPE_MISMATCH). The
+    # Spark/parquet-mr baseline writes timestamps as INT96, so to keep the
+    # candidate Spark-readable and differ from the baseline only on planned
+    # dimensions, write INT96 too. Only emitted when the schema actually has a
+    # timestamp column so non-timestamp layouts are untouched.
+    if any(pa.types.is_timestamp(f.type) for f in schema):
+        kwargs["use_deprecated_int96_timestamps"] = True
+        notes.append(f"{table}: timestamp column(s) written as INT96 to match "
+                     f"the Spark/parquet-mr baseline (otherwise PyArrow emits "
+                     f"INT64 isAdjustedToUTC=false, which Spark rejects)")
+    # `file=baseline` renders to no target-file-size action; fall back to the
+    # baseline median file size so the candidate keeps the baseline file count
+    # instead of collapsing into one giant file.
+    target_bytes = rendered.target_file_size
+    if not target_bytes:
+        target_bytes = source_file_size_target(source_fs, source_files)
+        if target_bytes:
+            notes.append(f"{table}: file size left at baseline by the plan; "
+                         f"rotating at the source median "
+                         f"{target_bytes // 2 ** 20} MiB to preserve file count")
+    writer = RotatingWriter(out_fs, out_dir, schema, target_bytes, kwargs)
+    # Buffer across source-file boundaries so a target RG row count is
+    # realized. Writing each source file independently left one residual RG
+    # per input file (225 instead of ~165 on ClickBench SF1).
+    read_batch = max(batch_rows, row_group_size or batch_rows)
     rows = 0
+    pending = None
     try:
         for path in source_files:
             with source_fs.open_input_file(path) as handle:
                 pf = pq.ParquetFile(handle)
-                for batch in pf.iter_batches(batch_size=batch_rows, columns=order):
-                    chunk = pa.Table.from_batches([batch]).select(order)
-                    writer.write(chunk.cast(schema), row_group_size)
-                    rows += batch.num_rows
+                for batch in pf.iter_batches(batch_size=read_batch, columns=order):
+                    chunk = pa.Table.from_batches([batch]).select(order).cast(schema)
+                    pending = chunk if pending is None else pa.concat_tables(
+                        [pending, chunk])
+                    if not row_group_size:
+                        writer.write(pending, row_group_size)
+                        rows += pending.num_rows
+                        pending = None
+                        continue
+                    while pending is not None and pending.num_rows >= row_group_size:
+                        writer.write(pending.slice(0, row_group_size), row_group_size)
+                        rows += row_group_size
+                        pending = pending.slice(row_group_size)
+                        if pending.num_rows == 0:
+                            pending = None
+        if pending is not None and pending.num_rows:
+            writer.write(pending, row_group_size)
+            rows += pending.num_rows
     finally:
         writer.close()
     return {"rows": rows, "files": len(writer.paths), "column_order": order,
@@ -263,22 +419,30 @@ def verify_footers(fs, out_dir, sample, expect):
     codecs, encodings = set(), set()
     offset_index = 0
     chunks = 0
-    for path in files[:sample]:
+    file_bytes = chunk_bytes = 0
+    for path, size in _sized(fs, files[:sample]):
         with fs.open_input_file(path) as handle:
             md = pq.ParquetFile(handle).metadata
         if order is None:
             order = [md.schema.column(i).name for i in range(md.num_columns)]
         row_groups += md.num_row_groups
+        file_bytes += size or 0
         for i in range(md.num_row_groups):
             rg = md.row_group(i)
             sizes.append(rg.total_byte_size)
             for c in range(rg.num_columns):
                 col = rg.column(c)
                 chunks += 1
+                chunk_bytes += col.total_compressed_size
                 codecs.add(str(col.compression))
                 encodings.update(str(e) for e in col.encodings)
                 offset_index += 1 if col.has_offset_index else 0
 
+    # file bytes minus column-chunk bytes is footer + OffsetIndex +
+    # ColumnIndex, the same quantity the layout probe's page pass measures.
+    # It is how a page-size request is confirmed to have landed: a finer page
+    # has to show up here or it did not happen.
+    index_bytes = max(0, file_bytes - chunk_bytes) if file_bytes else None
     result = {
         "status": "pass",
         "files": len(files),
@@ -292,6 +456,11 @@ def verify_footers(fs, out_dir, sample, expect):
         "chunks_with_offset_index": offset_index,
         "chunks_sampled": chunks,
         "page_index_present": offset_index == chunks and chunks > 0,
+        "sampled_file_bytes": file_bytes or None,
+        "sampled_chunk_bytes": chunk_bytes or None,
+        "footer_index_bytes": index_bytes,
+        "footer_index_bytes_per_chunk": (round(index_bytes / chunks, 2)
+                                         if index_bytes and chunks else None),
     }
     failures = []
     if not result["page_index_present"]:
@@ -311,6 +480,19 @@ def verify_footers(fs, out_dir, sample, expect):
     if missing_codecs:
         failures.append(f"requested codec(s) {missing_codecs} do not appear in "
                         f"the written footers")
+    # A page request that changed nothing is the failure mode the page axis is
+    # most exposed to: PyArrow ignores a data_page_size at or above its 1 MiB
+    # default and returns a byte-identical file. Priced as a change, written as
+    # a no-op, it would show up afterwards as "page geometry does not matter".
+    wanted_page = (expect or {}).get("page_bytes")
+    baseline_index = (expect or {}).get("baseline_footer_index_per_chunk")
+    per_chunk = result["footer_index_bytes_per_chunk"]
+    if wanted_page and baseline_index and per_chunk is not None:
+        if per_chunk <= baseline_index * 1.01:
+            failures.append(
+                f"page size {wanted_page} B was requested but the written "
+                f"footer/page-index is {per_chunk} B per chunk against a "
+                f"baseline {baseline_index} B: the writer ignored it")
     if failures:
         result["status"] = "fail"
         result["failures"] = failures
@@ -383,12 +565,21 @@ def main():
         rec["path"] = dest
         rec["elapsed_seconds"] = round(time.time() - started, 1)
         if args.verify:
-            rec["verified"] = verify_footers(out_fs, dest, args.verify_sample, {
+            expect = {
                 "column_order": rec["column_order"],
                 "encodings": rendered.column_encoding,
                 "codecs": ([rendered.compression] if rendered.compression else [])
                           + list(rendered.column_compression.values()),
-            })
+            }
+            if rendered.page_size:
+                # The no-op check needs the source's own footer/page-index
+                # density to compare against, so measure it the same way.
+                source_index = verify_footers(
+                    source_fs, src, min(args.verify_sample, 4), {}
+                ).get("footer_index_bytes_per_chunk")
+                expect["page_bytes"] = int(rendered.page_size)
+                expect["baseline_footer_index_per_chunk"] = source_index
+            rec["verified"] = verify_footers(out_fs, dest, args.verify_sample, expect)
         results[table] = rec
         print(f"  {table:10s} {rec['elapsed_seconds']:7.1f}s  "
               f"{rec['rows']} rows -> {rec['files']} file(s)  {dest}", flush=True)

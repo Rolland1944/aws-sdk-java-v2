@@ -44,11 +44,18 @@ import sys
 from datetime import datetime, timezone
 
 
+def _to_s3(path):
+    """s3a:// is a Hadoop scheme; pyarrow.fs speaks s3://."""
+    if path.startswith("s3a://"):
+        return "s3://" + path[len("s3a://"):]
+    return path
+
+
 def _open_filesystem(path):
     """Return (filesystem, base_path). Local paths use LocalFileSystem."""
     if "://" in path:
         import pyarrow.fs as pafs
-        fs, resolved = pafs.FileSystem.from_uri(path)
+        fs, resolved = pafs.FileSystem.from_uri(_to_s3(path))
         return fs, resolved
     import pyarrow.fs as pafs
     return pafs.LocalFileSystem(), path

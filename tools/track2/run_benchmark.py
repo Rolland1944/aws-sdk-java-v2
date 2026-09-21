@@ -32,6 +32,7 @@ import csv
 import json
 import math
 import os
+import shutil
 import statistics
 import sys
 import time
@@ -127,7 +128,20 @@ def build_session(args, run_id, collector_dir, eventlog_dir):
             builder, ak, sk,
             collector_dir=collector_dir,
             eventlog_dir=eventlog_dir,
-            interceptor=not args.no_interceptor)
+            interceptor=not args.no_interceptor,
+            track1_s3a=getattr(args, "track1_s3a", False),
+            track1_d1=getattr(args, "track1_d1", False),
+            track1_d2=getattr(args, "track1_d2", False),
+            track1_d4=getattr(args, "track1_d4", False),
+            track1_d2_wait_us=getattr(args, "track1_d2_wait_us", 0),
+            track1_d1_admit_bytes=getattr(args, "track1_d1_admit_bytes", 256 * 1024),
+            track1_d1_cache_mib=getattr(args, "track1_d1_cache_mib", 256),
+            track1_d1_block_bytes=getattr(args, "track1_d1_block_bytes", None),
+            track1_d1_adaptive=getattr(args, "track1_d1_adaptive", False),
+            track1_d1_hard_mib=getattr(args, "track1_d1_hard_mib", None),
+            track1_d1_coverage=getattr(args, "track1_d1_coverage", None),
+            track1_d1_observe_gets=getattr(args, "track1_d1_observe_gets", None),
+            track1_d1_min_mib=getattr(args, "track1_d1_min_mib", None))
     if "hits" in getattr(args, "tables", []):
         # gen_clickbench.py wrote EventDate/EventTime in UTC.
         builder = builder.config("spark.sql.session.timeZone", "UTC")
@@ -148,7 +162,9 @@ def register_tables(spark, data_root, tables):
 def run_once(args, run_id, queries, collector_dir, eventlog_dir):
     dropped = drop_os_page_cache()
     t_session = time.time()
-    spark = build_session(args, run_id, collector_dir, eventlog_dir)
+    run_io_dir = os.path.join(collector_dir, f"run-{run_id}")
+    os.makedirs(run_io_dir, exist_ok=True)
+    spark = build_session(args, run_id, run_io_dir, eventlog_dir)
     register_tables(spark, args.data, args.tables)
     rows = []
     for qnr, sql in queries:
@@ -177,17 +193,33 @@ def run_once(args, run_id, queries, collector_dir, eventlog_dir):
         print(f"  run {run_id}  Q{qnr:02d}  {elapsed:8.2f}s  {status}", flush=True)
         if err:
             print(f"           {err[:300]}", flush=True)
+    track1 = read_track1_stats(spark, run_io_dir)
     spark.stop()
     session_s = time.time() - t_session
-    io = io_stats(collector_dir, t_session)
+    io = io_stats(run_io_dir, t_session)
     return {
         "run": run_id,
         "session_s": round(session_s, 3),
         "query_sum_s": round(sum(r["wall_s"] for r in rows), 3),
         "drop_caches": dropped,
         "queries": rows,
+        "io_dir": run_io_dir,
         "io": io,
+        "track1": track1,
     }
+
+
+def read_track1_stats(spark, run_io_dir):
+    """Snapshot D1/D2/D4 counters from the live driver JVM, then the probe file."""
+    try:
+        raw = spark._jvm.software.amazon.awssdk.s3.adaptive.s3a.Track1S3aRuntime.shared().snapshotJson()
+        return json.loads(str(raw))
+    except Exception:
+        path = os.path.join(run_io_dir, "track1-probe", "track1-s3a-stats.json")
+        if os.path.isfile(path):
+            with open(path) as fh:
+                return json.load(fh)
+        return None
 
 
 def summarize(runs):
@@ -245,6 +277,37 @@ def main():
     ap.add_argument("--conf", action="append", default=[])
     ap.add_argument("--no-s3", dest="s3", action="store_false")
     ap.add_argument("--no-interceptor", action="store_true")
+    ap.add_argument("--track1-s3a", action="store_true",
+                    help="route S3A AWS clients through Track1S3ClientFactory "
+                         "(passthrough unless a D1/D2/D4 flag is also set)")
+    ap.add_argument("--track1-d1", action="store_true",
+                    help="enable D1 range cache (requires --track1-s3a)")
+    ap.add_argument("--track1-d2", action="store_true",
+                    help="enable D2 sync-to-async queue (requires --track1-s3a)")
+    ap.add_argument("--track1-d4", action="store_true",
+                    help="enable D4 merge; ignored unless --track1-d2 is also set")
+    ap.add_argument("--track1-d2-wait-us", type=int, default=0,
+                    help="D2 batch wait window in microseconds (0 / 50 / 200)")
+    ap.add_argument("--track1-d1-admit-bytes", type=int, default=256 * 1024,
+                    help="D1 admission cap in bytes; 0 = always admit")
+    ap.add_argument("--track1-d1-cache-mib", type=int, default=256,
+                    help="D1 cache budget in MiB; raise it with the admission "
+                         "cap, never alone")
+    ap.add_argument("--track1-d1-block-bytes", type=int, default=None,
+                    help="D1 cache block size in bytes (default 1 MiB)")
+    ap.add_argument("--track1-d1-adaptive", action="store_true",
+                    help="enable D1 soft controller (observe/track/bypass/shrink)")
+    ap.add_argument("--track1-d1-hard-mib", type=int, default=None,
+                    help="D1 hard GlobalBudget cap in MiB when adaptive")
+    ap.add_argument("--track1-d1-coverage", type=float, default=None,
+                    help="target reusable-working-set coverage (0-1)")
+    ap.add_argument("--track1-d1-observe-gets", type=int, default=None,
+                    help="GET count before leaving OBSERVE")
+    ap.add_argument("--track1-d1-min-mib", type=int, default=None,
+                    help="soft target floor in MiB when adaptive")
+    ap.add_argument("--keep-io", action="store_true",
+                    help="leave previous io/ traces in --out; default wipes "
+                         "them so a later correlate cannot mix invocations")
     args = ap.parse_args()
     args.s3 = args.s3 and (args.data.startswith("s3a://") or args.data.startswith("s3://"))
 
@@ -255,6 +318,9 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     collector_dir = os.path.join(args.out, "io")
     eventlog_dir = os.path.join(args.out, "eventlogs")
+    if not args.keep_io and os.path.isdir(collector_dir):
+        shutil.rmtree(collector_dir)
+    os.makedirs(collector_dir, exist_ok=True)
 
     print(f"# E2 benchmark  layout={args.layout_id}  runs={args.runs}  "
           f"queries={[n for n,_ in queries]}  data={args.data}")

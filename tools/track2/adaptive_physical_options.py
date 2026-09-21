@@ -91,7 +91,11 @@ def file_options(table, snapshot, parallelism=policy.PARALLELISM,
     for n_files in file_count_ladder(geom, parallelism):
         if n_files >= geom["files"]:
             continue
-        options.append((f"{n_files}f", int(geom["compressed_bytes"] // n_files)))
+        # Ceiling division: floor(compressed / n) is just under the size that
+        # reconstructs n files, so predict_geometry's ceil() used to report
+        # n+1 (16f -> 17, 32f -> 33).
+        options.append((f"{n_files}f", int(
+            (geom["compressed_bytes"] + n_files - 1) // n_files)))
     return options
 
 

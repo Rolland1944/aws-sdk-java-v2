@@ -119,36 +119,46 @@ def plan_column_order(catalog, table, notes):
 
 # ----------------------------------------------------------- page geometry
 
-def plan_page_geometry(catalog, notes):
-    """Two rules over request shape; neither fires by default.
+def page_options(catalog, table, enabled, notes):
+    """Baseline page geometry versus the ladder points the writer honours.
 
-    Returns (page_bytes, page_row_limit), either possibly None meaning "leave
-    the writer default alone" -- which is the right answer when the workload
-    shows neither symptom.
+    The two rules this used to be -- "RTT-bound workloads want bigger pages,
+    chunk-splitting workloads want smaller ones" -- are gone, and their
+    replacement is the layout probe plus L1. The chunk-splitting rule was
+    keyed on a symptom this workload does not have, and both were priced by a
+    square-root proxy that had no measurement behind it in either direction.
+
+    What is priced now is the OffsetIndex, in bytes the probe measured per
+    page. A coarser page buys fewer index bytes, a finer page costs more, and
+    a size the writer ignores is dropped. Nothing here claims a *skipping*
+    benefit for finer pages: that would need to know which pages a predicate
+    eliminates, and predicates are the input this advisor does not read.
     """
-    shape = catalog.REQUEST_SHAPE or {}
-    tiny = shape.get("tiny_get_fraction") or 0.0
-    per_chunk = shape.get("requests_per_chunk_touched") or 1.0
-
-    if per_chunk > policy.REQUESTS_PER_CHUNK_HIGH:
-        # The reader is issuing several ranges per column chunk, so it is
-        # skipping inside chunks. Finer pages give the OffsetIndex more places
-        # to cut, which is only useful because the page index is pinned on.
-        page = min(policy.PAGE_BYTES_LADDER)
-        notes.append(f"page size -> {page // 1024} KiB: {per_chunk} requests per "
-                     f"chunk touched exceeds {policy.REQUESTS_PER_CHUNK_HIGH}, so "
-                     f"the reader is already sub-dividing chunks")
-        return page, None
-    if tiny > policy.TINY_GET_FRACTION_HIGH:
-        # RTT-bound: most requests are too small to amortise a round trip.
-        # Bigger pages mean fewer, fatter ranges.
-        page = max(policy.PAGE_BYTES_LADDER)
-        notes.append(f"page size -> {page // 1024} KiB: {tiny * 100:.0f}% of GETs "
-                     f"are sub-64KiB, so the regime is RTT-bound")
-        return page, None
-    notes.append("page geometry left at the writer default: neither the "
-                 "tiny-GET nor the chunk-splitting rule fired")
-    return None, None
+    options = [("baseline", None)]
+    if not enabled:
+        return options
+    rec = vf.page_probe(table)
+    if not rec:
+        notes.append(f"{table}: page axis stays at baseline; the layout probe "
+                     f"has no resolved page pass (run compression_probe "
+                     f"without --skip-page on a large enough sample)")
+        return options
+    noop = set(rec.get("noop_page_bytes") or ())
+    dropped = []
+    for page_bytes in sorted(policy.PAGE_BYTES_LADDER, reverse=True):
+        if page_bytes in noop:
+            dropped.append(page_bytes)
+            continue
+        options.append((f"{page_bytes // 1024}KiBpage", page_bytes))
+    if dropped:
+        notes.append(f"{table}: page point(s) "
+                     f"{[b // 1024 for b in dropped]} KiB dropped; the writer "
+                     f"returned a byte-identical file for them")
+    notes.append(f"{table}: page index measured at "
+                 f"{rec.get('index_bytes_per_page')} B/page over "
+                 f"{rec.get('pages_per_column')} pages/column; the axis is "
+                 f"priced in scan-metadata bytes only, never as a GET change")
+    return options
 
 
 # ------------------------------------------------------ compression/encoding
@@ -186,51 +196,102 @@ def plan_compression(catalog, table, probe, notes):
     return actions
 
 
-def plan_encoding(catalog, table, notes):
-    """Per-column encoding from physical type and NDV.
+def _cheapest_tuple(rec, margin=0.02):
+    """Cheapest measured (codec, encoding) for one column, or None.
 
-    Only proposes an encoding the type actually supports -- L0 would reject the
-    rest, but more importantly the writer would silently fall back to PLAIN and
-    the experiment would read as "encoding does not help".
+    Recomputed here rather than trusted from the probe document so a plan can
+    be built from a probe written by an older run of the measurement.
     """
+    points = [p for p in (rec.get("joint") or [])
+              if p.get("ratio") is not None and p.get("codec") in policy.CODEC_LADDER]
+    if not points:
+        return None
+    best = min(points, key=lambda p: p["ratio"])
+    if best["ratio"] > 1.0 - margin:
+        return None
+    return {"codec": best["codec"], "encoding": best["encoding"],
+            "ratio": best["ratio"]}
+
+
+def plan_joint_codec_encoding(probe, table, notes):
+    """Per-column (codec, encoding) from the probe's measured joint winners.
+
+    The pair is chosen together because it was measured together. A column
+    whose dictionary already collapses it to a few values leaves the codec
+    almost nothing to do, so the cheapest codec at the default encoding and
+    the cheapest encoding at the default codec are frequently not the cheapest
+    pair -- and their ratios cannot be multiplied to find out.
+    """
+    columns = ((probe or {}).get(table) or {}).get("columns") or {}
     actions = []
-    stats = ((catalog.COLUMN_STATS.get(table) or {}).get("columns") or {})
-    n_rows = (catalog.COLUMN_STATS.get(table) or {}).get("n_rows")
-    chosen = {}
-    for column, rec in stats.items():
-        ptype = rec.get("physical_type")
-        ndv = rec.get("ndv")
-        if not ptype:
+    families, codecs = set(), set()
+    for column, rec in sorted(columns.items()):
+        best = rec.get("best_joint") or _cheapest_tuple(rec)
+        if not best:
             continue
-        encoding = None
-        if ndv and n_rows and ndv / max(n_rows, 1) < policy.DICTIONARY_NDV_FRACTION:
-            encoding = "RLE_DICTIONARY"
-        elif ptype in {"INT32", "INT64"}:
-            encoding = "DELTA_BINARY_PACKED"
-        elif ptype in {"FLOAT", "DOUBLE"}:
-            encoding = "BYTE_STREAM_SPLIT"
-        elif ptype == "BYTE_ARRAY":
-            encoding = "DELTA_BYTE_ARRAY"
-        if not encoding:
-            continue
-        allowed = la.ENCODING_PHYSICAL_TYPES.get(encoding)
-        if allowed and ptype not in allowed:
-            continue
-        chosen[column] = encoding
-        actions.append({"canonical": la.ENCODING_COLUMN_PREFIX + column,
-                        "value": encoding, "table": table})
-    if chosen:
-        families = sorted(set(chosen.values()))
-        notes.append(f"{table}: encoding set on {len(chosen)} column(s) "
-                     f"({', '.join(families)}); UC1-only, Spark drops all but "
-                     f"the dictionary switch")
-    else:
-        notes.append(f"{table}: no physical types in the snapshot; encoding "
-                     f"left to the writer")
+        codec, encoding = best["codec"], best["encoding"]
+        if codec != policy.BASELINE_CODEC:
+            actions.append({"canonical": la.COMPRESSION_COLUMN_PREFIX + column,
+                            "value": codec, "table": table})
+            codecs.add(codec)
+        if encoding != "baseline":
+            allowed = la.ENCODING_PHYSICAL_TYPES.get(encoding)
+            if allowed and rec.get("physical_type") not in allowed:
+                continue
+            actions.append({"canonical": la.ENCODING_COLUMN_PREFIX + column,
+                            "value": encoding, "table": table})
+            families.add(encoding)
+    if actions:
+        notes.append(f"{table}: joint codec/encoding on {len(actions)} "
+                     f"action(s) over {len(columns)} probed column(s); "
+                     f"codecs {sorted(codecs) or ['baseline']}, encodings "
+                     f"{sorted(families) or ['baseline']}; UC1-only")
     return actions
 
 
 # ------------------------------------------------------- L1 candidate axes
+
+def _seriation_addressable(catalog, table, order, notes):
+    """True only when multi-column traffic exists and merge_gets improves."""
+    shape = catalog.REQUEST_SHAPE or {}
+    multi = shape.get("multicol_data_span_share")
+    if multi is not None and multi < policy.SERIATION_MULTICOL_MIN:
+        notes.append(
+            f"{table}: seriation skipped; multi-column data spans "
+            f"{multi:.0%} < {policy.SERIATION_MULTICOL_MIN:.0%}")
+        return False
+    patterns = [p for p in catalog.patterns_for(table) if p.get("n_columns", 0) > 1]
+    if not patterns:
+        notes.append(f"{table}: seriation skipped; no multi-column patterns")
+        return False
+    min_seek = ((catalog.profile.doc.get("vectored") or {}).get("min_seek_bytes")
+                or 131072)
+    max_merged = ((catalog.profile.doc.get("vectored") or {}).get("max_merged_bytes")
+                  or 2097152)
+    base_cand = {"candidate_id": "baseline", "actions": []}
+    ser_cand = {"candidate_id": "seriation", "actions": [
+        {"canonical": la.COLUMN_ORDER, "value": list(order), "table": table}]}
+    saved = 0.0
+    for pattern in patterns:
+        bg, _ = vf.merge_gets(table, pattern["columns"],
+                              vf.predict_geometry(table, base_cand),
+                              min_seek, max_merged,
+                              order=vf.column_order_for(table, base_cand))
+        sg, _ = vf.merge_gets(table, pattern["columns"],
+                              vf.predict_geometry(table, ser_cand),
+                              min_seek, max_merged,
+                              order=vf.column_order_for(table, ser_cand))
+        rg = pattern.get("rg_touched_total") or (
+            (pattern.get("rg_per_episode") or 1) * pattern.get("n_episodes", 0))
+        saved += max(0.0, bg - sg) * rg
+    if saved <= 0:
+        notes.append(f"{table}: seriation skipped; merge_gets found no "
+                     f"addressable GET reduction on multi-column patterns")
+        return False
+    notes.append(f"{table}: seriation addressable ~{saved:.0f} RG-GET reduction "
+                 f"on {len(patterns)} multi-column pattern(s)")
+    return True
+
 
 def order_options(catalog, table, enabled, notes):
     """Baseline schema order versus one seriation. L1 picks between them."""
@@ -239,149 +300,222 @@ def order_options(catalog, table, enabled, notes):
         return options
     order = plan_column_order(catalog, table, notes)
     baseline = list(catalog.ALL_COLUMNS.get(table) or [])
-    if order and order != baseline:
+    if order and order != baseline and _seriation_addressable(
+            catalog, table, order, notes):
         options.append(("seriation", order))
-    elif order:
+    elif order and order == baseline:
         notes.append(f"{table}: seriation equals the baseline order; nothing to search")
     return options
 
 
-def compression_options(catalog, table, probe, enabled, notes):
-    """Baseline codec versus measured alternatives.
+def compression_options(catalog, table, probe, dims, notes):
+    """Baseline versus the measured codec and codec+encoding alternatives.
 
-    Without a probe there is no byte ratio, so a zstd action would be priced
-    as a no-op. The axis then stays at baseline rather than inventing a gain.
+    Compression and encoding share one axis because the probe measures them as
+    one point. Splitting them into two independent axes would let the search
+    combine a codec from one measurement with an encoding from another and
+    price the pair as if the two effects added up.
+
+    Without a probe there is no ratio at all, so the axis stays at baseline
+    rather than inventing a gain.
     """
     options = [("baseline", [])]
-    if not enabled:
+    want_codec = "compression" in dims
+    want_encoding = "encoding" in dims
+    if not (want_codec or want_encoding):
         return options
     columns = ((probe or {}).get(table) or {}).get("columns") or {}
     if not columns:
-        notes.append(f"{table}: no compression probe; compression axis stays "
-                     f"at baseline (L1 will not invent a ratio)")
+        notes.append(f"{table}: no layout probe; compression/encoding axis "
+                     f"stays at baseline (L1 will not invent a ratio)")
         return options
-    options.append(("global-zstd", [
-        {"canonical": la.COMPRESSION, "value": "zstd", "table": table}]))
-    per_column = plan_compression(catalog, table, probe, notes)
-    if per_column:
-        options.append(("per-column", per_column))
+    if want_encoding and vf.probe_schema_version < 2:
+        notes.append(f"{table}: probe is schema v{vf.probe_schema_version}; "
+                     f"encoding needs joint (codec, encoding) measurements, "
+                     f"so the encoding half stays at baseline")
+        want_encoding = False
+    if want_codec:
+        options.append(("global-zstd", [
+            {"canonical": la.COMPRESSION, "value": "zstd", "table": table}]))
+        per_column = plan_compression(catalog, table, probe, notes)
+        if per_column:
+            options.append(("per-column-codec", per_column))
+    if want_encoding:
+        joint = plan_joint_codec_encoding(probe, table, notes)
+        if joint:
+            options.append(("joint-codec-encoding", joint))
     return options
 
 
-def choose_axes(catalog, table, fixed_actions, regime, vectored, probe, dims,
-                notes):
-    """Price the searched axes with L1 and keep the cheapest legal point.
+def _unpriced_for(table, actions, writer):
+    """Actions the winner carries that no measurement backs."""
+    try:
+        rendered = la.render(actions, table=table)
+    except ValueError:
+        return []
+    if writer == "parquet-mr":
+        rendered = la.strip_for_spark(rendered)
+    return vf.unpriced_encodings(table, rendered)
 
-    Searched: column order, compression, file size, row-group size.
-    `fixed_actions` carry page/encoding, which are still rule picks.
+
+def choose_axes(catalog, table, regime, vectored, probe, dims, notes,
+                writer="pyarrow"):
+    """Price every searched axis with L1 and keep the cheapest legal point.
+
+    All six dimensions are candidate axes now, and each one carries its
+    baseline value as an option. Page geometry and encoding used to be picked
+    by a rule *before* the search and pinned onto every point, which meant
+    nothing ever compared them against leaving them alone.
+
+    Compression and encoding travel as one axis because the probe measures
+    them as one point; see `compression_options`.
     """
     patterns = catalog.patterns_for(table)
     if not patterns:
         return [], None
 
     orders = order_options(catalog, table, "column_order" in dims, notes)
-    codecs = compression_options(catalog, table, probe, "compression" in dims, notes)
+    codecs = compression_options(catalog, table, probe, dims, notes)
     files = catalog.file_options(table) if "file_size" in dims else [("baseline", None)]
     rgs = catalog.rg_options(table) if "row_group" in dims else [("baseline", None)]
+    pages = page_options(catalog, table, "page" in dims, notes)
 
     best, best_t, tried, rejected = None, None, 0, 0
     for order_label, order in orders:
         for codec_label, codec_actions in codecs:
-            for file_label, file_bytes in files:
-                for rg_label, rg_bytes in rgs:
-                    actions = list(fixed_actions) + list(codec_actions)
-                    if order:
-                        actions.append({"canonical": la.COLUMN_ORDER,
-                                        "value": list(order), "table": table})
-                    if file_bytes:
-                        actions.append({"canonical": la.TARGET_FILE_SIZE,
-                                        "value": int(file_bytes), "table": table})
-                    if rg_bytes:
-                        actions.append({"canonical": la.ROW_GROUP_SIZE,
-                                        "value": int(rg_bytes), "table": table})
-                    cand = {
-                        "candidate_id": (
-                            f"{table}-{order_label}-{codec_label}-"
-                            f"{file_label}-{rg_label}"),
-                        "actions": actions,
-                    }
-                    ok, _viol, _geom = whatif.l0_check(cand)
-                    if not ok:
-                        rejected += 1
-                        continue
-                    tried += 1
-                    ev = whatif.evaluate_workload(cand, patterns, regime, vectored)
-                    if best_t is None or ev["t_io_s"] < best_t:
-                        best, best_t = (order_label, codec_label, file_label,
-                                        rg_label, actions, ev), ev["t_io_s"]
+            for page_label, page_bytes in pages:
+                for file_label, file_bytes in files:
+                    for rg_label, rg_bytes in rgs:
+                        actions = list(codec_actions)
+                        if order:
+                            actions.append({"canonical": la.COLUMN_ORDER,
+                                            "value": list(order), "table": table})
+                        if page_bytes:
+                            actions.append({"canonical": la.PAGE_SIZE,
+                                            "value": int(page_bytes), "table": table})
+                        if file_bytes:
+                            actions.append({"canonical": la.TARGET_FILE_SIZE,
+                                            "value": int(file_bytes), "table": table})
+                        if rg_bytes:
+                            actions.append({"canonical": la.ROW_GROUP_SIZE,
+                                            "value": int(rg_bytes), "table": table})
+                        cand = {
+                            "candidate_id": (
+                                f"{table}-{order_label}-{codec_label}-"
+                                f"{page_label}-{file_label}-{rg_label}"),
+                            "actions": actions,
+                        }
+                        # Judge legality against the renderer that will
+                        # actually write this, or the search hands UC2 a plan
+                        # that strip_for_spark quietly turns into a different
+                        # layout.
+                        ok, _viol, _geom = whatif.l0_check(cand, writer=writer)
+                        if not ok:
+                            rejected += 1
+                            continue
+                        tried += 1
+                        ev = whatif.evaluate_workload(cand, patterns, regime,
+                                                      vectored)
+                        if best_t is None or ev["t_io_s"] < best_t:
+                            best = (order_label, codec_label, page_label,
+                                    file_label, rg_label, actions, ev)
+                            best_t = ev["t_io_s"]
 
     if not best:
         notes.append(f"{table}: no legal L1 point "
                      f"(rejected {rejected}); leaving searched axes at baseline")
         return [], None
 
-    order_label, codec_label, file_label, rg_label, actions, ev = best
+    order_label, codec_label, page_label, file_label, rg_label, actions, ev = best
+
+    if page_label != "baseline":
+        # The page axis only wins on metadata bytes, and the other half of the
+        # trade -- how precisely a predicate can skip pages, how coarse the
+        # decode unit gets -- needs a query plan L1 does not have. Moving the
+        # axis for a saving smaller than that blind spot would be pricing
+        # noise, so it has to clear a margin against leaving pages alone.
+        without = [a for a in actions if a["canonical"] != la.PAGE_SIZE]
+        alt = whatif.evaluate_workload(
+            {"candidate_id": "no-page", "actions": without},
+            patterns, regime, vectored)
+        gain = (alt["t_io_s"] - ev["t_io_s"]) / max(alt["t_io_s"], 1e-9)
+        if gain < policy.PAGE_SWITCH_MARGIN:
+            notes.append(
+                f"{table}: page={page_label} dropped; it saves only "
+                f"{gain * 100:.2f}% of t_io, under the "
+                f"{policy.PAGE_SWITCH_MARGIN:.0%} margin, and L1 cannot price "
+                f"the page-skipping side of the trade")
+            actions, ev, page_label = without, alt, "baseline"
+
+    unpriced = _unpriced_for(table, actions, writer)
+    if unpriced:
+        # Degradation, not refusal: an unmeasured column drops back to the
+        # baseline tuple and is listed, so the plan is still executable and
+        # the gap is visible. Refusing the whole candidate would empty the
+        # search the moment the probe had one hole.
+        drop = {u["column"] for u in unpriced}
+        actions = [a for a in actions
+                   if not (a["canonical"].startswith(la.ENCODING_COLUMN_PREFIX)
+                           and a["canonical"][len(la.ENCODING_COLUMN_PREFIX):] in drop)
+                   and not (a["canonical"].startswith(la.COMPRESSION_COLUMN_PREFIX)
+                            and a["canonical"][len(la.COMPRESSION_COLUMN_PREFIX):] in drop)]
+        notes.append(f"{table}: {len(drop)} column(s) dropped back to the "
+                     f"baseline codec/encoding tuple; no joint measurement "
+                     f"covers what the search asked for")
+        ev = whatif.evaluate_workload(
+            {"candidate_id": "repriced", "actions": actions},
+            patterns, regime, vectored)
+
     notes.append(
         f"{table}: L1 chose order={order_label} compression={codec_label} "
-        f"file={file_label} rg={rg_label} over {tried} legal point(s) "
-        f"({rejected} L0-rejected), t_io={best_t:.1f}s")
+        f"page={page_label} file={file_label} rg={rg_label} over {tried} legal "
+        f"point(s) ({rejected} L0-rejected), t_io={ev['t_io_s']:.1f}s")
     rec = {
         "winner": {
             "column_order": order_label,
             "compression": codec_label,
+            "page": page_label,
             "file": file_label,
             "row_group": rg_label,
         },
+        "writer": writer,
         "t_io_s": ev["t_io_s"],
         "ranged_gets": ev["ranged_gets"],
         "bytes_gib": ev["bytes_gib"],
+        "page_index_bytes": ev.get("page_index_bytes"),
         "n_legal": tried,
         "n_l0_rejected": rejected,
         "n_order": len(orders),
         "n_compression": len(codecs),
+        "n_page": len(pages),
         "n_file": len(files),
         "n_rg": len(rgs),
+        "unpriced": unpriced,
     }
-    # Extras (page/encoding) stay on the candidate for pricing; the returned
-    # actions are only the four searched axes so they can be concatenated
-    # across tables without duplicating a global page action.
-    extras = set(id(a) for a in fixed_actions)
-    searched = [a for a in actions if id(a) not in extras]
-    return searched, rec
+    return actions, rec
 
 
-SEARCHED_AXES = ("column_order", "compression", "file_size", "row_group")
+SEARCHED_AXES = ("column_order", "compression", "encoding", "page",
+                 "file_size", "row_group")
 
 
 # -------------------------------------------------------------------- plan
 
 def build_plan(catalog, regime, vectored, probe=None, dimensions=None,
-               plan_id=None):
+               plan_id=None, writer="pyarrow"):
     """Assemble one plan across every table with observed traffic."""
     dims = set(dimensions or {"column_order", "row_group", "file_size",
                               "compression", "page", "encoding"})
     notes = []
-    extras = []
     evidence_tables = catalog.tables_observed() or [catalog.largest_table()]
 
-    # Page and encoding are still rule picks. They ride along as extras so L0
-    # and the page-split term see them, but they are not search axes.
-    if "page" in dims:
-        page_bytes, page_rows = plan_page_geometry(catalog, notes)
-        if page_bytes:
-            extras.append({"canonical": la.PAGE_SIZE, "value": int(page_bytes)})
-        if page_rows:
-            extras.append({"canonical": la.PAGE_ROW_LIMIT, "value": int(page_rows)})
-    for table in evidence_tables:
-        if "encoding" in dims:
-            extras.extend(plan_encoding(catalog, table, notes))
-
-    actions = list(extras)
+    actions = []
     search = {}
     if set(SEARCHED_AXES) & dims:
         for table in evidence_tables:
             picked, rec = choose_axes(
-                catalog, table, extras, regime, vectored, probe, dims, notes)
+                catalog, table, regime, vectored, probe, dims, notes,
+                writer=writer)
             actions.extend(picked)
             if rec:
                 search[table] = rec
@@ -402,6 +536,9 @@ def build_plan(catalog, regime, vectored, probe=None, dimensions=None,
             "requests_per_chunk_touched": shape.get("requests_per_chunk_touched"),
         },
         "search": search,
+        "writer": writer,
+        "unpriced": {t: rec.get("unpriced") for t, rec in search.items()
+                     if rec.get("unpriced")},
         "actions": actions,
         "constraints": {
             "format": "parquet",
@@ -425,6 +562,11 @@ def main():
                     choices=("column_order", "row_group", "file_size",
                              "compression", "page", "encoding"),
                     help="restrict the plan to these dimensions (E-B ablation)")
+    ap.add_argument("--writer", choices=("pyarrow", "parquet-mr"),
+                    default="pyarrow",
+                    help="renderer the plan must be executable by; L0 filters "
+                         "candidates against its capability matrix during the "
+                         "search, not after it")
     ap.add_argument("--ablation", action="store_true",
                     help="also emit one single-dimension plan per dimension")
     ap.add_argument("--plan-id", default=None)
@@ -439,23 +581,51 @@ def main():
     regime = sysc["regimes"][args.regime]
     vectored = sysc.get("vectored") or {}
 
+    # Hard gate: a planner that cannot replay the baseline it was built from
+    # is not allowed to rank candidates. E-0 used to skip this and emit a
+    # plan whose L1 numbers were already 2× the measured GET count.
+    out_dir = args.out if args.ablation or os.path.isdir(args.out) else (
+        os.path.dirname(os.path.abspath(args.out)) or ".")
+    os.makedirs(out_dir, exist_ok=True)
+    vreport, _ev, vok = whatif.run_validate(regime, vectored, catalog.profile.doc)
+    validate_path = os.path.join(out_dir, "validate.json")
+    with open(validate_path, "w") as fh:
+        json.dump(vreport, fh, indent=2)
+    ge, be = vreport.get("gets_rel_error"), vreport.get("gib_rel_error")
+    print("# L1 self-consistency")
+    print(f"  gets  pred={vreport['predicted_gets']} "
+          f"observed={vreport['observed_gets']} "
+          f"err={ge if ge is None else round(ge * 100, 1)}%")
+    print(f"  GiB   pred={vreport['predicted_gib']} "
+          f"observed={vreport['observed_gib']} "
+          f"err={be if be is None else round(be * 100, 1)}%")
+    print(f"  gate  {'PASS' if vok else 'FAIL'}  (<= {whatif.VALIDATE_TOL * 100:.0f}%)")
+    print(f"  wrote {validate_path}")
+    if not vok:
+        print("  STOP: fix collection or L1 before emitting a plan")
+        return 1
+
     probe = None
     if args.compression_probe and os.path.exists(args.compression_probe):
         with open(args.compression_probe) as fh:
-            probe = json.load(fh).get("tables")
-        # L1 prices a codec change only against a measurement; handing the same
-        # probe to virtual_footer is what lets choose_axes see that compression
-        # moved the bytes it is sizing files against.
-        vf.probe = probe
+            doc = json.load(fh)
+        # L1 prices a codec, an encoding or a page size only against a
+        # measurement. bind_probe also records the probe's schema version, so
+        # a v1 document cannot be read as if it carried joint tuples.
+        vf.bind_probe(doc)
+        probe = vf.probe
+        if vf.probe_schema_version < 2:
+            print(f"  note  probe schema v{vf.probe_schema_version}: "
+                  f"encoding and page axes stay at baseline")
 
     all_dims = ["column_order", "row_group", "file_size", "compression",
                 "page", "encoding"]
     plans = [build_plan(catalog, regime, vectored, probe, args.dimensions,
-                        args.plan_id)]
+                        args.plan_id, writer=args.writer)]
     if args.ablation:
         for dim in all_dims:
             plans.append(build_plan(catalog, regime, vectored, probe, {dim},
-                                    plan_id=f"only-{dim}"))
+                                    plan_id=f"only-{dim}", writer=args.writer))
 
     written = []
     if args.ablation or os.path.isdir(args.out):

@@ -19,18 +19,20 @@ part that carries layout information, and it needs no engine at all:
 
 What the execution id was actually used for downstream was grouping: which
 columns get read *together*. That is recoverable without semantics. An
-**access episode** is a run of requests on the same (thread, object) with no
-gap longer than --episode-gap-ms. One Spark task reading one file is one
-episode; so is one PyArrow `read_table`. Columns co-occurring in an episode is
-the evidence the column-order action is built on (access_profile.py).
+**access span** is one logical open of one object. S3A stamps that identity
+on every GET as `(audit_process_id, audit_span_id, object)`. Transfer-pool
+`thread` names are *not* that identity: grouping by them fragments one
+parquet-mr open across ForkJoin/s3a-transfer workers and invents
+single-column episodes.
 
-Two things episodes are not. They are not queries: a query that scans 40 files
-across 16 threads is 640 episodes, not 1, so episode *counts* mean nothing on
-their own. And they are not exact under thread reuse -- a pool thread that
-picks up a new task within the gap threshold merges two episodes. The gap is
-therefore a knob, and --report prints the episode size distribution so a
-degenerate setting (everything one episode, or every GET its own) is visible
-rather than silent.
+When audit IDs are missing (older traces, non-S3A readers) the fallback is a
+run of requests on the same (thread, object) with no gap longer than
+--episode-gap-ms. The gap is a knob, and --report prints the span-size
+distribution so a degenerate setting is visible rather than silent.
+
+Two things spans are not. They are not queries: a query that scans 40 files
+across 16 tasks is 40 spans, not 1. And they are not Spark tasks: a large
+file can be several scan units, each its own span.
 
 Usage:
   python3 tools/track2/correlate.py \
@@ -163,27 +165,53 @@ def object_data_end(index, object_key):
     return max(c["byte_end"] for c in chunks) if chunks else None
 
 
+def _audit_span_key(rec):
+    """S3A open identity, or None when the trace has no audit span."""
+    span = rec.get("audit_span_id")
+    if not span:
+        return None
+    process = rec.get("audit_process_id") or "?"
+    obj = _norm_path(rec.get("audit_path") or rec.get("path")) or "?"
+    return (process, span, obj)
+
+
 def assign_episodes(records, gap_ms=DEFAULT_EPISODE_GAP_MS):
-    """Group requests into access episodes; returns a list of episode ids.
+    """Group requests into access spans; returns (ids, n, grouping).
 
-    An episode is a maximal run of requests on one (thread, object) whose
-    consecutive timestamps differ by at most `gap_ms`. Records with no usable
-    timestamp fall back to one episode per (thread, object), which keeps the
-    co-access signal rather than dropping the request.
+    Preferred key is `(audit_process_id, audit_span_id, object)` -- one S3A
+    open of one object. That is the unit parquet-mr actually issues footer
+    and column-chunk ranges against. The time-gap `(thread, object)` grouping
+    is only used when audit IDs are absent.
 
-    Returned ids are positional and parallel to `records`.
+    Returned ids are positional and parallel to `records`. `grouping` is
+    `"audit_span"` or `"gap_fallback"`.
     """
+    n_audit = sum(1 for rec in records if _audit_span_key(rec))
+    use_audit = n_audit * 2 >= len(records) and n_audit > 0
+
     buckets = defaultdict(list)
     for i, rec in enumerate(records):
-        thread = rec.get("thread") or "?"
-        obj = _norm_path(rec.get("audit_path") or rec.get("path")) or "?"
-        buckets[(thread, obj)].append(i)
+        if use_audit:
+            key = _audit_span_key(rec) or (
+                "?", rec.get("thread") or "?",
+                _norm_path(rec.get("audit_path") or rec.get("path")) or "?")
+        else:
+            thread = rec.get("thread") or "?"
+            obj = _norm_path(rec.get("audit_path") or rec.get("path")) or "?"
+            key = (thread, obj)
+        buckets[key].append(i)
 
     episode_of = [None] * len(records)
     next_id = 0
-    for (thread, obj), idxs in sorted(buckets.items()):
+    for key, idxs in sorted(buckets.items()):
         idxs.sort(key=lambda i: (records[i].get("ts_wall_ms") or 0,
                                  records[i].get("ts_start_ns") or 0))
+        if use_audit:
+            current = next_id
+            next_id += 1
+            for i in idxs:
+                episode_of[i] = current
+            continue
         prev_ts = None
         current = None
         for i in idxs:
@@ -195,7 +223,12 @@ def assign_episodes(records, gap_ms=DEFAULT_EPISODE_GAP_MS):
             episode_of[i] = current
             if ts is not None:
                 prev_ts = ts
-    return episode_of, next_id
+    return episode_of, next_id, ("audit_span" if use_audit else "gap_fallback")
+
+
+def is_file_discovery_thread(thread):
+    """Spark's footer-listing pool, as opposed to per-scan-task reads."""
+    return "readingParquetFooters" in (thread or "")
 
 
 def episode_summary(observations, n_episodes):
@@ -226,16 +259,15 @@ def episode_summary(observations, n_episodes):
             "median": int(statistics.median(col_counts)),
             "max": col_counts[-1],
         },
-        "note": ("an episode is one (thread, object) run within the gap "
-                 "threshold; it is not a query. Degenerate settings show up "
-                 "here as median=1 (gap too small) or n_episodes≈n_objects "
-                 "(gap too large)."),
+        "note": ("a span is one logical open of one object (S3A audit span, "
+                 "or a (thread, object) gap run when audit IDs are absent). "
+                 "It is not a query."),
     }
 
 
 def build(io_records, footer_index, gap_ms=DEFAULT_EPISODE_GAP_MS):
-    """Attribute every ranged GET to column chunks and an access episode."""
-    episode_of, n_episodes = assign_episodes(io_records, gap_ms)
+    """Attribute every ranged GET to column chunks and an access span."""
+    episode_of, n_episodes, grouping = assign_episodes(io_records, gap_ms)
 
     observations = []
     stats = {
@@ -279,15 +311,25 @@ def build(io_records, footer_index, gap_ms=DEFAULT_EPISODE_GAP_MS):
             if c.get("has_offset_index") or c.get("has_column_index"):
                 stats["page_index_chunks"] += 1
 
+        meta_kind = None
+        if not attributed:
+            meta_kind = ("file" if is_file_discovery_thread(rec.get("thread"))
+                         else "scan")
+
         observations.append({
             "ts_wall_ms": ts,
             "thread": rec.get("thread"),
             "episode_id": episode_of[i],
+            "span_grouping": grouping,
+            "audit_process_id": rec.get("audit_process_id"),
+            "audit_span_id": rec.get("audit_span_id"),
+            "audit_thread_exec": rec.get("audit_thread_exec"),
             "object": _norm_path(path),
             "range_offset": offset,
             "range_length": length,
             "overlap_bytes": overlap,
             "is_metadata": is_metadata,
+            "meta_kind": meta_kind,
             "latency_ns": rec.get("latency_ns"),
             "http_status": rec.get("http_status"),
             "chunks": [
@@ -299,11 +341,12 @@ def build(io_records, footer_index, gap_ms=DEFAULT_EPISODE_GAP_MS):
             "attributed": attributed,
         })
 
-    return observations, stats, dict(unattributed), n_episodes
+    return observations, stats, dict(unattributed), n_episodes, grouping
 
 
 def coverage_report(io_files, io_records, observations, stats, unattributed,
-                    n_episodes, gap_ms, gate=DEFAULT_COVERAGE_GATE):
+                    n_episodes, gap_ms, gate=DEFAULT_COVERAGE_GATE,
+                    grouping="audit_span"):
     total = stats["bytes_total"]
     # Denominator excludes footer/page-index reads: they are real traffic but
     # by construction cannot land in a column chunk, so counting them as
@@ -332,7 +375,7 @@ def coverage_report(io_files, io_records, observations, stats, unattributed,
                       "v1 gate was removed with the Semantic layer (r5)"),
         "unattributed_reasons": unattributed,
         "episodes": dict(episode_summary(observations, n_episodes),
-                         gap_ms=gap_ms),
+                         gap_ms=gap_ms, grouping=grouping),
         "page_coverage": {
             "chunks_with_page_index": stats["page_index_chunks"],
             "chunks_touched": page_total,
@@ -364,11 +407,11 @@ def main():
         sys.exit("no ranged-GET records found in the IO input")
     footer_index = load_footer(args.footer)
 
-    observations, stats, unattributed, n_episodes = build(
+    observations, stats, unattributed, n_episodes, grouping = build(
         io_records, footer_index, args.episode_gap_ms)
     report = coverage_report(io_files, io_records, observations, stats,
                              unattributed, n_episodes, args.episode_gap_ms,
-                             args.coverage_gate)
+                             args.coverage_gate, grouping)
 
     if args.out:
         os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
@@ -392,7 +435,8 @@ def main():
           f"(gate >= {args.coverage_gate*100:.0f}%)")
     print(f"  coverage (requests){report['coverage_requests']*100:6.2f}%")
     if ep.get("n_episodes"):
-        print(f"  episodes           {ep['n_episodes']} "
+        print(f"  spans              {ep['n_episodes']} "
+              f"[{ep.get('grouping')}] "
               f"(median {ep['requests_per_episode']['median']} req, "
               f"{ep['columns_per_episode']['median']} cols)")
     print(f"  page index         {stats['page_index_chunks']}/{stats['page_index_total']}")

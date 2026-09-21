@@ -15,9 +15,12 @@
 
 package software.amazon.awssdk.s3.adaptive.internal.cache;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.s3.adaptive.internal.budget.AppBudgetLease;
 import software.amazon.awssdk.s3.adaptive.internal.budget.CacheEvictor;
@@ -42,7 +45,16 @@ public final class AppCache implements CacheEvictor {
     private final GlobalBudget budget;
     // accessOrder=true -> eldest entry is the LRU victim.
     private final LinkedHashMap<BlockKey, CachedBlock> blocks = new LinkedHashMap<>(16, 0.75f, true);
+    // Start-offset index per object, so a covering lookup does not scan every block of every object.
+    private final Map<String, NavigableMap<Long, CachedBlock>> byObject = new HashMap<>();
+    private long maxBlockLength;
     private long cachedBytes;
+    private long peakCachedBytes;
+    private long evictedBytes;
+    private long evictedBlocks;
+    // Soft target under the hard GlobalBudget. Long.MAX_VALUE means "use hard
+    // capacity only". Bypass is target 0: stop admitting and evict toward empty.
+    private long softCapacity = Long.MAX_VALUE;
 
     public AppCache(AppBudgetLease lease) {
         this.lease = lease;
@@ -62,20 +74,20 @@ public final class AppCache implements CacheEvictor {
             if (exact != null && exact.end() >= end) {
                 return exact;
             }
-            BlockKey bestKey = null;
-            CachedBlock best = null;
-            for (Map.Entry<BlockKey, CachedBlock> entry : blocks.entrySet()) {
-                BlockKey key = entry.getKey();
-                CachedBlock block = entry.getValue();
-                if (key.objectId.equals(objectId) && block.start() <= start && block.end() >= end) {
-                    bestKey = key;
-                    best = block;
+            NavigableMap<Long, CachedBlock> starts = byObject.get(objectId);
+            if (starts == null) {
+                return null;
+            }
+            // A covering block starts at or before start, and no earlier than start - maxBlockLength.
+            for (CachedBlock block : starts.subMap(start - maxBlockLength, true, start, true)
+                                          .descendingMap()
+                                          .values()) {
+                if (block.end() >= end) {
+                    blocks.get(new BlockKey(objectId, block.start()));
+                    return block;
                 }
             }
-            if (bestKey != null) {
-                blocks.get(bestKey);
-            }
-            return best;
+            return null;
         }
     }
 
@@ -93,31 +105,87 @@ public final class AppCache implements CacheEvictor {
             BlockKey key = new BlockKey(objectId, start);
             CachedBlock previous = blocks.remove(key);
             if (previous != null) {
+                unindex(objectId, previous.start());
                 cachedBytes -= previous.length();
                 lease.release(previous.length());
             }
-            if (data.length > budget.capacity() || !lease.acquire(data.length)) {
+            long soft = effectiveSoftCapacity();
+            if (data.length > soft || data.length > budget.capacity()) {
                 return false;
             }
-            blocks.put(key, new CachedBlock(start, data));
+            trimTo(soft - data.length);
+            if (!lease.acquire(data.length)) {
+                return false;
+            }
+            CachedBlock block = new CachedBlock(start, data);
+            blocks.put(key, block);
+            byObject.computeIfAbsent(objectId, id -> new TreeMap<>()).put(start, block);
+            maxBlockLength = Math.max(maxBlockLength, block.length());
             cachedBytes += data.length;
+            if (cachedBytes > peakCachedBytes) {
+                peakCachedBytes = cachedBytes;
+            }
             return true;
+        }
+    }
+
+    /**
+     * Lower or raise the soft target. Raising never evicts. Lowering evicts
+     * LRU blocks until {@link #cachedBytes()} fits, without rebuilding the map.
+     */
+    public void setSoftCapacity(long bytes) {
+        synchronized (budget) {
+            if (bytes == Long.MAX_VALUE) {
+                this.softCapacity = Long.MAX_VALUE;
+                return;
+            }
+            this.softCapacity = Math.max(0L, Math.min(bytes, budget.capacity()));
+            trimTo(this.softCapacity);
+        }
+    }
+
+    public long softCapacity() {
+        synchronized (budget) {
+            return effectiveSoftCapacity();
         }
     }
 
     @Override
     public long evictLru(long bytes) {
         synchronized (budget) {
-            long freed = 0L;
-            Iterator<Map.Entry<BlockKey, CachedBlock>> it = blocks.entrySet().iterator();
-            while (freed < bytes && it.hasNext()) {
-                Map.Entry<BlockKey, CachedBlock> eldest = it.next();
-                freed += eldest.getValue().length();
-                cachedBytes -= eldest.getValue().length();
-                it.remove();
-            }
-            return freed;
+            return evictLruUnlocked(bytes);
         }
+    }
+
+    private void trimTo(long maxCached) {
+        long over = cachedBytes - Math.max(0L, maxCached);
+        if (over > 0) {
+            long freed = evictLruUnlocked(over);
+            if (freed > 0) {
+                lease.release(freed);
+            }
+        }
+    }
+
+    private long evictLruUnlocked(long bytes) {
+        long freed = 0L;
+        Iterator<Map.Entry<BlockKey, CachedBlock>> it = blocks.entrySet().iterator();
+        while (freed < bytes && it.hasNext()) {
+            Map.Entry<BlockKey, CachedBlock> eldest = it.next();
+            freed += eldest.getValue().length();
+            long len = eldest.getValue().length();
+            cachedBytes -= len;
+            evictedBytes += len;
+            evictedBlocks++;
+            unindex(eldest.getKey().objectId, eldest.getValue().start());
+            it.remove();
+        }
+        return freed;
+    }
+
+    private long effectiveSoftCapacity() {
+        return softCapacity == Long.MAX_VALUE ? budget.capacity()
+                                              : Math.min(softCapacity, budget.capacity());
     }
 
     public long cachedBytes() {
@@ -126,9 +194,38 @@ public final class AppCache implements CacheEvictor {
         }
     }
 
+    public long peakCachedBytes() {
+        synchronized (budget) {
+            return peakCachedBytes;
+        }
+    }
+
+    public long evictedBytes() {
+        synchronized (budget) {
+            return evictedBytes;
+        }
+    }
+
+    public long evictedBlocks() {
+        synchronized (budget) {
+            return evictedBlocks;
+        }
+    }
+
     public int blockCount() {
         synchronized (budget) {
             return blocks.size();
+        }
+    }
+
+    private void unindex(String objectId, long start) {
+        NavigableMap<Long, CachedBlock> starts = byObject.get(objectId);
+        if (starts == null) {
+            return;
+        }
+        starts.remove(start);
+        if (starts.isEmpty()) {
+            byObject.remove(objectId);
         }
     }
 

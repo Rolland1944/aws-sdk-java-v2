@@ -14,8 +14,10 @@ already tells you:
 
   * object listing  -> file count and compressed bytes, exactly.
   * footers (sampled) -> row groups per file, row-group bytes, physical column
-    order, per-column byte share and physical type, plus the baseline
-    clustering statistic `rg_span`.
+    order, per-column byte share (compressed *and* encoded, which are different
+    splits and both needed: bytes move over the wire compressed and through the
+    decoder encoded) and physical type, plus the baseline clustering statistic
+    `rg_span`.
   * column_stats.json -> NDV and null fraction, which the encoding rule reads.
     This one is a separate DuckDB pass because it needs the data, not the
     metadata.
@@ -51,6 +53,7 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from parse_footer import _open_filesystem, _stat_ordinal  # noqa: E402
+from advisor_policy import SPLIT_SIZE_BYTES  # noqa: E402
 
 DEFAULT_SAMPLE_FILES = 8
 # Spark's default requested row-group size. Used only as the "what would the
@@ -100,6 +103,24 @@ def _sample(items, n):
     return [items[int(i * step)] for i in range(n)]
 
 
+def count_row_groups(fs, files):
+    """Exact row-group and row totals from every footer, not a sample.
+
+    L1 and the UC1 writer both treat `n_rg` as the thing `rg=baseline` must
+    reproduce. Estimating it as `round(sampled rg/file × files)` turned
+    ClickBench's 169 row groups into 165, and the writer then aimed at the
+    wrong number.
+    """
+    import pyarrow.parquet as pq
+    n_rg = n_rows = 0
+    for path, _size in files:
+        with fs.open_input_file(path) as handle:
+            md = pq.ParquetFile(handle).metadata
+        n_rg += md.num_row_groups
+        n_rows += md.num_rows
+    return n_rg, n_rows
+
+
 def scan_footers(fs, files, sample_n):
     """Row-group geometry, column order/share and rg_span from sampled footers."""
     import pyarrow.parquet as pq
@@ -107,8 +128,10 @@ def scan_footers(fs, files, sample_n):
     rg_counts, rg_bytes, rows_per_file = [], [], []
     order = []
     share = {}
+    unc_share = {}
     ptypes = {}
     spans = {}  # column -> [(lo, hi)]
+    rg_chunk_samples = []
     for path, _size in sampled:
         with fs.open_input_file(path) as handle:
             md = pq.ParquetFile(handle).metadata
@@ -126,9 +149,19 @@ def scan_footers(fs, files, sample_n):
         for rg_idx in range(md.num_row_groups):
             rg = md.row_group(rg_idx)
             rg_bytes.append(rg.total_byte_size)
+            sample = {}
             for col_idx, name in enumerate(names):
                 col = rg.column(col_idx)
                 share[name] = share.get(name, 0) + col.total_compressed_size
+                # Decode cost is paid per *encoded* byte -- what the codec
+                # hands the decoder, which is Parquet's
+                # `total_uncompressed_size`. It is a different split from the
+                # compressed one (a column that compresses 10x holds ten times
+                # its compressed share of the decoder's work), so the two
+                # shares are recorded separately rather than one being scaled
+                # into the other.
+                unc_share[name] = unc_share.get(name, 0) + col.total_uncompressed_size
+                sample[name] = col.total_compressed_size
                 stats = col.statistics if col.is_stats_set else None
                 if not stats or not stats.has_min_max:
                     continue
@@ -136,6 +169,8 @@ def scan_footers(fs, files, sample_n):
                 hi = _stat_ordinal(stats.max)
                 if lo is not None and hi is not None:
                     spans.setdefault(name, []).append((lo, hi))
+            if sample and len(rg_chunk_samples) < 16:
+                rg_chunk_samples.append(sample)
 
     clustering = {name: {"physical_type": ptype} for name, ptype in ptypes.items()}
     for name, pairs in spans.items():
@@ -163,7 +198,9 @@ def scan_footers(fs, files, sample_n):
         "rows_per_file": (statistics.mean(rows_per_file)) if rows_per_file else 0.0,
         "column_order": order,
         "column_share": share,
+        "column_uncompressed_share": unc_share,
         "clustering": clustering,
+        "rg_chunk_samples": rg_chunk_samples,
     }
 
 
@@ -180,27 +217,36 @@ def build(layout, column_stats_path=None, sample_files=DEFAULT_SAMPLE_FILES,
         found = {t: p for t, p in found.items() if t in set(tables)}
 
     geometry, column_order, column_share, clustering = {}, {}, {}, {}
+    column_unc_share = {}
+    rg_chunk_samples = {}
     for table, path in sorted(found.items()):
         files = list_files(fs, path)
         if not files:
             continue
         footer = scan_footers(fs, files, sample_files)
-        n_rg = max(len(files), int(round(footer["rg_per_file"] * len(files))))
+        n_rg, n_rows = count_row_groups(fs, files)
+        file_sizes = [s for _p, s in files]
+        n_scan_units = sum(max(1, -(-s // SPLIT_SIZE_BYTES)) for s in file_sizes)
         geometry[table] = {
             "files": len(files),
-            "rg_per_file": round(footer["rg_per_file"], 3),
+            "rg_per_file": round(n_rg / len(files), 3) if files else 0.0,
             "rg_bytes": footer["rg_bytes"],
             "rg_bytes_median": footer["rg_bytes_median"],
             "rg_bytes_max": footer["rg_bytes_max"],
-            "compressed_bytes": sum(s for _p, s in files),
+            "compressed_bytes": sum(file_sizes),
             "n_rg": n_rg,
-            "n_rows": int(round(footer["rows_per_file"] * len(files))),
+            "n_rows": n_rows,
             "files_sampled": footer["files_sampled"],
+            "file_sizes": file_sizes,
+            "n_scan_units": n_scan_units,
+            "split_size_bytes": SPLIT_SIZE_BYTES,
             "path": path,
         }
         column_order[table] = footer["column_order"]
         column_share[table] = footer["column_share"]
+        column_unc_share[table] = footer["column_uncompressed_share"]
         clustering[table] = footer["clustering"]
+        rg_chunk_samples[table] = footer.get("rg_chunk_samples") or []
 
     stats = merge_column_stats(clustering, column_stats_path)
     return {
@@ -215,7 +261,9 @@ def build(layout, column_stats_path=None, sample_files=DEFAULT_SAMPLE_FILES,
         "geometry": geometry,
         "column_order": column_order,
         "column_share": column_share,
+        "column_uncompressed_share": column_unc_share,
         "column_stats": stats,
+        "rg_chunk_samples": rg_chunk_samples,
     }
 
 
@@ -255,8 +303,13 @@ class DatasetSnapshot:
         self.BASELINE_GEOMETRY = doc["geometry"]
         self.COLUMN_ORDER = doc.get("column_order") or {}
         self.COLUMN_SHARE = doc.get("column_share") or {}
+        # Empty on a snapshot taken before the decode term existed. Absent is
+        # not zero: the decode model reports the table unpriced rather than
+        # falling back to the compressed share, which is a different split.
+        self.COLUMN_UNCOMPRESSED_SHARE = doc.get("column_uncompressed_share") or {}
         self.ALL_COLUMNS = {t: list(c) for t, c in self.COLUMN_ORDER.items()}
         self.COLUMN_STATS = doc.get("column_stats") or {}
+        self.RG_CHUNK_SAMPLES = doc.get("rg_chunk_samples") or {}
         self.BASELINE_RG_BYTES = DEFAULT_RG_BYTES
 
     def largest_table(self):

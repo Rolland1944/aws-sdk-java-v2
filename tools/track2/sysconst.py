@@ -327,6 +327,7 @@ def main():
             "min_seek_bytes": 131072,
             "max_merged_bytes": 2097152,
             "active_ranged_reads": 4,
+            "split_size_bytes": 128 * 1024 * 1024,
             "source": "s3a_session.apply_frozen_reader (contract 1.4)",
         },
     }

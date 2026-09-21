@@ -532,6 +532,68 @@ S2 路径）在 D2 落地后应评估是否直接由「同步转异步」层取�
 
 ### 更新日志
 
+- **2026-09-21**：**Track1 P3-1 续 — admission × budget 双窗 estimator**。
+  - `WorkingSetWindow` 改为按字节 horizon 滚动（默认 4GiB），事件上限只作安全阀；
+    去掉「最近 4096 条」作为唯一尺度，避免 SF8 尾窗把 `R_H` 压到约 21MiB。
+  - `D1SoftController` 拆成 all-range admission 窗与 admitted-eligible budget 窗。
+    扫描不进 budget；`admit_max` 锁在保守 256KiB，不因 hard cap / 空头寸上浮。
+    `target_budget = coverage × R_admit`，coverage 默认 1.0；**只升不降**（heap / BYPASS
+  除外），避免 SF1 在观察期把 256MiB 收到偏小的 `R_admit` 而赶走命中。
+  - golden：SF1 小工作集 ≤256MiB、SF8 多 object 热点靠近 1GiB、纯扫描 BYPASS、
+    热点+扫描混合、heap 高水位压过 estimator、扫描后热点可从 BYPASS 恢复。
+- **2026-09-20**：**Track1 P3-1 — D1 soft cache controller（SF1/SF8，无 joint2）**。
+  - `AppCache` 增加 soft target：升高不驱逐，降低 LRU 渐进驱逐，`target=0`
+    停准入并排空；`GlobalBudget` 仍是 hard cap。
+  - `WorkingSetWindow` + `D1SoftController`：OBSERVE / TRACK / BYPASS / SHRINK，
+    按 `R_H` 覆盖率与 JVM heap guard 调 `target_budget` / `admit_max`。不读
+    `query_id` 或数据集总大小。
+  - 开关 `-Dtrack1.d1.adaptive`；跑手 `tools/track2/run_track1_p3.py`，第一轮
+    只在 canonical `clickbench_sf1` / `clickbench_sf8` 上标定固定档并对照
+    `online`。D2/D4 不进 P3 动作空间。
+- **2026-09-14**：**Track1 P2 — 固定组合矩阵 runner 与联合 oracle 定义**。
+  - `tools/track2/run_track1_matrix.py` 在 Track2 candidate 上交错跑
+    `000/100/010/011/110/111`；每格独立 Spark 进程（D1 冷启动），每轮旋转
+    配置顺序。联合 oracle **只按墙钟 median 排序**；CV < 5%、读放大/堆内存
+    有界、逐查询回退只作约束与解释，不改排序。
+  - 每轮 `run_benchmark.py` 在 `spark.stop()` 前从
+    `Track1S3aRuntime.snapshotJson()` 写入 cache hits / useful bytes /
+    merged GET / waste / queue wait / peak heap / g*。
+  - 011/111 的 D2 窗用 50μs；010/110 用 0μs 以单独量排队成本。
+    `--resume` 默认打开。正式 6×5 跑在
+    `docs/adaptive-range-reader/results/track2/track1_p2_matrix`。
+  - P2 接线时修了两处会让矩阵失真的问题：D4 改为单 dispatcher（多
+    worker 会拆散可合并批次）；D1 命中必须带回 ETag，否则 S3A
+    change detection 抛 `NoVersionAttributeException`。
+- **2026-09-14**：**Track1 P1 — D1/D2/D4 基础版（默关，可独立开关）**。
+  - `RuntimeConfig` 增加 `d1/d2/d4`、`d2WaitWindowMicros`、`d1BlockBytes`、
+    `d4MaxWasteRatio`；`fromSystemProperties()` 读 `-Dtrack1.d1/d2/d4`。
+    旧四策略仍是 baseline，不承载新架构。
+  - **D1**：`Track1RangeCache` 复用 `AppCache`+`GlobalBudget`，256 MiB / 1 MiB
+    块 / LRU / always-admit；key = bucket+key+VersionId/If-Match（无版本时 `*`）；
+    支持单块 covering 与相邻块拼接。进程冷启动，同一 Spark 轮次内共享。
+  - **D2**：同步 GET 进 `Track1GetQueue`，worker 用 unwrap 后的 `S3AsyncClient`
+    发出；调用线程只等自己的结果。D2 开、D4 关时仍逐请求发出。
+  - **D4**：同对象邻近 range 按 `g* = RTT×BW`（`LinkEstimator`）合并，受
+    `maxSingleFetchBytes`、浪费字节比例、并发 GET、in-flight bytes 约束；
+    响应按原 range 切片。D4 无 D2 时忽略（合并依赖队列）。
+  - 缓存/队列/合并异常回退原始 exact-range GET；S3 4xx/5xx 原样抛出。
+    `s3a_session` / `run_benchmark.py` 增加 `--track1-d1/d2/d4` 与
+    `--track1-d2-wait-us`，默认全关，不改 Track2 E0。
+- **2026-09-14**：**Track1 P0 — Spark/S3A 直连接入（passthrough only）**。
+  - Hadoop 3.4.2 扩展点 `fs.s3a.s3.client.factory.impl` 接入
+    `Track1S3ClientFactory`：委托 `DefaultS3ClientFactory` 建客户端后用 JDK
+    proxy 包住 `S3Client` / `S3AsyncClient`。P0 不改 GET 请求或响应对象；
+    transfer manager 拿到的是 unwrap 后的 async client。
+  - `Track1S3aProbe` 记录 sync/async、range、version、status、latency、
+    exception；`-Dtrack1.s3a.probe.dir` 写 NDJSON。探针失败不得影响 GET。
+  - `s3a_session.apply_frozen_reader(..., track1_s3a=False)` 默认关闭，
+    `run_benchmark.py --track1-s3a` 显式打开。既有 Track2 E0 路径不变。
+  - **不做** E0 SDK GET 轨迹重放；后续 D1/D2/D4 只在此 seam 经验证后实现。
+    若包装破坏 range / cancel / close，停止在此接入面上做维度实现。
+  - Q1–Q7 配对冒烟（candidate `clickbench_sf1_e0_uc1_joint2`，n=1）：行数一致；
+    interceptor GET 2741=2741；bytes +0.015%；墙钟 22.67s vs 22.13s（+2.5%，单轮噪声）。
+    Probe 2752 条全部是 **sync** `getObject`、全部 ok。此栈的真实读取入口是同步
+    `S3Client`，不是 async/CRT；D2 因此有明确对象。43×5 正式门尚未跑。
 - **2026-07-30**：**创建 PROJECT3，确立第三阶段路线**（研讨会：卞昊穹、haoyueli）。
   - **动作空间更换**：放弃「在四条 S3A 风格策略间做选择」，改为围绕**五个访存优化维度**
     （D1 缓存管理 / D2 同步转异步 / D3 预取 / D4 IO 请求合并 / D5 长尾延迟消除）重新设计参数化决策层。

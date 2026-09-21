@@ -107,13 +107,17 @@ footer/metadata 尾部读取单独计数，不算作未归属。
 | 2 行组大小 | `write.parquet.row-group-size-bytes` | `row_group_size` / `parquet.block.size` | 是 | 是 |
 | 3 文件大小 | `write.target-file-size-bytes` | 何时 `close()` 再开新文件 | 是 | `repartition(n)` |
 | 4 压缩 | `write.parquet.compression-codec`(+`.column.X`) | `compression=` / `parquet.compression` | 全局 + per-column | 仅全局 |
-| 5 页几何 | `write.parquet.page-size-bytes`、`write.parquet.page-row-limit` | `data_page_size` / `parquet.page.size` | 是 | 是 |
+| 5 页几何 | `write.parquet.page-size-bytes`、`write.parquet.page-row-limit` | `data_page_size` / `max_rows_per_page`（PyArrow ≥ 15）、`parquet.page.size` / `parquet.page.row.count.limit` | 是 | 是 |
 | 6 encoding 族 | `write.parquet.encoding.column.X` | `PLAIN` / `RLE_DICTIONARY` / `DELTA_BINARY_PACKED` / `DELTA_BYTE_ARRAY` / `BYTE_STREAM_SPLIT` | `column_encoding` | 仅字典开/关 |
 
 ### 4.1 页级索引不是第 7 维
 
 UC1 固定 `write_page_index=True`，parquet-mr 本身恒写。`--verify` 检查 footer 里
 `has_column_index` / `has_offset_index` 为真，缺失判写出失败。这是**校验项，不是搜索维**。
+
+搜索维是 page geometry（`page_size × page_row_limit`），而页级索引的**大小**正是这一维在 L1 里
+唯一被定价的量。注意由此得到的方向：page 变粗会减少索引字节，page 变细会增加，
+但两个方向都不会改变 data GET 数——原因见 §6.2。
 
 ### 4.2 固定或排除
 
@@ -206,8 +210,20 @@ UC1 固定 `write_page_index=True`，parquet-mr 本身恒写。`--verify` 检查
 保留并改造：
 
 - `merge_gets` 改为 order-aware，是列顺序收益的主要来源；
-- 页几何进入模型：更小的 page 提高 OffsetIndex 可跳过比例，但增加 GET 数；
-- 压缩比 + encoding：对每列采样后用各 codec/encoding 组合做小文件实测，再外推全表字节；
+- 压缩比 + encoding：对每列采样实测，**按 `(codec, encoding)` 联合元组记录**，不拆成两组
+  可相乘的比例。字典把列压成几个取值之后 codec 已无事可做，
+  `ratio(zstd) × ratio(DELTA)` 不等于 `ratio(zstd, DELTA)`；没测过的元组记为 unpriced，
+  不当作 1.0（1.0 本身就是"这个改动免费"的断言）；
+- 页几何进入模型，但只按**实测的 page index 字节**定价：probe 在一个真实行组大小的样本上
+  逐个写出 page 梯子，得到 B/page，L1 据此把 OffsetIndex/ColumnIndex 的增减记到
+  scan metadata 字节上，并且只按该 pattern 投影的列计费。
+  **不给更细的 page 记跳过收益**：实测 `requests_per_chunk_touched < 1` 说明 reader 在把整个
+  chunk 合成单个 range，而不是在 chunk 内部切分，所以 chunk 内没有东西可跳；要预测跳过就得知道
+  谓词会淘汰哪些 page，而谓词正是本方法拒绝读取的输入。
+  写出的字节数与请求数都由此不再依赖任何未实测的代理函数（原先的平方根 `page_split_factor` 已删除）；
+- 写不动的点会被丢弃：某个 page 请求是否真的生效取决于一列在单个行组里有多少字节，
+  probe 逐点比对字节是否完全相同，只丢掉实测为 no-op 的点（在窄样本上 4 MiB 是 no-op，
+  在 ClickBench 105 列 / 58.5 万行的行组上它真的会合并 page）；
 - I/O 公式 `(request_count × RTT + bytes / BW) / k` 不变。
 
 ---
@@ -218,9 +234,15 @@ UC1 固定 `write_page_index=True`，parquet-mr 本身恒写。`--verify` 检查
 
 `write_layout_pyarrow.py`。不 fork Arrow，只用公开 `pq.ParquetWriter`：
 重排后的 `schema`、`row_group_size`、按目标大小旋转文件、`compression`、
-`data_page_size`、`column_encoding`。`write_page_index=True` 写死。
+`data_page_size`、`max_rows_per_page`、`column_encoding`。`write_page_index=True` 写死。
+`max_rows_per_page` 需 PyArrow ≥ 15；构建不支持时直接报错，而不是写出一个计划没描述的文件。
 
 这条路径能完整表达 per-column 压缩与 encoding 族，是两个 use case 的关键差异点。
+
+`--verify` 的回读不止确认列顺序与 codec/encoding 出现在 footer 里，还会用
+`文件字节 − 列块字节`（即 footer + OffsetIndex + ColumnIndex，与 probe 的 page pass 同一个量）
+做 **page no-op 检测**：请求了更细的 page 却没有让这个量上升，就判定 writer 忽略了它并让该
+布局失败。被定价成收益、却被写成 no-op 的动作，事后看起来会像"页几何没有用"。
 
 ### UC2 — Spark SQL + 参数
 
@@ -239,16 +261,29 @@ parquet-mr 恒写页索引，无需 option。全程不触碰 Spark 源码。
 
 输入：access_profile + footer 摘要 + 动作词表。输出：中间计划 JSON，过 L0 / L1。
 
-规则（可解释、可复现）：
+规则只负责**生成候选**，六维一律由 L1 定价后择优；每一维都把自己的 baseline 作为一个候选点，
+所以"什么都不改"始终参与比较。规则先定结果再只搜索其中几维的做法已经移除。
 
 1. **列顺序**：共访问矩阵层次聚类，簇内按字节占比贪心 seriation；热列相邻，冷列沉到文件尾。
 2. **文件大小 / RG 大小**：实测几何 + 请求尺寸直方图生成有限梯子（复用
    `adaptive_physical_options.py`），order-aware `merge_gets` + `(RTT, BW, K)` 选 L1 最优，
    RG ≤ 128 MiB。
-3. **压缩开关**：高 NDV / 宽字节列试 zstd，其余保持 snappy。
-4. **页大小 / 页行数上限**：tiny GET 占比高则增大 page；同一 column chunk 被多次短 range
-   切开则减小 page；并满足 `page_size ≤ row_group_size`。
-5. **encoding 族**：按物理类型选候选，用 footer 已有 encodings 与列 NDV 剪枝。
+3. **压缩 + encoding（同一维）**：因为 probe 是联合测量的，两者作为一个轴一起搜索。
+   拆成两个独立轴会让搜索把一次测量里的 codec 和另一次测量里的 encoding 拼起来，
+   再按两个效应可叠加去定价。
+4. **页大小 / 页行数上限**：候选来自 page 梯子（去掉实测 no-op 的点）。
+   由于 L1 在这一维只能定价 metadata 字节，而交易的另一半——谓词能多精确地跳过 page、
+   解码单元变粗多少——需要查询计划，所以非 baseline 的 page 动作必须跑赢
+   `PAGE_SWITCH_MARGIN`（2% t_io）才会被写进计划；否则留在 baseline 并记录原因。
+   在 ClickBench 上整条梯子只值 1.5% 的 scan-metadata 字节，这一维因此自行选择不动。
+5. **未定价即降级，不是拒绝**：某列的 `(codec, encoding)` 没有联合测量时，该列退回 baseline
+   元组并列入 `unpriced`，计划照样可执行、缺口照样可见。让整个候选不可估价会在 probe
+   出现第一个空洞时就把搜索清空。
+6. **L0 按目标 renderer 判定，且在排名之前**：能力检查跑在 `strip_for_spark` 之前，
+   否则 parquet-mr 目标下每个候选都会通过，然后 UC2 拿到一个 L1 定过价、
+   但 renderer 根本不会写出来的布局。同一份证据下 UC1 选出 per-column
+   `(zstd, DELTA_*)`（t_io 94.7s），UC2 只剩全局 zstd（105.2s）——能力差异被显式记录，
+   而不是悄悄降级。
 
 这一层独立构成论文主线的可行性证明：SDK+footer → 计划 → 写出仍是 Parquet → 查询变快。
 
@@ -314,7 +349,7 @@ parquet-mr 恒写页索引，无需 option。全程不触碰 Spark 源码。
 | `correlate.py` | 改造：去 Semantic，加 access episode |
 | `access_profile.py` | 新增：列热度 + 共访问矩阵 + 访问模式 |
 | `dataset_snapshot.py` | 改造：footer 里补采 `physical_type`（encoding 合法性依赖它） |
-| `compression_probe.py` | 新增：按列采样实测压缩比与 encoding 收益 |
+| `compression_probe.py` | 新增：按列采样实测 `(codec, encoding)` 联合元组（含 encoding 静默退回 PLAIN 的检测），外加整表 page 梯子实测（B/page 与 no-op 点）。输出 `layout_probe.json`，`schema_version: 2` |
 | `layout_actions.py` | 新增：六维动作词表 + render + L0，两个 renderer 共用 |
 | `plan_deterministic.py` | 新增：第一层主生成器（含 `--ablation`） |
 | `plan_llm.py` | 新增：第一层 LLM 对照（含前置条件检查） |

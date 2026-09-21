@@ -47,8 +47,11 @@ class AdvisorCatalog:
         self.BASELINE_GEOMETRY = dataset.BASELINE_GEOMETRY
         self.COLUMN_ORDER = dataset.COLUMN_ORDER
         self.COLUMN_SHARE = dataset.COLUMN_SHARE
+        self.COLUMN_UNCOMPRESSED_SHARE = getattr(
+            dataset, "COLUMN_UNCOMPRESSED_SHARE", {}) or {}
         self.ALL_COLUMNS = dataset.ALL_COLUMNS
         self.COLUMN_STATS = dataset.COLUMN_STATS
+        self.RG_CHUNK_SAMPLES = getattr(dataset, "RG_CHUNK_SAMPLES", {}) or {}
         self.BASELINE_RG_BYTES = dataset.BASELINE_RG_BYTES
         self.LARGE_TABLE_BYTES = large_table_bytes
 

@@ -82,13 +82,17 @@ def load_observations(path):
 
 
 def build_episodes(observations):
-    """Fold per-request observations into per-episode records.
+    """Fold per-request observations into per-span records.
 
-    An episode carries the set of columns it touched, the bytes it moved, the
+    A span carries the set of columns it touched, the bytes it moved, the
     row groups it entered and how many requests it took to do that. Requests
     that hit no chunk (footer, page index) are counted as open overhead on the
-    episode rather than discarded -- they are exactly the cost the file-size
-    action trades against.
+    span rather than discarded -- they are exactly the cost the file-size
+    and scan-unit actions trade against.
+
+    Metadata is split: Spark's `readingParquetFooters` pool is file-level
+    discovery; everything else is scan-span metadata (page index, column
+    index, per-task footer).
     """
     episodes = {}
     for obs in observations:
@@ -107,7 +111,13 @@ def build_episodes(observations):
                 "meta_bytes": 0,
                 "data_requests": 0,
                 "meta_requests": 0,
+                "file_meta_requests": 0,
+                "file_meta_bytes": 0,
+                "scan_meta_requests": 0,
+                "scan_meta_bytes": 0,
                 "column_bytes": defaultdict(int),
+                "span_grouping": obs.get("span_grouping"),
+                "audit_span_id": obs.get("audit_span_id"),
             }
         chunks = obs.get("chunks") or []
         if chunks:
@@ -118,8 +128,16 @@ def build_episodes(observations):
                 ep["row_groups"].add(chunk["row_group"])
                 ep["column_bytes"][chunk["column"]] += chunk.get("overlap_bytes") or 0
         else:
+            length = obs.get("range_length") or 0
             ep["meta_requests"] += 1
-            ep["meta_bytes"] += obs.get("range_length") or 0
+            ep["meta_bytes"] += length
+            kind = obs.get("meta_kind")
+            if kind == "file":
+                ep["file_meta_requests"] += 1
+                ep["file_meta_bytes"] += length
+            else:
+                ep["scan_meta_requests"] += 1
+                ep["scan_meta_bytes"] += length
     return list(episodes.values())
 
 
@@ -190,6 +208,8 @@ def access_patterns(episodes, min_episodes=1):
     """
     groups = defaultdict(lambda: {"n_episodes": 0, "data_bytes": 0,
                                   "data_requests": 0, "meta_requests": 0,
+                                  "scan_meta_requests": 0,
+                                  "file_meta_requests": 0,
                                   "rg_touched": 0, "objects": set()})
     for ep in episodes:
         if not ep["columns"]:
@@ -200,6 +220,8 @@ def access_patterns(episodes, min_episodes=1):
         g["data_bytes"] += ep["data_bytes"]
         g["data_requests"] += ep["data_requests"]
         g["meta_requests"] += ep["meta_requests"]
+        g["scan_meta_requests"] += ep.get("scan_meta_requests", 0)
+        g["file_meta_requests"] += ep.get("file_meta_requests", 0)
         g["rg_touched"] += len(ep["row_groups"])
         g["objects"].add(ep["object"])
 
@@ -216,10 +238,15 @@ def access_patterns(episodes, min_episodes=1):
             "n_episodes": n,
             "n_objects": len(g["objects"]),
             "data_bytes": g["data_bytes"],
+            "data_requests": g["data_requests"],
+            "rg_touched_total": g["rg_touched"],
             "bytes_per_episode": int(g["data_bytes"] / n),
             "requests_per_episode": round(g["data_requests"] / n, 2),
             "meta_requests_per_episode": round(g["meta_requests"] / n, 2),
             "rg_per_episode": round(g["rg_touched"] / n, 2),
+            "data_gets_per_rg": round(g["data_requests"] / max(g["rg_touched"], 1), 4),
+            "scan_meta_requests": g.get("scan_meta_requests", 0),
+            "file_meta_requests": g.get("file_meta_requests", 0),
         })
     return out
 
@@ -251,6 +278,15 @@ def request_shape(observations, episodes):
     # ratio is what the page-size rule keys on.
     splits = sum(ep["data_requests"] for ep in episodes)
     chunks_touched = sum(len(ep["columns"]) for ep in episodes) or 1
+    data_spans = [ep for ep in episodes if ep["columns"]]
+    meta_only = [ep for ep in episodes if not ep["columns"]]
+    rg_touches = sum(len(ep["row_groups"]) for ep in data_spans)
+    file_meta = sum(ep.get("file_meta_requests", 0) for ep in episodes)
+    scan_meta = sum(ep.get("scan_meta_requests", 0) for ep in episodes)
+    file_meta_bytes = sum(ep.get("file_meta_bytes", 0) for ep in episodes)
+    scan_meta_bytes = sum(ep.get("scan_meta_bytes", 0) for ep in episodes)
+    n_data = max(len(data_spans), 1)
+    n_multi = sum(1 for ep in data_spans if len(ep["columns"]) > 1)
     return {
         "buckets": {name: buckets.get(name, 0) for name, _lo, _hi in BUCKETS},
         "bucket_bytes": {name: bucket_bytes.get(name, 0) for name, _lo, _hi in BUCKETS},
@@ -264,6 +300,20 @@ def request_shape(observations, episodes):
         "meta_requests_per_object": round(meta_reqs / max(len(objects), 1), 2),
         "requests_per_episode": round(total_reqs / n_ep, 2),
         "requests_per_chunk_touched": round(splits / chunks_touched, 3),
+        "n_data_spans": len(data_spans),
+        "n_meta_only_spans": len(meta_only),
+        "rg_touches": rg_touches,
+        "data_gets_per_rg_touch": round(data_reqs / max(rg_touches, 1), 4),
+        "file_meta_requests": file_meta,
+        "file_meta_bytes": file_meta_bytes,
+        "scan_meta_requests": scan_meta,
+        "scan_meta_bytes": scan_meta_bytes,
+        "file_meta_per_object": round(file_meta / max(len(objects), 1), 4),
+        "scan_meta_per_data_span": round(
+            sum(ep.get("scan_meta_requests", 0) for ep in data_spans) / n_data, 4),
+        "multicol_data_span_share": round(n_multi / n_data, 4),
+        "span_grouping": next((ep.get("span_grouping") for ep in episodes
+                               if ep.get("span_grouping")), None),
     }
 
 

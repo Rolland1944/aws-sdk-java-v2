@@ -47,14 +47,60 @@ def spark_scratch():
     return path
 
 
+TRACK1_S3_CLIENT_FACTORY = (
+    "software.amazon.awssdk.s3.adaptive.s3a.Track1S3ClientFactory")
+
+
 def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
-                        interceptor=True):
-    """Apply TRACK2_M0_CONTRACT.md 1.4 frozen reader settings."""
+                        interceptor=True, track1_s3a=False,
+                        track1_d1=False, track1_d2=False, track1_d4=False,
+                        track1_d2_wait_us=0, track1_d1_admit_bytes=256 * 1024,
+                        track1_d1_cache_mib=256, track1_d1_block_bytes=None,
+                        track1_d1_adaptive=False, track1_d1_hard_mib=None,
+                        track1_d1_coverage=None, track1_d1_observe_gets=None,
+                        track1_d1_min_mib=None):
+    """Apply TRACK2_M0_CONTRACT.md 1.4 frozen reader settings.
+
+    ``track1_s3a`` is off by default so existing Track 2 E-0 numbers stay on
+    the native S3A client. When on, S3A constructs AWS clients through
+    ``Track1S3ClientFactory``. D1/D2/D4 default off (P0 passthrough).
+
+    ``track1_d1_admit_bytes`` and ``track1_d1_cache_mib`` have to move
+    together: raising the admission cap alone lets large scans evict the small
+    reads that supply most of the hits. ``track1_d1_block_bytes`` defaults to
+    the reader's own 1 MiB so an admitted range is not split needlessly.
+    """
     java_opts = []
     if collector_dir:
         os.makedirs(collector_dir, exist_ok=True)
         os.environ["TRACK2_COLLECTOR_DIR"] = collector_dir
         java_opts.append(f"-Dtrack2.collector.dir={collector_dir}")
+    if track1_s3a and collector_dir:
+        probe_dir = os.path.join(collector_dir, "track1-probe")
+        os.makedirs(probe_dir, exist_ok=True)
+        os.environ["TRACK1_S3A_PROBE_DIR"] = probe_dir
+        java_opts.append(f"-Dtrack1.s3a.probe.dir={probe_dir}")
+    if track1_s3a:
+        java_opts.append(f"-Dtrack1.d1={str(bool(track1_d1)).lower()}")
+        java_opts.append(f"-Dtrack1.d2={str(bool(track1_d2)).lower()}")
+        java_opts.append(f"-Dtrack1.d4={str(bool(track1_d4)).lower()}")
+        java_opts.append(f"-Dtrack1.d2.wait.us={int(track1_d2_wait_us)}")
+        java_opts.append(f"-Dtrack1.d1.admit.bytes={int(track1_d1_admit_bytes)}")
+        java_opts.append(f"-Dtrack1.d1.cache.mib={int(track1_d1_cache_mib)}")
+        java_opts.append(
+            f"-Dtrack1.d1.adaptive={str(bool(track1_d1_adaptive)).lower()}")
+        if track1_d1_block_bytes:
+            java_opts.append(
+                f"-Dtrack1.d1.block.bytes={int(track1_d1_block_bytes)}")
+        if track1_d1_hard_mib is not None:
+            java_opts.append(f"-Dtrack1.d1.hard.mib={int(track1_d1_hard_mib)}")
+        if track1_d1_coverage is not None:
+            java_opts.append(f"-Dtrack1.d1.coverage={float(track1_d1_coverage)}")
+        if track1_d1_observe_gets is not None:
+            java_opts.append(
+                f"-Dtrack1.d1.observe.gets={int(track1_d1_observe_gets)}")
+        if track1_d1_min_mib is not None:
+            java_opts.append(f"-Dtrack1.d1.min.mib={int(track1_d1_min_mib)}")
     builder = (
         builder
         .config("spark.driver.extraClassPath", extra_classpath())
@@ -75,12 +121,20 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
         .config("spark.hadoop.fs.s3a.vectored.read.min.seek.size", "131072")
         .config("spark.hadoop.fs.s3a.vectored.read.max.merged.size", "2097152")
         .config("spark.hadoop.fs.s3a.vectored.active.ranged.reads", "4")
+        # Pin the split size L1 uses for n_scan_units. Leaving this at Spark's
+        # default of 128 MiB is fine, but recording it here makes the model
+        # and the reader share one number.
+        .config("spark.sql.files.maxPartitionBytes", str(128 * 1024 * 1024))
         .config("spark.sql.parquet.filterPushdown", "true")
         .config("spark.hadoop.parquet.filter.stats.enabled", "true")
         .config("spark.hadoop.parquet.filter.dictionary.enabled", "true")
         .config("spark.hadoop.parquet.filter.columnindex.enabled", "true")
         .config("spark.hadoop.parquet.filter.bloom.enabled", "true")
     )
+    if track1_s3a:
+        builder = builder.config(
+            "spark.hadoop.fs.s3a.s3.client.factory.impl",
+            TRACK1_S3_CLIENT_FACTORY)
     if interceptor:
         builder = (
             builder
@@ -90,7 +144,12 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
                     "software.amazon.awssdk.s3.adaptive.telemetry.Track2IoCollectorInterceptor")
         )
     if java_opts:
-        builder = builder.config("spark.driver.extraJavaOptions", " ".join(java_opts))
+        extra_java = " ".join(java_opts)
+        builder = builder.config("spark.driver.extraJavaOptions", extra_java)
+        if track1_s3a:
+            # local[*] runs tasks in the driver JVM; a real cluster would
+            # otherwise construct unwrapped clients on the executors.
+            builder = builder.config("spark.executor.extraJavaOptions", extra_java)
     if eventlog_dir:
         os.makedirs(eventlog_dir, exist_ok=True)
         builder = (
@@ -100,6 +159,17 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
             .config("spark.eventLog.dir", eventlog_dir)
         )
     return builder
+
+
+def frozen_reader_evidence():
+    """The split / vectored knobs L1 must price against. Contract §1.4."""
+    return {
+        "split_size_bytes": 128 * 1024 * 1024,
+        "min_seek_bytes": 131072,
+        "max_merged_bytes": 2097152,
+        "active_ranged_reads": 4,
+        "source": "s3a_session.apply_frozen_reader (contract 1.4)",
+    }
 
 
 def export_aws_env(ak, sk):
