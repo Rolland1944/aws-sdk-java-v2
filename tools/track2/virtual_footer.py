@@ -26,6 +26,9 @@ try:
 except ImportError:
     SPLIT_SIZE_BYTES = 128 * 1024 * 1024
 
+# spark.sql.files.openCostInBytes default; s3a_session does not override it.
+OPEN_COST_BYTES = 4 * 1024 * 1024
+
 # Set by whatif.bind_catalog before any pricing happens. This is an
 # AdvisorCatalog: measured geometry plus the observed access profile.
 catalog = None
@@ -445,6 +448,11 @@ def predict_geometry(table, candidate):
     compressed = table_bytes(table) * ratio
 
     file_bytes = lay["file_bytes"]
+    if not file_bytes and abs(ratio - 1.0) > 0.01 and base.get("file_sizes"):
+        # file=baseline under a new codec: the UC1 writer rotates at the
+        # median source file size, so shrunk bytes mean fewer files.
+        sizes = sorted(base["file_sizes"])
+        file_bytes = sizes[len(sizes) // 2]
     n_files = max(1, int(math.ceil(compressed / file_bytes))) if file_bytes else base_files
 
     rg_bytes = lay["rg_bytes"]
@@ -456,12 +464,21 @@ def predict_geometry(table, candidate):
         n_rg = base_rg
     # A file must contain at least one row group, but do not invent extra row
     # groups just to make n_rg divisible by n_files.
+    if file_bytes:
+        # Writers close a file only after a row group lands, so a file holds
+        # the fewest whole row groups whose bytes reach the target, and there
+        # are never more files than row groups.
+        rg_c = compressed / n_rg
+        per_file = max(1, int(math.ceil(file_bytes / rg_c)))
+        n_files = max(1, int(math.ceil(n_rg / per_file)))
+        file_bytes = compressed / n_files
     if n_rg < n_files:
         n_rg = n_files
     rg_per_file = n_rg / n_files
     file_sizes = predict_file_sizes(compressed, n_files, file_bytes, base)
     split = (base.get("split_size_bytes") or SPLIT_SIZE_BYTES)
     n_scan_units = scan_unit_count(file_sizes, split)
+    n_scan_tasks = scan_task_count(file_sizes, split)
     return {
         "table": table,
         "n_files": n_files,
@@ -473,6 +490,8 @@ def predict_geometry(table, candidate):
         "page_bytes": lay.get("page_bytes"),
         "file_sizes": file_sizes,
         "n_scan_units": n_scan_units,
+        "n_scan_tasks": n_scan_tasks,
+        "n_work_tasks": min(n_scan_tasks, n_rg),
         "split_size_bytes": split,
     }
 
@@ -481,6 +500,33 @@ def scan_unit_count(file_sizes, split_size=SPLIT_SIZE_BYTES):
     """Spark input splits: each file contributes ceil(size / split) tasks."""
     split = max(int(split_size or SPLIT_SIZE_BYTES), 1)
     return sum(max(1, math.ceil(size / split)) for size in file_sizes) or 1
+
+
+def scan_task_count(file_sizes, split_size=SPLIT_SIZE_BYTES,
+                    open_cost=OPEN_COST_BYTES):
+    """Scan tasks after Spark packs splits into partitions.
+
+    Mirrors FilePartition.getFilePartitions: splits sorted by size descending,
+    next-fit into bins of `split_size`, each split charged `open_cost`. Several
+    small splits share one task, so this is below `scan_unit_count` whenever
+    files are not multiples of the split size.
+    """
+    split = max(int(split_size or SPLIT_SIZE_BYTES), 1)
+    pieces = []
+    for size in file_sizes:
+        off = 0
+        while off < size:
+            pieces.append(min(split, size - off))
+            off += split
+    pieces.sort(reverse=True)
+    tasks, current, open_bin = 0, 0, False
+    for piece in pieces:
+        if open_bin and current + piece > split:
+            tasks += 1
+            current, open_bin = 0, False
+        current += piece + open_cost
+        open_bin = True
+    return tasks + (1 if open_bin else 0) or 1
 
 
 def predict_file_sizes(compressed, n_files, file_bytes, base):

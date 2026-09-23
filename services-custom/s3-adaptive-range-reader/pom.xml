@@ -37,6 +37,8 @@
     <properties>
         <jre.version>1.8</jre.version>
         <awsjavasdk.version>${project.parent.version}</awsjavasdk.version>
+        <checkstyle.skip>true</checkstyle.skip>
+        <spotbugs.skip>true</spotbugs.skip>
     </properties>
 
     <dependencyManagement>

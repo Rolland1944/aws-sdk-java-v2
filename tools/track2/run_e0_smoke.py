@@ -116,11 +116,23 @@ def check_written_layout(args, out, plan_path, table):
     predicted = vf.predict_geometry(table, plan)
     geom = (measured.get("geometry") or {}).get(table) or {}
     ok, failures = whatif.geometry_matches(predicted, geom)
+    # The L0 task floor was judged on predicted geometry; hold the written
+    # files to it too, since a byte-ratio miss moves the real task count.
+    base_geom = (load(os.path.join(out, "dataset_snapshot.json"))
+                 .get("geometry") or {}).get(table) or {}
+    base_tasks = min(vf.scan_task_count(base_geom.get("file_sizes") or []),
+                     base_geom.get("n_rg") or 0)
+    cand_tasks = min(vf.scan_task_count(geom.get("file_sizes") or []),
+                     geom.get("n_rg") or 0)
+    if cand_tasks < base_tasks:
+        ok = False
+        failures.append(f"written scan tasks {cand_tasks} < baseline {base_tasks}")
     report = {
         "predicted": {k: predicted.get(k) for k in (
             "n_files", "n_rg", "compressed_bytes", "n_scan_units")},
         "measured": {k: geom.get(k) for k in (
             "files", "n_rg", "compressed_bytes", "n_scan_units")},
+        "scan_tasks": {"baseline": base_tasks, "written": cand_tasks},
         "failures": failures,
         "pass": ok,
         "probe_bound": os.path.exists(probe_path),

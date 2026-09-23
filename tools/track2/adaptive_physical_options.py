@@ -46,6 +46,8 @@ MIN_USEFUL_RG_BYTES = 8 * 1024 * 1024
 # Row groups per file to consider. 1 is "one row group per file", which makes
 # row-group skipping and file skipping the same thing.
 RG_PER_FILE_LADDER = (1, 2, 4, 8)
+# File counts above the baseline, as multiples of it.
+FINER_FILE_FACTORS = (1.25, 1.5, 2.0, 3.0, 4.0)
 
 
 def _uncompressed_bytes(geom):
@@ -94,6 +96,14 @@ def file_options(table, snapshot, parallelism=policy.PARALLELISM,
         # Ceiling division: floor(compressed / n) is just under the size that
         # reconstructs n files, so predict_geometry's ceil() used to report
         # n+1 (16f -> 17, 32f -> 33).
+        options.append((f"{n_files}f", int(
+            (geom["compressed_bytes"] + n_files - 1) // n_files)))
+    # A codec that shrinks the table also shrinks its Spark scan tasks, and
+    # L0 will not let the task count fall below the baseline's. Smaller files
+    # are the only way such a codec stays legal, so offer them and let L1
+    # price the extra opens.
+    for n_files in FINER_FILE_FACTORS:
+        n_files = int(geom["files"] * n_files)
         options.append((f"{n_files}f", int(
             (geom["compressed_bytes"] + n_files - 1) // n_files)))
     return options

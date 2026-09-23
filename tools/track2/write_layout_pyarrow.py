@@ -144,6 +144,16 @@ def source_row_group_geometry(fs, files):
     return rows_per_rg_to_match(n_rows, n_rg), n_rg, n_rows
 
 
+def source_rg_per_file(fs, files):
+    """Row groups in each source file, in file order."""
+    import pyarrow.parquet as pq
+    counts = []
+    for path in files:
+        with fs.open_input_file(path) as handle:
+            counts.append(pq.ParquetFile(handle).metadata.num_row_groups)
+    return counts
+
+
 def source_row_group_rows(fs, files, sample=8):
     """Row count used when the plan leaves RG at baseline.
 
@@ -268,12 +278,16 @@ class RotatingWriter:
     split across files.
     """
 
-    def __init__(self, fs, out_dir, schema, target_bytes, kwargs):
+    def __init__(self, fs, out_dir, schema, target_bytes, kwargs, rg_quota=None):
         self.fs = fs
         self.out_dir = out_dir
         self.schema = schema
         self.target_bytes = target_bytes
         self.kwargs = kwargs
+        # Row groups per output file, in order. When set it replaces the byte
+        # target, so file=baseline keeps the source's file count and RG split.
+        self.rg_quota = list(rg_quota) if rg_quota else None
+        self.rg_in_file = 0
         self.index = 0
         self.writer = None
         self.handle = None
@@ -291,7 +305,12 @@ class RotatingWriter:
         if self.writer is None:
             self._open()
         self.writer.write_table(table, row_group_size=row_group_size)
-        if self.target_bytes and self.handle.tell() >= self.target_bytes:
+        self.rg_in_file += 1
+        if self.rg_quota:
+            if self.rg_in_file >= self.rg_quota[0]:
+                self.rg_quota.pop(0)
+                self.close()
+        elif self.target_bytes and self.handle.tell() >= self.target_bytes:
             self.close()
 
     def close(self):
@@ -300,6 +319,7 @@ class RotatingWriter:
             self.handle.close()
             self.writer = None
             self.handle = None
+        self.rg_in_file = 0
 
 
 def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
@@ -351,13 +371,23 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
     # baseline median file size so the candidate keeps the baseline file count
     # instead of collapsing into one giant file.
     target_bytes = rendered.target_file_size
-    if not target_bytes:
+    rg_quota = None
+    if not target_bytes and not rendered.row_group_size and row_group_size:
+        # Both axes at baseline: a byte target at the median would merge
+        # files whenever a codec or RG cut shifts sizes, and with them Spark
+        # scan tasks. Reproduce the source's row groups per file instead.
+        rg_quota = source_rg_per_file(source_fs, source_files)
+        notes.append(f"{table}: file size left at baseline by the plan; "
+                     f"keeping {len(rg_quota)} files with the source's "
+                     f"row groups per file")
+    elif not target_bytes:
         target_bytes = source_file_size_target(source_fs, source_files)
         if target_bytes:
             notes.append(f"{table}: file size left at baseline by the plan; "
                          f"rotating at the source median "
                          f"{target_bytes // 2 ** 20} MiB to preserve file count")
-    writer = RotatingWriter(out_fs, out_dir, schema, target_bytes, kwargs)
+    writer = RotatingWriter(out_fs, out_dir, schema, target_bytes, kwargs,
+                            rg_quota=rg_quota)
     # Buffer across source-file boundaries so a target RG row count is
     # realized. Writing each source file independently left one residual RG
     # per input file (225 instead of ~165 on ClickBench SF1).

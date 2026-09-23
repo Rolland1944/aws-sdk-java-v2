@@ -132,6 +132,16 @@ def l0_check(candidate, source_bytes=None, writer="pyarrow"):
             violations.append(
                 f"{table} files {g['n_files']} < parallelism floor {floor} "
                 f"(baseline {base['files']})")
+        # L1 divides I/O by K, but wall clock is set by the slowest task per
+        # wave. Fewer, heavier scan tasks shrink the sum while lengthening
+        # the critical path, which L1 cannot see, so the task count may not
+        # fall below the baseline's.
+        base_tasks = vf.predict_geometry(
+            table, {"candidate_id": "baseline", "actions": []})["n_work_tasks"]
+        if g["n_work_tasks"] < base_tasks:
+            violations.append(
+                f"{table} scan tasks {g['n_work_tasks']} < baseline "
+                f"{base_tasks} (Spark-packed splits owning a row group)")
 
     return (not violations), violations, geom
 
