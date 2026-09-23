@@ -64,6 +64,75 @@ ONLINE = m.Cell(
     d1_admit_bytes=256 * 1024,
     d1_cache_mib=256,
 )
+WTLFU_ONLINE = m.Cell(
+    "wtlfu-online",
+    d1=True,
+    d1_adaptive=True,
+    d1_hard_mib=4096,
+    d1_coverage=1.0,
+    d1_admit_bytes=0,
+    d1_cache_mib=256,
+)
+# Capacity-control ablation: start at the 4 GiB hard limit. Admission and
+# W-TinyLFU replacement remain online, but the target has no room to grow.
+WTLFU_FIXED_4G = m.Cell(
+    "wtlfu-fixed-4g",
+    d1=True,
+    d1_adaptive=True,
+    d1_fixed_capacity=True,
+    d1_hard_mib=4096,
+    d1_coverage=1.0,
+    d1_admit_bytes=0,
+    d1_cache_mib=4096,
+)
+WTLFU_FIXED_8G = m.Cell(
+    "wtlfu-fixed-8g",
+    d1=True,
+    d1_adaptive=True,
+    d1_fixed_capacity=True,
+    d1_hard_mib=8192,
+    d1_coverage=1.0,
+    d1_admit_bytes=0,
+    d1_cache_mib=8192,
+)
+WTLFU_FIXED_2G = m.Cell(
+    "wtlfu-fixed-2g",
+    d1=True,
+    d1_adaptive=True,
+    d1_fixed_capacity=True,
+    d1_hard_mib=2048,
+    d1_coverage=1.0,
+    d1_admit_bytes=0,
+    d1_cache_mib=2048,
+)
+WTLFU_2M_FIXED_2G = m.Cell(
+    "wtlfu-2m-fixed-2g",
+    d1=True,
+    d1_adaptive=True,
+    d1_fixed_capacity=True,
+    d1_fixed_admission=True,
+    d1_hard_mib=2048,
+    d1_coverage=1.0,
+    d1_admit_bytes=2 * MIB,
+    d1_cache_mib=2048,
+)
+HOTPATH_2G = (
+    m.Cell("hotpath-baseline-2g", d1=True, d1_adaptive=True, d1_fixed_capacity=True,
+           d1_hard_mib=2048, d1_cache_mib=2048, d1_admit_bytes=0, d1_profile=True,
+           d1_zero_copy=False, d1_doorkeeper=False, d1_shared_backing=False),
+    m.Cell("hotpath-deferred-copy-2g", d1=True, d1_adaptive=True, d1_fixed_capacity=True,
+           d1_hard_mib=2048, d1_cache_mib=2048, d1_admit_bytes=0, d1_profile=True,
+           d1_zero_copy=False, d1_doorkeeper=False, d1_shared_backing=True),
+    m.Cell("hotpath-zero-copy-2g", d1=True, d1_adaptive=True, d1_fixed_capacity=True,
+           d1_hard_mib=2048, d1_cache_mib=2048, d1_admit_bytes=0, d1_profile=True,
+           d1_zero_copy=True, d1_doorkeeper=False),
+    m.Cell("hotpath-full-2g", d1=True, d1_adaptive=True, d1_fixed_capacity=True,
+           d1_hard_mib=2048, d1_cache_mib=2048, d1_admit_bytes=0, d1_profile=True),
+)
+HOTPATH_4G = tuple(
+    cell._replace(id=cell.id.replace("-2g", "-4g"), d1_hard_mib=4096, d1_cache_mib=4096)
+    for cell in HOTPATH_2G
+)
 
 PHASES = {
     "characterize": FIXED,
@@ -91,8 +160,17 @@ PHASES = {
         m.Cell("000"),
         m.Cell("100", d1=True),
     ) + HOLD_BUDGET,
+    "policy-smoke": (
+        m.Cell("000"),
+        HOLD_BUDGET[-1],
+        HOLD_ADMIT[0],
+        WTLFU_ONLINE,
+    ),
+    "hotpath": HOTPATH_2G,
 }
-CATALOG = {c.id: c for c in FIXED + HOLD_ADMIT + HOLD_BUDGET + (ONLINE,)}
+CATALOG = {c.id: c for c in FIXED + HOLD_ADMIT + HOLD_BUDGET
+           + (ONLINE, WTLFU_ONLINE, WTLFU_FIXED_4G, WTLFU_FIXED_8G,
+              WTLFU_FIXED_2G, WTLFU_2M_FIXED_2G) + HOTPATH_2G + HOTPATH_4G}
 
 
 def cells_for(phase):

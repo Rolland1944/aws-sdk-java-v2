@@ -17,6 +17,8 @@ package software.amazon.awssdk.s3.adaptive.s3a;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.s3.adaptive.internal.budget.AppBudgetLease;
 import software.amazon.awssdk.s3.adaptive.internal.budget.GlobalBudget;
@@ -33,8 +35,8 @@ class Track1RangeCacheTest {
         byte[] data = bytes(200);
         cache.put(v1, null, 100, data);
 
-        assertThat(cache.tryHit(v1, 120, 180).bytes).isEqualTo(slice(data, 20, 80));
-        assertThat(cache.tryHit(v1, 100, 300).bytes).isEqualTo(data);
+        assertThat(read(cache.tryHit(v1, 120, 180))).isEqualTo(slice(data, 20, 80));
+        assertThat(read(cache.tryHit(v1, 100, 300))).isEqualTo(data);
         assertThat(cache.tryHit(v1, 250, 350)).isNull();
         assertThat(cache.tryHit(v2, 120, 180)).isNull();
     }
@@ -45,9 +47,10 @@ class Track1RangeCacheTest {
         GetObjectRequest req = req("k", null);
         cache.put(req, null, 0, bytes(128));
         Track1RangeCache.Hit hit = cache.tryHit(req, 10, 100);
-        assertThat(hit.bytes).hasSize(90);
-        assertThat(hit.bytes[0]).isEqualTo((byte) 10);
-        assertThat(hit.bytes[89]).isEqualTo((byte) 99);
+        byte[] actual = read(hit);
+        assertThat(actual).hasSize(90);
+        assertThat(actual[0]).isEqualTo((byte) 10);
+        assertThat(actual[89]).isEqualTo((byte) 99);
     }
 
     @Test
@@ -58,8 +61,48 @@ class Track1RangeCacheTest {
                                                                                .eTag("\"abc\"")
                                                                                .build(),
                   0, bytes(32));
-        assertThat(cache.tryHit(req, 0, 32).bytes).hasSize(32);
+        assertThat(read(cache.tryHit(req, 0, 32))).hasSize(32);
         assertThat(cache.tryHit(req, 0, 32).eTag).isEqualTo("\"abc\"");
+    }
+
+    @Test
+    void splitRequestKeepsOriginalSizeBucket() {
+        GlobalBudget budget = new GlobalBudget(8L * 1024 * 1024);
+        AppBudgetLease lease = new AppBudgetLease(budget, "t");
+        AppCache app = new AppCache(lease);
+        budget.register("t", 8L * 1024 * 1024, app);
+        app.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        Track1RangeCache cache = new Track1RangeCache(app, 1024L * 1024L);
+        GetObjectRequest req = req("k", null);
+        int requestBytes = 2 * 1024 * 1024;
+        cache.put(req, null, 0, bytes(requestBytes));
+
+        assertThat(app.requestObserved(requestBytes)).isEqualTo(1);
+        assertThat(app.requestAdmitted(requestBytes)).isEqualTo(1);
+        assertThat(app.requestRejected(requestBytes)).isEqualTo(0);
+        assertThat(app.requestAdmitted(1024 * 1024)).isEqualTo(0);
+        assertThat(app.requestResident(requestBytes)).isEqualTo(requestBytes);
+        assertThat(cache.tryHit(req, 0, requestBytes)).isNotNull();
+        assertThat(app.requestHits(requestBytes)).isEqualTo(1);
+        assertThat(app.requestUseful(requestBytes)).isEqualTo(requestBytes);
+    }
+
+    @Test
+    void openHitPinsPayloadUntilStreamCloses() throws Exception {
+        GlobalBudget budget = new GlobalBudget(4);
+        AppBudgetLease lease = new AppBudgetLease(budget, "t");
+        AppCache app = new AppCache(lease);
+        budget.register("t", 4, app);
+        Track1RangeCache cache = new Track1RangeCache(app, 4);
+        GetObjectRequest request = req("pinned", null);
+        cache.put(request, null, 0, new byte[] {1, 2, 3, 4});
+
+        Track1RangeCache.Hit hit = cache.tryHit(request, 0, 4);
+        assertThat(hit.stream.read()).isEqualTo(1);
+        assertThat(app.put("other", 0, new byte[] {5, 6, 7, 8})).isFalse();
+
+        hit.stream.close();
+        assertThat(app.put("other", 0, new byte[] {5, 6, 7, 8})).isTrue();
     }
 
     private static Track1RangeCache newCache(long block) {
@@ -86,5 +129,19 @@ class Track1RangeCacheTest {
         byte[] out = new byte[to - from];
         System.arraycopy(data, from, out, 0, out.length);
         return out;
+    }
+
+    private static byte[] read(Track1RangeCache.Hit hit) {
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream(hit.length);
+            byte[] buf = new byte[32];
+            for (int n; (n = hit.stream.read(buf)) >= 0;) {
+                out.write(buf, 0, n);
+            }
+            hit.stream.close();
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 }

@@ -686,8 +686,8 @@ python3 tools/track2/run_benchmark.py \
 
    **256KiB 不是扫出来的准入最优。** 它来自三件事叠在一起：旧页缓存习惯
    （PROJECT2 的 64–256KiB page）、GET **条数**众数在 64–256KiB（§6.5），以及
-   「无上限准入会把小读挤掉」。真正做过的对照只有 256KiB vs **4/8MiB 且预算一起涨**。
-   没有锁预算扫过 64 / 128 / 512 / 1MiB / 2MiB。
+   「无上限准入会把小读挤掉」。真正做过的对照原先只有 256KiB vs **4/8MiB 且预算一起涨**。
+   SF1 锁预算=1GiB 的 admit-only 已补上（见下节）：GET 随 cap 单调下降，2MiB 最优。
 
    用本轮 SF1 `000` 的 33034 条 exact-range 轨迹按尺寸算重用（同一
    `(object,start,end)` ≥2 次）：
@@ -705,8 +705,7 @@ python3 tools/track2/run_benchmark.py \
    累计可复用工作集：`≤256KiB` → 163MiB；`≤512KiB` → 240MiB；`≤1MiB` → 372MiB；
    `≤2MiB` → 757MiB；`≤4MiB` → 1.65GiB。4MiB 在 SF8 变差，更像是 **R 超过 1GiB
    水库把小热点挤掉**，不是「>256KiB 的 range 不能缓存」。online 把 cap 锁死在
-   256KiB 是未完成的 admission 维。锁预算=1GiB 的准入扫描见 runner 的
-   `--phase admit-only`（`64k/128k/256k/512k/1m/2m-1g`），等 SF8 smoke 让出机器再跑。
+   256KiB 是未完成的 admission 维。SF1 admit-only 实测见下节。
 
 ### P3-2 SF1 smoke（n=1，grow-only JAR）
 
@@ -719,6 +718,51 @@ python3 tools/track2/run_benchmark.py \
 grow-only 之前的 online 把 target 收到 163MiB，GET 11066、占位 111MiB。修好后
 GET/命中/占位与 `100` 完全一致；墙钟 +1.4% 落在 n=1 抖动带，机制已贴上 SF1
 固定点。SF8 smoke 另目录跑，不与这轮混。
+
+### P3-2 SF8 smoke（n=1，grow-only JAR）
+
+报告：`docs/adaptive-range-reader/results/track2/track1_p3_sf8_p32/p3_report.json`
+
+| cell | wall | vs `000` | vs `100` | GET | vs `100` | occupancy | target |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `000` | 2229.4s | — | — | 262309 | — | 0 | — |
+| `100` | 2020.0s | −9.4% | — | 105346 | — | 256MiB 满 | 256MiB |
+| **`100-1g`** | **1984.7s** | **−11.0%** | **−1.8%** | **77830** | **−26.1%** | **991MiB** | 1GiB |
+| online | 2002.3s | −10.2% | −0.9% | 95577 | −9.3% | 658MiB | 930MiB |
+
+`100-1g` 与 P3-0 budget-only 一致（GET 77830、占位 991MiB）。online 从 256MiB 往上涨到
+target 930MiB / 占位 658MiB，墙钟落在 `100` 与 `100-1g` 之间，GET 只走完 `100`→`100-1g`
+降幅的约三分之一。22 次 BYPASS 打断过增长。admission 仍锁 256KiB。
+
+### P3 admit-only（SF1 n=1，预算锁 1GiB）
+
+报告：`docs/adaptive-range-reader/results/track2/track1_p3_sf1_admit_only/p3_report.json`
+
+只动准入，预算一律 1GiB（`100` 仍是旧默认 256KiB/256MiB）。
+
+| cell | 准入 | 预算 | wall | vs `000` | GET | vs `256k-1g` | occupancy | 驱逐 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `000` | off | — | 329.6s | — | 33038 | — | 0 | 0 |
+| `100` | 256KiB | 256MiB | 280.5s | −14.9% | 9805 | 0% | 126MiB | 0 |
+| `64k-1g` | 64KiB | 1GiB | 281.7s | −14.5% | 10798 | +10.1% | 76MiB | 0 |
+| `128k-1g` | 128KiB | 1GiB | 282.0s | −14.4% | 10357 | +5.6% | 94MiB | 0 |
+| `256k-1g` | 256KiB | 1GiB | 279.5s | −15.2% | 9805 | — | 126MiB | 0 |
+| `512k-1g` | 512KiB | 1GiB | 279.1s | −15.3% | **8832** | **−9.9%** | 216MiB | 0 |
+| `1m-1g` | 1MiB | 1GiB | 277.4s | −15.8% | **8048** | **−17.9%** | 378MiB | 0 |
+| **`2m-1g`** | **2MiB** | 1GiB | **277.0s** | **−16.0%** | **6888** | **−29.8%** | **837MiB** | 0 |
+
+要点：
+
+1. **256KiB 不是 GET 最优。** 锁住 1GiB 后 GET 随 cap 单调下降：64k→2m 为 10798→6888。
+   轨迹里 256KiB–2MiB 的高重用在真实路径上兑现了。
+2. **`100` 与 `256k-1g` GET/占位完全一样**（9805 / 126MiB）。SF1 在 256KiB 过滤下工作
+   集约 126MiB，多给的 1GiB 用不上。
+3. **墙钟几乎被 CPU 盖住**：2m 只比 256k 快 0.9%，但 GET −30%。同区仍以 GET/字节为
+   机制证据，墙钟只作安全门（没有任何一格比 `000` 慢）。
+4. 1GiB 在 2MiB 准入下仍未装满（837MiB、驱逐=0、heap ~19GiB 无换机）。SF1 上把 cap
+   收到 256KiB 是把可缓存的中等 range 拒掉了，不是水库不够。
+5. n=1，墙钟排序不可当作正式 oracle；GET 排序方向与轨迹预测一致。SF8 上 4MiB 仍
+   可能污染，不能把 2MiB 直接外推成跨规模 cap。
 
 下一步：P3-1 双窗已落地。P3-2 先各跑 1 轮 online smoke（SF1：`000/100/online`；
 SF8：`000/100/100-1g/online`）。同区墙钟不是唯一有效性：S3 时延太低时，I/O 藏在
@@ -778,11 +822,30 @@ regime 外推，等 P3 数字落地后再排。§6.1 之后「继续调固定 Tr
 
 ## 10. 更新日志
 
+- **2026-09-22**：D1 本地缓存热路径改造完成本地验证，云上消融待具备 PySpark 的 benchmark
+  主机执行，不能将其计入任何 oracle 或墙钟结论。
+  - 请求分块改为 descriptor-first：准入比较和完整 victim plan 在 payload 拷贝前完成；被拒
+    请求的 `d1_rejected_payload_copy_bytes` 应为 0。成功准入时可转移 tee/fetch buffer
+    所有权，让相邻块引用同一 immutable backing；兼容 A/B 档仍可选择成功后复制。
+  - hit 采用一次锁定的 `pinCoveringSpan` 和关闭时释放的 composite stream；不在 cache lock
+    内 materialize。被 pin 的块不会作为驱逐 victim，因而未关闭的响应不会形成未计入 hard-cap
+    的 payload。
+  - adaptive 首触 doorkeeper 只更新频率并以计时 passthrough 读取，不分配 tee buffer；
+    重复访问再参与准入。`read()` 逐字节路径不再分配 `byte[1]`。
+  - 诊断开关 `track1.d1.profile=true` 输出 lookup、hit-copy、stitch、put、tee-copy
+    bytes/nanos；`track1_overhead_ledger.py` 明确标记 `used_for_ranking=false`。
+    临时消融档为 baseline / deferred-copy / zero-copy / full，可由
+    `run_track1_p3.py --phase hotpath` 运行；`--cells` 可选 4GiB 档用于 SF8。
+  - 本地模块完整测试通过；本机尝试 SF1 smoke 时在创建 Spark 前失败：
+    `ModuleNotFoundError: pyspark`。因此没有新增 SF1/SF8 墙钟、GET 或远端字节结果。
 - **2026-09-21**：P3-1 双窗落地。`WorkingSetWindow` 按字节 horizon 滚动；
   admission / budget 分窗；`admit_max` 不随空预算上浮；coverage 默认 1.0；
   TRACK 只升不降。SF1 P3-2 smoke：`000` 329.9s / `100` 277.1s / online 280.8s，
   GET 与 `100` 同为 9805、占位同 132MiB。墙钟 +1.4% 视为 n=1 抖动。
-  下一步 SF8 `000/100/100-1g/online`。
+  下一步 SF8 `000/100/100-1g/online`。SF8 smoke（n=1）：`000` 2229s / `100` 2020s /
+  `100-1g` 1985s GET 77830 / online 2002s GET 95577、占位 658MiB、target 930MiB。
+  admit-only 改到腾讯云 CVM。后在本机 SF1 补跑：锁 1GiB 后 GET 随 cap 单调下降，
+  `2m-1g` GET 6888（相对 `256k-1g` −30%），墙钟只再快 0.9%。256KiB 不是 GET 最优。
 - **2026-09-15（晚）**：把 7.9% 的归因从「机制」推到「运行环境」，并定出换 regime 的
   方案（§6.7 / §9.0）。本条**没有任何新 benchmark**，输入全部是 §5.2 / §6.1 已有的表
   加上一次 endpoint 延迟测量。

@@ -532,6 +532,9 @@ S2 路径）在 D2 落地后应评估是否直接由「同步转异步」层取�
 
 ### 更新日志
 
+- **2026-09-21**：**Track1 P3 SF1 admit-only**。预算锁 1GiB，cap 扫 64KiB–2MiB。
+  GET 随 cap 单调下降；`2m-1g` 6888 GET（相对 `256k-1g` −30%），墙钟只再快 0.9%。
+  `100` 与 `256k-1g` GET 完全一样。256KiB 不是 GET 最优。
 - **2026-09-21**：**Track1 P3-1 续 — admission × budget 双窗 estimator**。
   - `WorkingSetWindow` 改为按字节 horizon 滚动（默认 4GiB），事件上限只作安全阀；
     去掉「最近 4096 条」作为唯一尺度，避免 SF8 尾窗把 `R_H` 压到约 21MiB。
@@ -579,6 +582,12 @@ S2 路径）在 D2 落地后应评估是否直接由「同步转异步」层取�
   - 缓存/队列/合并异常回退原始 exact-range GET；S3 4xx/5xx 原样抛出。
     `s3a_session` / `run_benchmark.py` 增加 `--track1-d1/d2/d4` 与
     `--track1-d2-wait-us`，默认全关，不改 Track2 E0。
+- **2026-09-22**：D1 热路径完成一轮语义保持的本地优化：请求级准入先比较 descriptor
+  和原子 victim plan，拒绝不复制 payload；相邻分块可共享不可变 backing；命中以 pinned
+  composite stream 输出并在 close/abort 时释放。自适应首触使用 doorkeeper timing
+  passthrough，避免一次性扫描申请完整缓存 buffer。新增可关闭的本地开销 counters 和
+  不参与排名的 overhead ledger。模块测试通过；SF1 云 smoke 因执行主机没有 `pyspark`
+  而未启动，故没有新的性能结论或 oracle 变更。
 - **2026-09-14**：**Track1 P0 — Spark/S3A 直连接入（passthrough only）**。
   - Hadoop 3.4.2 扩展点 `fs.s3a.s3.client.factory.impl` 接入
     `Track1S3ClientFactory`：委托 `DefaultS3ClientFactory` 建客户端后用 JDK

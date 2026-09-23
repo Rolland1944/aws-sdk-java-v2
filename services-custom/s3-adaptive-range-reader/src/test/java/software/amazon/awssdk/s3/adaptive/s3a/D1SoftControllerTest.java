@@ -63,7 +63,24 @@ class D1SoftControllerTest {
     }
 
     @Test
-    void noReuseAfterObserveWindowGoesBypass() {
+    void fixedAdmissionBoundsAdaptivePolicy() {
+        RuntimeConfig cfg = RuntimeConfig.builder()
+                                         .d1Enabled(true)
+                                         .d1Adaptive(true)
+                                         .d1FixedCapacity(true)
+                                         .d1FixedAdmission(true)
+                                         .d1AdmitMaxBytes(2 * 1024 * 1024)
+                                         .d1ObserveBudgetBytes(2 * 1024 * 1024)
+                                         .d1HardCacheBytes(2 * 1024 * 1024)
+                                         .build();
+        D1SoftController c = new D1SoftController(cfg, cache(2 * 1024 * 1024));
+        assertThat(c.targetBudget()).isEqualTo(2 * 1024 * 1024);
+        assertThat(c.admit("o", 0, 2 * 1024 * 1024)).isTrue();
+        assertThat(c.admit("o", 0, 2 * 1024 * 1024 + 1)).isFalse();
+    }
+
+    @Test
+    void noReuseAfterObserveWindowKeepsSoftTrackForPolicyLayer() {
         AppCache cache = cache(4 * 1024 * 1024);
         AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
         D1SoftController c = new D1SoftController(adaptive(), cache, new WorkingSetWindow(32), heap::get);
@@ -72,10 +89,10 @@ class D1SoftControllerTest {
         }
         c.tick();
         c.tick();
-        assertThat(c.mode()).isEqualTo(D1SoftController.Mode.BYPASS);
-        assertThat(c.targetBudget()).isEqualTo(0);
-        assertThat(c.admit("o", 0, 100)).isFalse();
-        assertThat(cache.softCapacity()).isEqualTo(0);
+        assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
+        assertThat(c.targetBudget()).isEqualTo(256 * 1024);
+        assertThat(c.admit("o", 0, 100)).isTrue();
+        assertThat(cache.softCapacity()).isEqualTo(256 * 1024);
     }
 
     @Test
@@ -114,7 +131,7 @@ class D1SoftControllerTest {
     }
 
     @Test
-    void scansDoNotInflateBudgetReusableOrAdmitMax() {
+    void scansDoNotInflateBudgetButAdmissionIsPolicyDriven() {
         AppCache cache = cache(4 * 1024 * 1024);
         AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
         D1SoftController c = new D1SoftController(adaptive(), cache, new WorkingSetWindow(64), heap::get);
@@ -131,13 +148,13 @@ class D1SoftControllerTest {
         assertThat(c.budgetWindow().reusableBytes()).isEqualTo(1024);
         assertThat(c.admissionWindow().reusableBytes()).isEqualTo(1024);
         assertThat(c.admissionWindow().pollution()).isGreaterThan(0.9);
-        assertThat(c.admitMax()).isEqualTo(256 * 1024);
-        assertThat(c.admit("scan-0", 0, 4 * 1024 * 1024)).isFalse();
+        assertThat(c.admitMax()).isEqualTo(4 * 1024 * 1024);
+        assertThat(c.admit("scan-0", 0, 4 * 1024 * 1024)).isTrue();
         assertThat(c.admit("hot", 0, 1024)).isTrue();
     }
 
     @Test
-    void spareBudgetDoesNotRaiseAdmission() {
+    void spareBudgetAloneDoesNotGrowTargetButAdmissionUsesPhysicalLimit() {
         RuntimeConfig cfg = RuntimeConfig.builder()
                                          .d1Enabled(true)
                                          .d1Adaptive(true)
@@ -161,8 +178,8 @@ class D1SoftControllerTest {
         }
         assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
         assertThat(c.targetBudget()).isGreaterThan(0);
-        assertThat(c.admitMax()).isEqualTo(256 * 1024);
-        assertThat(c.admit("mid", 0, 300 * 1024)).isFalse();
+        assertThat(c.admitMax()).isEqualTo(8 * 1024 * 1024);
+        assertThat(c.admit("mid", 0, 300 * 1024)).isTrue();
     }
 
     @Test
@@ -190,6 +207,151 @@ class D1SoftControllerTest {
         }
         assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
         assertThat(c.targetBudget()).isEqualTo(256L * 1024 * 1024);
-        assertThat(c.admitMax()).isEqualTo(256 * 1024);
+        assertThat(c.admitMax()).isEqualTo(8L * 1024 * 1024);
+    }
+
+    @Test
+    void rejectGhostDoesNotGrowTarget() {
+        RuntimeConfig cfg = tinyAdaptive();
+        AppCache cache = cache(4000);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
+        D1SoftController c = new D1SoftController(cfg, cache, new WorkingSetWindow(32), heap::get);
+        for (int i = 0; i < 8; i++) {
+            c.observe("hot", 0, 16);
+        }
+        c.tick();
+        c.tick();
+        protectTwoAndRejectThird(cache);
+        long target = c.targetBudget();
+        long evictionHits = cache.evictionGhostHits();
+        for (int i = 0; i < 6; i++) {
+            cache.put("o", 400, new byte[100]);
+            c.tick();
+        }
+        assertThat(cache.rejectGhostHits()).isGreaterThan(0);
+        assertThat(cache.evictionGhostHits()).isEqualTo(evictionHits);
+        assertThat(c.targetBudget()).isEqualTo(target);
+        assertThat(c.snapshotFragment()).contains("reject-ghost-ignored");
+    }
+
+    @Test
+    void evictionGhostGrowsOnlyAfterConsecutiveHorizons() {
+        AppCache cache = cache(4 * 1024 * 1024);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
+        D1SoftController c = new D1SoftController(adaptive(), cache, new WorkingSetWindow(32), heap::get);
+        for (int i = 0; i < 8; i++) {
+            c.observe("hot", 0, 1024);
+        }
+        for (int i = 0; i < 4; i++) {
+            c.tick();
+        }
+        long target = c.targetBudget();
+        int size = 64 * 1024;
+        for (int i = 0; i < 4; i++) {
+            assertThat(cache.put("o", i * (long) size, new byte[size])).isTrue();
+        }
+        assertThat(cache.put("o", 10L * size, new byte[size])).isTrue();
+        assertThat(cache.evictedBlocks()).isEqualTo(1);
+        assertThat(cache.put("o", 0, new byte[size])).isTrue();
+        assertThat(cache.evictionGhostHits()).isEqualTo(1);
+        c.tick();
+        assertThat(c.targetBudget()).isEqualTo(target);
+        assertThat(cache.put("o", size, new byte[size])).isTrue();
+        assertThat(cache.evictionGhostHits()).isGreaterThan(1);
+        c.tick();
+        assertThat(c.targetBudget()).isGreaterThan(target);
+        assertThat(c.snapshotFragment()).contains("eviction-ghost-grow");
+    }
+
+    @Test
+    void heapShrinkCooldownIgnoresEvictionGhosts() {
+        AppCache cache = cache(4 * 1024 * 1024);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
+        D1SoftController c = new D1SoftController(adaptive(), cache, new WorkingSetWindow(32), heap::get);
+        for (int i = 0; i < 8; i++) {
+            c.observe("hot", 0, 1024);
+        }
+        c.tick();
+        c.tick();
+        heap.set(0.90);
+        c.tick();
+        long shrunk = c.targetBudget();
+        assertThat(c.mode()).isEqualTo(D1SoftController.Mode.SHRINK);
+        heap.set(0.2);
+        int size = 64 * 1024;
+        for (int i = 0; i < 4; i++) {
+            cache.put("o", i * (long) size, new byte[size]);
+        }
+        cache.put("o", 10L * size, new byte[size]);
+        cache.put("o", 0, new byte[size]);
+        cache.put("o", size, new byte[size]);
+        for (int i = 0; i < 6; i++) {
+            c.tick();
+            assertThat(c.targetBudget()).isLessThanOrEqualTo(shrunk);
+        }
+        assertThat(cache.evictionGhostHits()).isGreaterThan(0);
+        assertThat(c.snapshotFragment()).contains("cooldown");
+    }
+
+    @Test
+    void repeatedWholeRequestRejectCanProbeOneCapacityStep() {
+        AppCache cache = cache(4 * 1024 * 1024);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
+        D1SoftController c = new D1SoftController(adaptive(), cache, new WorkingSetWindow(32), heap::get);
+        for (int i = 0; i < 8; i++) {
+            c.observe("hot", 0, 1024);
+        }
+        for (int i = 0; i < 4; i++) {
+            c.tick();
+        }
+        long target = c.targetBudget();
+        int block = 64 * 1024;
+        for (int i = 0; i < 4; i++) {
+            assertThat(cache.put("o", i * (long) block, new byte[block])).isTrue();
+            cache.findCovering("o", i * (long) block, (i + 1L) * block);
+            cache.findCovering("o", i * (long) block, (i + 1L) * block);
+        }
+        assertThat(cache.putRequest("o", 8L * block, new byte[3 * block], block)).isFalse();
+        assertThat(cache.putRequest("o", 8L * block, new byte[3 * block], block)).isFalse();
+        c.tick();
+        assertThat(c.targetBudget()).isEqualTo(target);
+        assertThat(cache.putRequest("o", 8L * block, new byte[3 * block], block)).isFalse();
+        c.tick();
+
+        assertThat(cache.rejectRequestGhostHits()).isGreaterThan(0);
+        assertThat(c.targetBudget()).isGreaterThan(target);
+        assertThat(c.snapshotFragment()).contains("reject-counterfactual-grow");
+    }
+
+    private static RuntimeConfig tinyAdaptive() {
+        return RuntimeConfig.builder()
+                            .d1Enabled(true)
+                            .d1Adaptive(true)
+                            .d1AdmitMaxBytes(64)
+                            .d1ObserveBudgetBytes(300)
+                            .d1HardCacheBytes(4000)
+                            .d1MinBudgetBytes(50)
+                            .d1TargetCoverage(1.0)
+                            .d1ObserveGets(4)
+                            .d1HeapHigh(0.70)
+                            .d1HeapLow(0.50)
+                            .build();
+    }
+
+    private static void protectTwoAndRejectThird(AppCache cache) {
+        assertThat(cache.put("o", 0, new byte[100])).isTrue();
+        assertThat(cache.put("o", 100, new byte[100])).isTrue();
+        for (int i = 0; i < 8; i++) {
+            cache.findCovering("o", 0, 100);
+            cache.findCovering("o", 100, 200);
+        }
+        assertThat(cache.put("o", 200, new byte[100])).isTrue();
+        assertThat(cache.put("o", 300, new byte[100])).isTrue();
+        cache.findCovering("o", 300, 400);
+        assertThat(cache.put("o", 400, new byte[100])).isFalse();
     }
 }

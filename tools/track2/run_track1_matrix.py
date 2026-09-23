@@ -62,6 +62,12 @@ class Cell(NamedTuple):
     d1_admit_bytes: int = 256 * 1024
     d1_cache_mib: int = 256
     d1_adaptive: bool = False
+    d1_fixed_capacity: bool = False
+    d1_fixed_admission: bool = False
+    d1_profile: bool = False
+    d1_zero_copy: bool = True
+    d1_doorkeeper: bool = True
+    d1_shared_backing: bool = True
     d1_hard_mib: int = 0
     d1_coverage: float = 1.0
 
@@ -147,9 +153,21 @@ def bench_argv(args, spec, dest):
     argv.extend(["--track1-d1-block-bytes", str(spec.block_bytes())])
     if spec.d1_adaptive:
         argv.append("--track1-d1-adaptive")
+        if spec.d1_fixed_capacity:
+            argv.append("--track1-d1-fixed-capacity")
+        if spec.d1_fixed_admission:
+            argv.append("--track1-d1-fixed-admission")
         if spec.d1_hard_mib:
             argv.extend(["--track1-d1-hard-mib", str(spec.d1_hard_mib)])
         argv.extend(["--track1-d1-coverage", str(spec.d1_coverage)])
+    if spec.d1_profile:
+        argv.append("--track1-d1-profile")
+    if not spec.d1_zero_copy:
+        argv.append("--no-track1-d1-zero-copy")
+    if not spec.d1_doorkeeper:
+        argv.append("--no-track1-d1-doorkeeper")
+    if not spec.d1_shared_backing:
+        argv.append("--no-track1-d1-shared-backing")
     if args.queries:
         argv.extend(["--queries", args.queries])
     return argv
@@ -221,6 +239,25 @@ def summarize_cell(cell_id, spec, reports):
         "d1_bypasses": median_field(t1s, "d1_bypasses"),
         "d1_mode": next((row.get("d1_mode") for row in reversed(t1s)
                          if row.get("d1_mode")), None),
+        "d1_admit_max_live": median_field(t1s, "d1_admit_max_live"),
+        "d1_admitted_blocks": median_field(t1s, "d1_admitted_blocks"),
+        "d1_rejected_blocks": median_field(t1s, "d1_rejected_blocks"),
+        "d1_ghost_hits": median_field(t1s, "d1_ghost_hits"),
+        "d1_reject_ghost_hits": median_field(t1s, "d1_reject_ghost_hits"),
+        "d1_reject_request_ghost_hits": median_field(t1s, "d1_reject_request_ghost_hits"),
+        "d1_eviction_ghost_hits": median_field(t1s, "d1_eviction_ghost_hits"),
+        "d1_victim_plan_count": median_field(t1s, "d1_victim_plan_count"),
+        "d1_capacity_reason": next((row.get("d1_capacity_reason") for row in reversed(t1s)
+                                    if row.get("d1_capacity_reason")), None),
+        "d1_request_sizes": next((row.get("d1_request_sizes") for row in reversed(t1s)
+                                  if row.get("d1_request_sizes") is not None), None),
+        "d1_window_bytes": median_field(t1s, "d1_window_bytes"),
+        "d1_probation_bytes": median_field(t1s, "d1_probation_bytes"),
+        "d1_protected_bytes": median_field(t1s, "d1_protected_bytes"),
+        "d1_metadata_bytes": median_field(t1s, "d1_metadata_bytes"),
+        "d1_cost_samples": median_field(t1s, "d1_cost_samples"),
+        "d1_cost_mean_ns": median_field(t1s, "d1_cost_mean_ns"),
+        "d1_cost_lcb_ns": median_field(t1s, "d1_cost_lcb_ns"),
         "n_runs": len(totals),
         "end_to_end_s": totals,
         "median_s": statistics.median(totals),

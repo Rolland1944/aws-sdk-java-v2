@@ -25,6 +25,8 @@ class RuntimeConfigAdaptiveTest {
     @AfterEach
     void clear() {
         System.clearProperty("track1.d1.adaptive");
+        System.clearProperty("track1.d1.fixed.capacity");
+        System.clearProperty("track1.d1.fixed.admission");
         System.clearProperty("track1.d1.cache.mib");
         System.clearProperty("track1.d1.hard.mib");
         System.clearProperty("track1.d1.coverage");
@@ -66,5 +68,15 @@ class RuntimeConfigAdaptiveTest {
         assertThat(cfg.d1Adaptive()).isFalse();
         assertThat(cfg.d1HardCacheBytes()).isEqualTo(2048L * 1024 * 1024);
         assertThat(cfg.globalCacheBytes()).isEqualTo(2048L * 1024 * 1024);
+    }
+
+    @Test
+    void adaptiveCanPinCapacityAndAdmissionIndependently() {
+        System.setProperty("track1.d1.adaptive", "true");
+        System.setProperty("track1.d1.fixed.capacity", "true");
+        System.setProperty("track1.d1.fixed.admission", "true");
+        RuntimeConfig cfg = RuntimeConfig.fromSystemProperties();
+        assertThat(cfg.d1FixedCapacity()).isTrue();
+        assertThat(cfg.d1FixedAdmission()).isTrue();
     }
 }

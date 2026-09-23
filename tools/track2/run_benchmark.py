@@ -138,6 +138,12 @@ def build_session(args, run_id, collector_dir, eventlog_dir):
             track1_d1_cache_mib=getattr(args, "track1_d1_cache_mib", 256),
             track1_d1_block_bytes=getattr(args, "track1_d1_block_bytes", None),
             track1_d1_adaptive=getattr(args, "track1_d1_adaptive", False),
+            track1_d1_fixed_capacity=getattr(args, "track1_d1_fixed_capacity", False),
+            track1_d1_fixed_admission=getattr(args, "track1_d1_fixed_admission", False),
+            track1_d1_profile=getattr(args, "track1_d1_profile", False),
+            track1_d1_zero_copy=getattr(args, "track1_d1_zero_copy", True),
+            track1_d1_doorkeeper=getattr(args, "track1_d1_doorkeeper", True),
+            track1_d1_shared_backing=getattr(args, "track1_d1_shared_backing", True),
             track1_d1_hard_mib=getattr(args, "track1_d1_hard_mib", None),
             track1_d1_coverage=getattr(args, "track1_d1_coverage", None),
             track1_d1_observe_gets=getattr(args, "track1_d1_observe_gets", None),
@@ -297,6 +303,18 @@ def main():
                     help="D1 cache block size in bytes (default 1 MiB)")
     ap.add_argument("--track1-d1-adaptive", action="store_true",
                     help="enable D1 soft controller (observe/track/bypass/shrink)")
+    ap.add_argument("--track1-d1-fixed-capacity", action="store_true",
+                    help="pin adaptive D1 soft target at the hard cache limit")
+    ap.add_argument("--track1-d1-fixed-admission", action="store_true",
+                    help="apply d1 admission bytes as a fixed filter in adaptive mode")
+    ap.add_argument("--track1-d1-profile", action="store_true",
+                    help="emit D1 local cache overhead counters")
+    ap.add_argument("--no-track1-d1-zero-copy", action="store_false", dest="track1_d1_zero_copy",
+                    help="materialize cache hits for A/B comparison")
+    ap.add_argument("--no-track1-d1-doorkeeper", action="store_false", dest="track1_d1_doorkeeper",
+                    help="tee first-touch adaptive requests for A/B comparison")
+    ap.add_argument("--no-track1-d1-shared-backing", action="store_false", dest="track1_d1_shared_backing",
+                    help="copy admitted request payloads for A/B comparison")
     ap.add_argument("--track1-d1-hard-mib", type=int, default=None,
                     help="D1 hard GlobalBudget cap in MiB when adaptive")
     ap.add_argument("--track1-d1-coverage", type=float, default=None,

@@ -50,6 +50,14 @@ public final class Track1S3aStats {
     private final AtomicLong teedBytes = new AtomicLong();
     private final AtomicLong gcTimeMs = new AtomicLong();
     private final AtomicLong gcCount = new AtomicLong();
+    private final AtomicLong cacheLookupNanos = new AtomicLong();
+    private final AtomicLong cacheHitCopyNanos = new AtomicLong();
+    private final AtomicLong cacheHitCopyBytes = new AtomicLong();
+    private final AtomicLong cacheStitchNanos = new AtomicLong();
+    private final AtomicLong cachePutNanos = new AtomicLong();
+    private final AtomicLong teeCopyNanos = new AtomicLong();
+    private final AtomicLong teeCopyBytes = new AtomicLong();
+    private final AtomicLong rejectedPayloadCopyBytes = new AtomicLong();
 
     public void cacheHit(long bytes) {
         cacheHits.incrementAndGet();
@@ -122,6 +130,38 @@ public final class Track1S3aStats {
         teedGets.incrementAndGet();
         if (bytes > 0) {
             teedBytes.addAndGet(bytes);
+        }
+    }
+
+    public void cacheLookup(long nanos) {
+        addNanos(cacheLookupNanos, nanos);
+    }
+
+    public void cacheHitCopy(long bytes, long nanos) {
+        if (bytes > 0) {
+            cacheHitCopyBytes.addAndGet(bytes);
+        }
+        addNanos(cacheHitCopyNanos, nanos);
+    }
+
+    public void cacheStitch(long nanos) {
+        addNanos(cacheStitchNanos, nanos);
+    }
+
+    public void cachePut(long nanos) {
+        addNanos(cachePutNanos, nanos);
+    }
+
+    public void teeCopy(long bytes, long nanos) {
+        if (bytes > 0) {
+            teeCopyBytes.addAndGet(bytes);
+        }
+        addNanos(teeCopyNanos, nanos);
+    }
+
+    public void rejectedPayloadCopy(long bytes) {
+        if (bytes > 0) {
+            rejectedPayloadCopyBytes.addAndGet(bytes);
         }
     }
 
@@ -221,6 +261,38 @@ public final class Track1S3aStats {
         return peakHeapBytes.get();
     }
 
+    public long cacheLookupNanos() {
+        return cacheLookupNanos.get();
+    }
+
+    public long cacheHitCopyNanos() {
+        return cacheHitCopyNanos.get();
+    }
+
+    public long cacheHitCopyBytes() {
+        return cacheHitCopyBytes.get();
+    }
+
+    public long cacheStitchNanos() {
+        return cacheStitchNanos.get();
+    }
+
+    public long cachePutNanos() {
+        return cachePutNanos.get();
+    }
+
+    public long teeCopyNanos() {
+        return teeCopyNanos.get();
+    }
+
+    public long teeCopyBytes() {
+        return teeCopyBytes.get();
+    }
+
+    public long rejectedPayloadCopyBytes() {
+        return rejectedPayloadCopyBytes.get();
+    }
+
     public void sampleHeap() {
         try {
             long used = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
@@ -287,6 +359,20 @@ public final class Track1S3aStats {
         gcTimeMs.set(0);
         gcCount.set(0);
         peakHeapBytes.set(0);
+        cacheLookupNanos.set(0);
+        cacheHitCopyNanos.set(0);
+        cacheHitCopyBytes.set(0);
+        cacheStitchNanos.set(0);
+        cachePutNanos.set(0);
+        teeCopyNanos.set(0);
+        teeCopyBytes.set(0);
+        rejectedPayloadCopyBytes.set(0);
+    }
+
+    private static void addNanos(AtomicLong target, long nanos) {
+        if (nanos > 0) {
+            target.addAndGet(nanos);
+        }
     }
 
     private static void updateMax(AtomicLong target, long value) {

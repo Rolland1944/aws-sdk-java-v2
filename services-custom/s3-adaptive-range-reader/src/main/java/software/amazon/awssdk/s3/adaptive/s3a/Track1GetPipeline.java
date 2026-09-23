@@ -76,11 +76,11 @@ public final class Track1GetPipeline {
                 Track1RangeCache.Hit hit = runtime.cache().tryHit(request, start, endExclusive);
                 if (hit != null) {
                     runtime.controller().observe(objectId, start, length);
-                    runtime.stats().cacheHit(hit.bytes.length);
+                    runtime.stats().cacheHit(hit.length);
                     GetObjectResponse meta = hit.eTag == null
                         ? null
                         : GetObjectResponse.builder().eTag(hit.eTag).build();
-                    return synthetic(hit.bytes, meta);
+                    return synthetic(hit.stream, hit.length, meta);
                 }
                 // Observe after the admit check so "seen before" excludes this miss.
                 if (!runtime.controller().admit(objectId, start, length)) {
@@ -90,6 +90,10 @@ public final class Track1GetPipeline {
                 }
                 runtime.controller().observe(objectId, start, length);
                 runtime.stats().cacheMiss();
+                if (cfg.d1Adaptive() && cfg.d1Doorkeeper()
+                    && !runtime.appCache().seenByDoorkeeper(objectId, start)) {
+                    return openTiming(sync, request, length);
+                }
             } else if (!cfg.d2Enabled() || runtime.asyncClient() == null) {
                 return null;
             }
@@ -139,10 +143,22 @@ public final class Track1GetPipeline {
         }
         runtime.stats().remoteGet();
         runtime.stats().teedGet(length);
+        long setupStart = System.nanoTime();
         ResponseInputStream<GetObjectResponse> in = sync.getObject(request);
+        long setupNanos = System.nanoTime() - setupStart;
         return new ResponseInputStream<GetObjectResponse>(
             in.response(),
-            new CachingTeeStream(in, request, in.response(), start, (int) length));
+            new CachingTeeStream(in, request, in.response(), start, (int) length, setupNanos));
+    }
+
+    private ResponseInputStream<GetObjectResponse> openTiming(S3Client sync, GetObjectRequest request,
+                                                              long length) throws IOException {
+        runtime.stats().remoteGet();
+        long setupStart = System.nanoTime();
+        ResponseInputStream<GetObjectResponse> in = sync.getObject(request);
+        long setupNanos = System.nanoTime() - setupStart;
+        return new ResponseInputStream<GetObjectResponse>(
+            in.response(), new TimingStream(in, Math.max(0L, length), setupNanos));
     }
 
     private static ResponseInputStream<GetObjectResponse> synthetic(byte[] data,
@@ -150,6 +166,13 @@ public final class Track1GetPipeline {
         GetObjectResponse.Builder b = meta == null ? GetObjectResponse.builder() : meta.toBuilder();
         GetObjectResponse response = b.contentLength((long) data.length).build();
         return new ResponseInputStream<GetObjectResponse>(response, new ByteArrayInputStream(data));
+    }
+
+    private static ResponseInputStream<GetObjectResponse> synthetic(InputStream stream, long length,
+                                                                    GetObjectResponse meta) {
+        GetObjectResponse.Builder b = meta == null ? GetObjectResponse.builder() : meta.toBuilder();
+        GetObjectResponse response = b.contentLength(length).build();
+        return new ResponseInputStream<GetObjectResponse>(response, stream);
     }
 
     private static boolean isServiceError(Throwable t) {
@@ -178,24 +201,28 @@ public final class Track1GetPipeline {
         private final GetObjectResponse response;
         private final long start;
         private final byte[] buf;
-        private final long t0 = System.nanoTime();
+        private final long setupNanos;
+        private long readBlockedNanos;
         private int filled;
         private boolean published;
 
         CachingTeeStream(InputStream in, GetObjectRequest request, GetObjectResponse response,
-                         long start, int length) {
+                         long start, int length, long setupNanos) {
             super(in);
             this.request = request;
             this.response = response;
             this.start = start;
             this.buf = new byte[length];
+            this.setupNanos = Math.max(0L, setupNanos);
         }
 
         @Override
         public int read() throws IOException {
+            long t0 = System.nanoTime();
             int b = in.read();
+            readBlockedNanos += Math.max(0L, System.nanoTime() - t0);
             if (b >= 0) {
-                accept(new byte[] {(byte) b}, 0, 1);
+                acceptByte((byte) b);
             } else {
                 publishIfComplete();
             }
@@ -204,7 +231,9 @@ public final class Track1GetPipeline {
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
+            long t0 = System.nanoTime();
             int n = in.read(b, off, len);
+            readBlockedNanos += Math.max(0L, System.nanoTime() - t0);
             if (n > 0) {
                 accept(b, off, n);
             } else {
@@ -228,8 +257,26 @@ public final class Track1GetPipeline {
                 return;
             }
             int copy = Math.min(room, n);
+            long copyStart = runtime.config().d1Profile() ? System.nanoTime() : 0L;
             System.arraycopy(src, off, buf, filled, copy);
+            if (runtime.config().d1Profile()) {
+                runtime.stats().teeCopy(copy, System.nanoTime() - copyStart);
+            }
             filled += copy;
+            if (filled == buf.length) {
+                publishIfComplete();
+            }
+        }
+
+        private void acceptByte(byte value) {
+            if (filled >= buf.length) {
+                return;
+            }
+            long copyStart = runtime.config().d1Profile() ? System.nanoTime() : 0L;
+            buf[filled++] = value;
+            if (runtime.config().d1Profile()) {
+                runtime.stats().teeCopy(1L, System.nanoTime() - copyStart);
+            }
             if (filled == buf.length) {
                 publishIfComplete();
             }
@@ -241,7 +288,62 @@ public final class Track1GetPipeline {
             }
             published = true;
             runtime.cache().put(request, response, start, buf);
-            runtime.link().record(buf.length, System.nanoTime() - t0);
+            long remoteNanos = setupNanos + readBlockedNanos;
+            runtime.appCache().recordRemoteCost(buf.length, remoteNanos);
+            runtime.link().record(buf.length, remoteNanos);
+        }
+    }
+
+    private final class TimingStream extends FilterInputStream {
+        private final long bytes;
+        private final long setupNanos;
+        private long readBlockedNanos;
+        private boolean recorded;
+
+        TimingStream(InputStream in, long bytes, long setupNanos) {
+            super(in);
+            this.bytes = bytes;
+            this.setupNanos = setupNanos;
+        }
+
+        @Override
+        public int read() throws IOException {
+            long start = System.nanoTime();
+            int value = in.read();
+            readBlockedNanos += Math.max(0L, System.nanoTime() - start);
+            if (value < 0) {
+                record();
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] bytes, int offset, int length) throws IOException {
+            long start = System.nanoTime();
+            int read = in.read(bytes, offset, length);
+            readBlockedNanos += Math.max(0L, System.nanoTime() - start);
+            if (read < 0) {
+                record();
+            }
+            return read;
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                record();
+            } finally {
+                in.close();
+            }
+        }
+
+        private void record() {
+            if (!recorded && bytes > 0L) {
+                recorded = true;
+                long remoteNanos = setupNanos + readBlockedNanos;
+                runtime.appCache().recordRemoteCost(bytes, remoteNanos);
+                runtime.link().record(bytes, remoteNanos);
+            }
         }
     }
 }

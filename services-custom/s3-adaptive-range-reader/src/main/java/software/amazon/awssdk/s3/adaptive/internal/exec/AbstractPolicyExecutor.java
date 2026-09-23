@@ -67,7 +67,7 @@ public abstract class AbstractPolicyExecutor implements PolicyExecutor {
 
         CachedBlock hit = cache.findCovering(position, reqEnd);
         if (hit != null) {
-            System.arraycopy(hit.data(), (int) (position - hit.start()), dst, dstOffset, length);
+            System.arraycopy(hit.data(), hit.dataOffset() + (int) (position - hit.start()), dst, dstOffset, length);
             metrics.recordCacheHitRead(length);
             return length;
         }

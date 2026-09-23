@@ -139,4 +139,103 @@ class AppCacheTest {
         assertThat(cache.cachedBytes()).isEqualTo(0);
         assertThat(cache.findCovering("o", 0, 200)).isNull();
     }
+
+    @Test
+    void wtinyLfuProtectsHitBlocksFromWindowChurn() {
+        AppCache cache = cache(300);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        cache.put("o", 0, bytes(100));
+        assertThat(cache.findCovering("o", 0, 100)).isNotNull();
+
+        cache.put("o", 100, bytes(100));
+        cache.put("o", 200, bytes(100));
+        cache.put("o", 300, bytes(100));
+
+        assertThat(cache.cachedBytes()).isEqualTo(300);
+        assertThat(cache.protectedBytes()).isEqualTo(100);
+        assertThat(cache.findCovering("o", 0, 100)).isNotNull();
+        assertThat(cache.evictedBlocks()).isEqualTo(1);
+    }
+
+    @Test
+    void wtinyLfuRecordsGhostHitsForEvictedBlocks() {
+        AppCache cache = cache(200);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        cache.put("o", 0, bytes(100));
+        cache.put("o", 100, bytes(100));
+        cache.put("o", 200, bytes(100));
+        assertThat(cache.evictedBlocks()).isEqualTo(1);
+
+        cache.put("o", 0, bytes(100));
+
+        assertThat(cache.ghostHits()).isEqualTo(1);
+        assertThat(cache.evictionGhostHits()).isEqualTo(1);
+        assertThat(cache.rejectGhostHits()).isEqualTo(0);
+    }
+
+    @Test
+    void rejectedCandidateDoesNotChangeCacheOrEvictProtected() {
+        AppCache cache = cache(300);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        assertThat(cache.put("o", 0, bytes(100))).isTrue();
+        assertThat(cache.put("o", 100, bytes(100))).isTrue();
+        for (int i = 0; i < 8; i++) {
+            cache.findCovering("o", 0, 100);
+            cache.findCovering("o", 100, 200);
+        }
+        assertThat(cache.put("o", 200, bytes(100))).isTrue();
+        assertThat(cache.put("o", 300, bytes(100))).isTrue();
+        cache.findCovering("o", 300, 400);
+
+        long before = cache.cachedBytes();
+        long evicted = cache.evictedBlocks();
+        assertThat(cache.put("o", 400, bytes(100))).isFalse();
+        assertThat(cache.put("o", 400, bytes(100))).isFalse();
+
+        assertThat(cache.cachedBytes()).isEqualTo(before);
+        assertThat(cache.evictedBlocks()).isEqualTo(evicted);
+        assertThat(cache.findCovering("o", 0, 100)).isNotNull();
+        assertThat(cache.findCovering("o", 100, 200)).isNotNull();
+        assertThat(cache.rejectGhostHits()).isEqualTo(1);
+        assertThat(cache.evictionGhostHits()).isEqualTo(0);
+        assertThat(cache.lastVictimCount()).isGreaterThan(0);
+    }
+
+    @Test
+    void admittedCandidateEvictsTheComparedVictimSet() {
+        AppCache cache = cache(200);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        assertThat(cache.put("o", 0, bytes(100))).isTrue();
+        assertThat(cache.put("o", 100, bytes(100))).isTrue();
+        assertThat(cache.put("o", 200, bytes(100))).isTrue();
+
+        assertThat(cache.evictedBlocks()).isEqualTo(1);
+        assertThat(cache.cachedBytes()).isEqualTo(200);
+        assertThat(cache.findCovering("o", 0, 100)).isNull();
+        assertThat(cache.findCovering("o", 200, 300)).isNotNull();
+        assertThat(cache.lastVictimCount()).isEqualTo(1);
+    }
+
+    @Test
+    void multiBlockRequestIsAllOrNothing() {
+        AppCache cache = cache(300);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        assertThat(cache.put("o", 0, bytes(100))).isTrue();
+        assertThat(cache.put("o", 100, bytes(100))).isTrue();
+        for (int i = 0; i < 8; i++) {
+            cache.findCovering("o", 0, 100);
+            cache.findCovering("o", 100, 200);
+        }
+        assertThat(cache.put("o", 200, bytes(100))).isTrue();
+        assertThat(cache.put("o", 300, bytes(100))).isTrue();
+        cache.findCovering("o", 300, 400);
+
+        assertThat(cache.putRequest("o", 400, bytes(200), 100)).isFalse();
+        assertThat(cache.findCovering("o", 400, 500)).isNull();
+        assertThat(cache.findCovering("o", 500, 600)).isNull();
+        assertThat(cache.cachedBytes()).isEqualTo(300);
+
+        assertThat(cache.putRequest("o", 400, bytes(200), 100)).isFalse();
+        assertThat(cache.rejectRequestGhostHits()).isEqualTo(1);
+    }
 }

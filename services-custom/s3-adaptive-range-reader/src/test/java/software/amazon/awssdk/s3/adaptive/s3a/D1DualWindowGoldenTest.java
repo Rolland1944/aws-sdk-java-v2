@@ -26,8 +26,8 @@ import software.amazon.awssdk.s3.adaptive.internal.cache.AppCache;
 
 /**
  * Synthetic traces that stand in for the P3-0 SF1 / SF8 fixed points. Same
- * controller knobs on every vector: 256 KiB conservative admit, coverage 1.0,
- * 4 GiB horizon.
+ * controller knobs on every vector: policy-driven admission with a 256 KiB
+ * cold-start reference, coverage 1.0, 4 GiB horizon.
  */
 class D1DualWindowGoldenTest {
 
@@ -91,13 +91,13 @@ class D1DualWindowGoldenTest {
         assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
         assertThat(c.budgetWindow().reusableBytes()).isEqualTo(objects * range);
         assertThat(c.targetBudget()).isEqualTo(256L * MIB);
-        assertThat(c.admitMax()).isEqualTo(ADMIT);
+        assertThat(c.admitMax()).isEqualTo(8L * MIB);
         assertThat(c.admit("sf1-0", 0, range)).isTrue();
-        assertThat(c.admit("scan", 0, 4L * MIB)).isFalse();
+        assertThat(c.admit("scan", 0, 4L * MIB)).isTrue();
     }
 
     @Test
-    void sf8MultiObjectHotspotApproachesOneGibWithoutRaisingAdmit() {
+    void sf8TelemetryDoesNotGrowCapacityWithoutEvictionGhostEvidence() {
         AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
         D1SoftController c = controller(heap);
         long range = ADMIT;
@@ -110,30 +110,29 @@ class D1DualWindowGoldenTest {
         settle(c);
         assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
         assertThat(c.budgetWindow().reusableBytes()).isEqualTo(objects * range);
-        assertThat(c.targetBudget()).isGreaterThanOrEqualTo(512L * MIB);
-        assertThat(c.targetBudget()).isLessThanOrEqualTo(GIB);
-        assertThat(c.admitMax()).isEqualTo(ADMIT);
+        assertThat(c.targetBudget()).isEqualTo(256L * MIB);
+        assertThat(c.admitMax()).isEqualTo(8L * MIB);
         assertThat(c.admit("sf8-0", 0, range)).isTrue();
-        assertThat(c.admit("scan", 0, 4L * MIB)).isFalse();
+        assertThat(c.admit("scan", 0, 4L * MIB)).isTrue();
     }
 
     @Test
-    void pureScanBypassesAndStopsAdmission() {
+    void pureScanStaysTrackAndLeavesRejectionToPolicyLayer() {
         AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
         D1SoftController c = controller(heap);
         for (int i = 0; i < 64; i++) {
             c.observe("scan-" + i, 0, 4L * MIB);
         }
         settle(c);
-        assertThat(c.mode()).isEqualTo(D1SoftController.Mode.BYPASS);
-        assertThat(c.targetBudget()).isEqualTo(0);
+        assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
+        assertThat(c.targetBudget()).isEqualTo(256L * MIB);
         assertThat(c.budgetWindow().reusableBytes()).isEqualTo(0);
-        assertThat(c.admit("scan-0", 0, 4L * MIB)).isFalse();
-        assertThat(c.admit("tiny", 0, 1024)).isFalse();
+        assertThat(c.admit("scan-0", 0, 4L * MIB)).isTrue();
+        assertThat(c.admit("tiny", 0, 1024)).isTrue();
     }
 
     @Test
-    void mixKeepsHotspotBudgetAndRejectsScan() {
+    void mixKeepsHotspotTelemetryAndLeavesScanDecisionToPolicy() {
         AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
         D1SoftController c = controller(heap);
         for (int i = 0; i < 40; i++) {
@@ -148,9 +147,9 @@ class D1DualWindowGoldenTest {
         assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
         assertThat(c.budgetWindow().reusableBytes()).isEqualTo(30L * 128L * KIB);
         assertThat(c.admissionWindow().pollution()).isGreaterThan(0.5);
-        assertThat(c.admitMax()).isEqualTo(ADMIT);
+        assertThat(c.admitMax()).isEqualTo(8L * MIB);
         assertThat(c.admit("hot-0", 0, 128L * KIB)).isTrue();
-        assertThat(c.admit("scan-0", 0, 4L * MIB)).isFalse();
+        assertThat(c.admit("scan-0", 0, 4L * MIB)).isTrue();
     }
 
     @Test
@@ -173,14 +172,14 @@ class D1DualWindowGoldenTest {
     }
 
     @Test
-    void recoverFromScanBypassWhenHotspotAppears() {
+    void scanDoesNotPreventLaterHotspotAdmission() {
         AtomicReference<Double> heap = new AtomicReference<Double>(0.2);
         D1SoftController c = controller(heap);
         for (int i = 0; i < 16; i++) {
             c.observe("scan-" + i, 0, 4L * MIB);
         }
         settle(c);
-        assertThat(c.mode()).isEqualTo(D1SoftController.Mode.BYPASS);
+        assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
         for (int pass = 0; pass < 3; pass++) {
             for (int i = 0; i < 20; i++) {
                 c.observe("late-hot-" + i, 0, 128L * KIB);
@@ -188,7 +187,7 @@ class D1DualWindowGoldenTest {
         }
         settle(c);
         assertThat(c.mode()).isEqualTo(D1SoftController.Mode.TRACK);
-        assertThat(c.admitMax()).isEqualTo(ADMIT);
+        assertThat(c.admitMax()).isEqualTo(8L * MIB);
         assertThat(c.targetBudget()).isGreaterThan(0);
         assertThat(c.admit("late-hot-0", 0, 128L * KIB)).isTrue();
     }

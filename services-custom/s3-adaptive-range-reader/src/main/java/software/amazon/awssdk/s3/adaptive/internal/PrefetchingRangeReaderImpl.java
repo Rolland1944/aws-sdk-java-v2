@@ -118,7 +118,7 @@ public final class PrefetchingRangeReaderImpl extends AbstractRangeReader {
 
         CachedBlock hit = cache.findCovering(objectId, position, reqEnd);
         if (hit != null) {
-            System.arraycopy(hit.data(), (int) (position - hit.start()), dst, offset, length);
+            System.arraycopy(hit.data(), hit.dataOffset() + (int) (position - hit.start()), dst, offset, length);
             metrics.recordCacheHitRead(length);
             if (prefetcher.wasPrefetched(hit.start())) {
                 metrics.recordPrefetchUseful(length);

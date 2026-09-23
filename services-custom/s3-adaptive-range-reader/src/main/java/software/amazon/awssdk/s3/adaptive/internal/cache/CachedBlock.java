@@ -18,18 +18,29 @@ package software.amazon.awssdk.s3.adaptive.internal.cache;
 import software.amazon.awssdk.annotations.SdkInternalApi;
 
 /**
- * A contiguous cached byte range for one object version: {@code data} holds the bytes for
- * {@code [start, start + data.length)}.
+ * A contiguous immutable slice for one object version. A slice may share a
+ * backing array with adjacent pieces of the same original request.
  */
 @SdkInternalApi
 public final class CachedBlock {
 
     private final long start;
     private final byte[] data;
+    private final int offset;
+    private final int length;
 
     public CachedBlock(long start, byte[] data) {
+        this(start, data, 0, data == null ? 0 : data.length);
+    }
+
+    public CachedBlock(long start, byte[] data, int offset, int length) {
+        if (data == null || offset < 0 || length < 0 || offset + length > data.length) {
+            throw new IllegalArgumentException("invalid cached block slice");
+        }
         this.start = start;
         this.data = data;
+        this.offset = offset;
+        this.length = length;
     }
 
     public long start() {
@@ -37,11 +48,11 @@ public final class CachedBlock {
     }
 
     public long end() {
-        return start + data.length;
+        return start + length;
     }
 
     public int length() {
-        return data.length;
+        return length;
     }
 
     /**
@@ -49,5 +60,12 @@ public final class CachedBlock {
      */
     public byte[] data() {
         return data;
+    }
+
+    /**
+     * Offset of this logical block in {@link #data()}.
+     */
+    public int dataOffset() {
+        return offset;
     }
 }

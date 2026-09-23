@@ -62,6 +62,14 @@ public final class D1SoftController {
     private final AtomicLong shrinks = new AtomicLong();
     private final AtomicLong bypassDecisions = new AtomicLong();
     private final AtomicInteger hold = new AtomicInteger();
+    private long lastEvictionGhostHits;
+    private long lastRejectGhostHits;
+    private long lastRejectRequestGhostHits;
+    private int evictionGrowthStreak;
+    private int rejectGrowthStreak;
+    private int shrinkCooldown;
+    private int quietTicks;
+    private String capacityReason = "init";
     private volatile Mode mode = Mode.OBSERVE;
     private volatile long targetBudget;
     private volatile long admitMax;
@@ -92,7 +100,13 @@ public final class D1SoftController {
         this.targetBudget = config.d1ObserveBudgetBytes();
         this.admitMax = this.conservativeAdmit;
         if (config.d1Adaptive()) {
+            if (config.d1FixedCapacity()) {
+                this.targetBudget = config.d1HardCacheBytes();
+                this.mode = Mode.TRACK;
+                this.capacityReason = "fixed-capacity";
+            }
             cache.setSoftCapacity(this.targetBudget);
+            this.admitMax = livePhysicalAdmitLimit();
         }
     }
 
@@ -101,7 +115,7 @@ public final class D1SoftController {
         // Budget telemetry follows the conservative filter, not the live
         // admitMax. Bypass sets admitMax=0 but must still see later reuse
         // or the controller can never leave BYPASS.
-        if (length > 0L && length <= conservativeAdmit) {
+        if (length > 0L && (!config.d1Adaptive() || length <= config.maxSingleFetchBytes())) {
             budget.observe(objectId, start, length);
         }
         long n = observations.incrementAndGet();
@@ -127,8 +141,14 @@ public final class D1SoftController {
         if (mode == Mode.BYPASS || targetBudget <= 0L) {
             return false;
         }
-        if (length > admitMax) {
+        if (config.d1FixedAdmission()) {
+            return config.d1Admissible(length);
+        }
+        if (length > livePhysicalAdmitLimit()) {
             return false;
+        }
+        if (config.d1Adaptive()) {
+            return true;
         }
         if (mode == Mode.TRACK && budget.reusableBytes() > targetBudget
             && !budget.seenBefore(objectId, start, length)) {
@@ -140,9 +160,21 @@ public final class D1SoftController {
     public synchronized void tick() {
         double ratio = heap.usedRatio();
         lastHeapRatio = ratio;
+        if (config.d1Adaptive() && config.d1FixedCapacity()) {
+            enter(Mode.TRACK);
+            capacityReason = "fixed-capacity";
+            admitMax = livePhysicalAdmitLimit();
+            return;
+        }
         if (ratio >= 0 && ratio >= config.d1HeapHigh()) {
             enter(Mode.SHRINK);
             setTarget(Math.max(config.d1MinBudgetBytes(), targetBudget / 2));
+            shrinkCooldown = 8;
+            evictionGrowthStreak = 0;
+            rejectGrowthStreak = 0;
+            lastEvictionGhostHits = cache.evictionGhostHits();
+            lastRejectRequestGhostHits = cache.rejectRequestGhostHits();
+            capacityReason = "heap-shrink";
             shrinks.incrementAndGet();
             return;
         }
@@ -158,25 +190,75 @@ public final class D1SoftController {
             return;
         }
         long reusable = budget.reusableBytes();
+        enter(Mode.TRACK);
+        if (config.d1Adaptive()) {
+            long evictHits = cache.evictionGhostHits();
+            long rejectHits = cache.rejectGhostHits();
+            long rejectRequestHits = cache.rejectRequestGhostHits();
+            long evictDelta = evictHits - lastEvictionGhostHits;
+            long rejectDelta = rejectHits - lastRejectGhostHits;
+            long rejectRequestDelta = rejectRequestHits - lastRejectRequestGhostHits;
+            lastEvictionGhostHits = evictHits;
+            lastRejectGhostHits = rejectHits;
+            lastRejectRequestGhostHits = rejectRequestHits;
+            admitMax = livePhysicalAdmitLimit();
+            if (shrinkCooldown > 0) {
+                shrinkCooldown--;
+                evictionGrowthStreak = 0;
+                rejectGrowthStreak = 0;
+                capacityReason = "cooldown";
+                return;
+            }
+            if (evictDelta > 0) {
+                quietTicks = 0;
+                evictionGrowthStreak++;
+                rejectGrowthStreak = 0;
+                if (evictionGrowthStreak >= 2) {
+                    long grown = Math.max(targetBudget + 1L,
+                                          targetBudget + Math.max(config.d1MinBudgetBytes(), targetBudget / 4));
+                    setTarget(Math.min(config.d1HardCacheBytes(), grown));
+                    evictionGrowthStreak = 0;
+                    capacityReason = "eviction-ghost-grow";
+                } else {
+                    capacityReason = "eviction-ghost-wait";
+                }
+            } else if (isCapacityConstrainedReject(rejectRequestDelta)) {
+                quietTicks = 0;
+                evictionGrowthStreak = 0;
+                rejectGrowthStreak++;
+                if (rejectGrowthStreak >= 2) {
+                    growOneStep();
+                    rejectGrowthStreak = 0;
+                    capacityReason = "reject-counterfactual-grow";
+                } else {
+                    capacityReason = "reject-counterfactual-wait";
+                }
+            } else {
+                evictionGrowthStreak = 0;
+                rejectGrowthStreak = 0;
+                capacityReason = rejectDelta > 0 ? "reject-ghost-ignored" : "hold";
+                quietTicks++;
+                if (quietTicks >= 64 && cache.cachedBytes() > 0 && targetBudget > config.d1MinBudgetBytes()
+                    && cache.cachedBytes() < targetBudget / 2) {
+                    setTarget(Math.max(config.d1MinBudgetBytes(),
+                                       targetBudget - Math.max(config.d1MinBudgetBytes(), targetBudget / 8)));
+                    quietTicks = 0;
+                    capacityReason = "quiet-shrink";
+                }
+            }
+            return;
+        }
         if (reusable <= 0) {
             enter(Mode.BYPASS);
             setTarget(0);
             bypassDecisions.incrementAndGet();
             return;
         }
-        enter(Mode.TRACK);
         long desired = (long) (config.d1TargetCoverage() * reusable);
         desired = clamp(config.d1MinBudgetBytes(), desired, config.d1HardCacheBytes());
-        // Grow toward coverage × R_admit. Do not shrink on a lagging
-        // estimate: P3-0 SF1 already fits in the 256 MiB observe budget,
-        // and shrinking there evicted hits that fixed `100` kept. Heap
-        // and BYPASS remain the only downward paths.
         if (desired > targetBudget) {
             setTarget(rateLimit(targetBudget, desired));
         }
-        // Admission is a filter, not a function of spare budget. First cut
-        // stays on the conservative 256 KiB start; p90 of all-range reuse
-        // must not lift the cap when scans happen to repeat.
         admitMax = conservativeAdmit;
     }
 
@@ -237,7 +319,9 @@ public final class D1SoftController {
             + ",\"d1_heap_ratio\":" + lastHeapRatio
             + ",\"d1_observations\":" + observations.get()
             + ",\"d1_shrinks\":" + shrinks.get()
-            + ",\"d1_bypasses\":" + bypassDecisions.get();
+            + ",\"d1_bypasses\":" + bypassDecisions.get()
+            + ",\"d1_capacity_reason\":\"" + capacityReason + "\""
+            + ",\"d1_shrink_cooldown\":" + shrinkCooldown;
     }
 
     private void enter(Mode next) {
@@ -253,14 +337,36 @@ public final class D1SoftController {
         if (targetBudget == 0L) {
             admitMax = 0L;
         } else if (admitMax <= 0L) {
-            admitMax = conservativeAdmit;
+            admitMax = livePhysicalAdmitLimit();
         }
+    }
+
+    private boolean isCapacityConstrainedReject(long rejectRequestDelta) {
+        return rejectRequestDelta > 0
+               && cache.cachedBytes() >= targetBudget * 3L / 4L
+               && cache.protectedBytes() >= targetBudget / 4L;
+    }
+
+    private void growOneStep() {
+        long grown = Math.max(targetBudget + 1L,
+                              targetBudget + Math.max(config.d1MinBudgetBytes(), targetBudget / 4));
+        setTarget(Math.min(config.d1HardCacheBytes(), grown));
     }
 
     private void fallbackConservative() {
         enter(Mode.OBSERVE);
-        admitMax = conservativeAdmit;
         setTarget(Math.min(FALLBACK_BUDGET, config.d1HardCacheBytes()));
+        admitMax = livePhysicalAdmitLimit();
+    }
+
+    private long livePhysicalAdmitLimit() {
+        if (mode == Mode.BYPASS || targetBudget <= 0L) {
+            return 0L;
+        }
+        if (config.d1Adaptive()) {
+            return Math.min(config.maxSingleFetchBytes(), config.d1HardCacheBytes());
+        }
+        return conservativeAdmit;
     }
 
     private static WorkingSetWindow newWindow(RuntimeConfig config) {

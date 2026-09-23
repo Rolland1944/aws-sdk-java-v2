@@ -61,8 +61,12 @@ public final class Track1S3aRuntime {
         GlobalBudget budget = new GlobalBudget(config.globalCacheBytes());
         AppBudgetLease lease = new AppBudgetLease(budget, APP);
         this.appCache = new AppCache(lease);
+        if (config.d1Adaptive()) {
+            this.appCache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
+        }
         budget.register(APP, config.perAppReservedBytes(), appCache);
-        this.cache = new Track1RangeCache(appCache, config.d1BlockBytes());
+        this.cache = new Track1RangeCache(appCache, config.d1BlockBytes(), stats, config.d1Profile(),
+                                           config.d1ZeroCopy(), config.d1SharedBacking());
         this.controller = new D1SoftController(config, appCache);
         this.link = new LinkEstimator(config.maxSingleFetchBytes());
         ConcurrencyLimiter concurrency = new ConcurrencyLimiter(config.maxConcurrentGets());
@@ -188,6 +192,17 @@ public final class Track1S3aRuntime {
             + ",\"peak_cached_bytes\":" + appCache.peakCachedBytes()
             + ",\"evicted_bytes\":" + appCache.evictedBytes()
             + ",\"evicted_blocks\":" + appCache.evictedBlocks()
+            + ",\"d1_admitted_blocks\":" + appCache.admittedBlocks()
+            + ",\"d1_rejected_blocks\":" + appCache.rejectedBlocks()
+            + ",\"d1_ghost_hits\":" + appCache.evictionGhostHits()
+            + ",\"d1_reject_ghost_hits\":" + appCache.rejectGhostHits()
+            + ",\"d1_reject_request_ghost_hits\":" + appCache.rejectRequestGhostHits()
+            + ",\"d1_eviction_ghost_hits\":" + appCache.evictionGhostHits()
+            + ",\"d1_victim_plan_count\":" + appCache.lastVictimCount()
+            + ",\"d1_window_bytes\":" + appCache.windowBytes()
+            + ",\"d1_probation_bytes\":" + appCache.probationBytes()
+            + ",\"d1_protected_bytes\":" + appCache.protectedBytes()
+            + ",\"d1_metadata_bytes\":" + appCache.sketchBytes()
             + ",\"remote_gets\":" + stats.remoteGets()
             + ",\"merged_gets\":" + stats.mergedGets()
             + ",\"merged_members\":" + stats.mergedMembers()
@@ -208,6 +223,18 @@ public final class Track1S3aRuntime {
             + ",\"admit_rejected\":" + stats.admitRejected()
             + ",\"teed_gets\":" + stats.teedGets()
             + ",\"teed_bytes\":" + stats.teedBytes()
+            + ",\"d1_profile\":" + config.d1Profile()
+            + ",\"d1_zero_copy\":" + config.d1ZeroCopy()
+            + ",\"d1_doorkeeper\":" + config.d1Doorkeeper()
+            + ",\"d1_shared_backing\":" + config.d1SharedBacking()
+            + ",\"d1_cache_lookup_ns\":" + stats.cacheLookupNanos()
+            + ",\"d1_cache_hit_copy_ns\":" + stats.cacheHitCopyNanos()
+            + ",\"d1_cache_hit_copy_bytes\":" + stats.cacheHitCopyBytes()
+            + ",\"d1_cache_stitch_ns\":" + stats.cacheStitchNanos()
+            + ",\"d1_cache_put_ns\":" + stats.cachePutNanos()
+            + ",\"d1_tee_copy_ns\":" + stats.teeCopyNanos()
+            + ",\"d1_tee_copy_bytes\":" + stats.teeCopyBytes()
+            + ",\"d1_rejected_payload_copy_bytes\":" + stats.rejectedPayloadCopyBytes()
             + ",\"gc_ms\":" + stats.gcTimeMs()
             + ",\"gc_count\":" + stats.gcCount()
             + ",\"peak_heap_bytes\":" + stats.peakHeapBytes()
@@ -215,6 +242,8 @@ public final class Track1S3aRuntime {
             + ",\"link_samples\":" + link.samples()
             + ",\"rtt_ns\":" + (long) link.rttNanos()
             + ",\"bw_bps\":" + (long) link.bwBytesPerSec()
+            + "," + appCache.remoteCostSnapshotFragment()
+            + "," + appCache.requestSizeFragment()
             + "}";
         writeSnapshot(json);
         return json;

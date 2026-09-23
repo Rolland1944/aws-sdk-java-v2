@@ -39,6 +39,12 @@ public final class RuntimeConfig {
     private final long d1BlockBytes;
     private final long d1AdmitMaxBytes;
     private final boolean d1Adaptive;
+    private final boolean d1FixedCapacity;
+    private final boolean d1FixedAdmission;
+    private final boolean d1Profile;
+    private final boolean d1ZeroCopy;
+    private final boolean d1Doorkeeper;
+    private final boolean d1SharedBacking;
     private final long d1HardCacheBytes;
     private final long d1ObserveBudgetBytes;
     private final long d1MinBudgetBytes;
@@ -65,6 +71,12 @@ public final class RuntimeConfig {
         this.d1BlockBytes = Math.max(1L, b.d1BlockBytes);
         this.d1AdmitMaxBytes = Math.max(0L, b.d1AdmitMaxBytes);
         this.d1Adaptive = b.d1Adaptive;
+        this.d1FixedCapacity = b.d1FixedCapacity;
+        this.d1FixedAdmission = b.d1FixedAdmission;
+        this.d1Profile = b.d1Profile;
+        this.d1ZeroCopy = b.d1ZeroCopy;
+        this.d1Doorkeeper = b.d1Doorkeeper;
+        this.d1SharedBacking = b.d1SharedBacking;
         this.d1HardCacheBytes = Math.max(1L, b.d1HardCacheBytes);
         this.d1ObserveBudgetBytes = Math.max(0L, b.d1ObserveBudgetBytes);
         this.d1MinBudgetBytes = Math.max(0L, b.d1MinBudgetBytes);
@@ -145,6 +157,34 @@ public final class RuntimeConfig {
         return d1Adaptive;
     }
 
+    /**
+     * Keep the adaptive admission/replacement policy while pinning the soft
+     * target at the deployment hard cache limit for an ablation run.
+     */
+    public boolean d1FixedCapacity() {
+        return d1FixedCapacity;
+    }
+
+    public boolean d1FixedAdmission() {
+        return d1FixedAdmission;
+    }
+
+    public boolean d1Profile() {
+        return d1Profile;
+    }
+
+    public boolean d1ZeroCopy() {
+        return d1ZeroCopy;
+    }
+
+    public boolean d1Doorkeeper() {
+        return d1Doorkeeper;
+    }
+
+    public boolean d1SharedBacking() {
+        return d1SharedBacking;
+    }
+
     public long d1HardCacheBytes() {
         return d1HardCacheBytes;
     }
@@ -199,6 +239,12 @@ public final class RuntimeConfig {
         b.d1AdmitMaxBytes(longProp("track1.d1.admit.bytes", 256L * 1024));
         boolean adaptive = boolProp("track1.d1.adaptive", false);
         b.d1Adaptive(adaptive);
+        b.d1FixedCapacity(boolProp("track1.d1.fixed.capacity", false));
+        b.d1FixedAdmission(boolProp("track1.d1.fixed.admission", false));
+        b.d1Profile(boolProp("track1.d1.profile", false));
+        b.d1ZeroCopy(boolProp("track1.d1.zero.copy", true));
+        b.d1Doorkeeper(boolProp("track1.d1.doorkeeper", true));
+        b.d1SharedBacking(boolProp("track1.d1.shared.backing", true));
         long cacheMiB = longProp("track1.d1.cache.mib", 256L);
         long observeBytes = Math.max(0L, cacheMiB) * 1024L * 1024L;
         b.d1ObserveBudgetBytes(observeBytes);
@@ -295,6 +341,12 @@ public final class RuntimeConfig {
         private long d1BlockBytes = 1024L * 1024;
         private long d1AdmitMaxBytes = 256L * 1024;
         private boolean d1Adaptive;
+        private boolean d1FixedCapacity;
+        private boolean d1FixedAdmission;
+        private boolean d1Profile;
+        private boolean d1ZeroCopy = true;
+        private boolean d1Doorkeeper = true;
+        private boolean d1SharedBacking = true;
         private long d1HardCacheBytes = 256L * 1024 * 1024;
         private long d1ObserveBudgetBytes = 256L * 1024 * 1024;
         private long d1MinBudgetBytes = 16L * 1024 * 1024;
@@ -376,6 +428,36 @@ public final class RuntimeConfig {
 
         public Builder d1Adaptive(boolean d1Adaptive) {
             this.d1Adaptive = d1Adaptive;
+            return this;
+        }
+
+        public Builder d1FixedCapacity(boolean d1FixedCapacity) {
+            this.d1FixedCapacity = d1FixedCapacity;
+            return this;
+        }
+
+        public Builder d1FixedAdmission(boolean d1FixedAdmission) {
+            this.d1FixedAdmission = d1FixedAdmission;
+            return this;
+        }
+
+        public Builder d1Profile(boolean d1Profile) {
+            this.d1Profile = d1Profile;
+            return this;
+        }
+
+        public Builder d1ZeroCopy(boolean d1ZeroCopy) {
+            this.d1ZeroCopy = d1ZeroCopy;
+            return this;
+        }
+
+        public Builder d1Doorkeeper(boolean d1Doorkeeper) {
+            this.d1Doorkeeper = d1Doorkeeper;
+            return this;
+        }
+
+        public Builder d1SharedBacking(boolean d1SharedBacking) {
+            this.d1SharedBacking = d1SharedBacking;
             return this;
         }
 
