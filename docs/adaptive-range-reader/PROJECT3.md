@@ -586,8 +586,9 @@ S2 路径）在 D2 落地后应评估是否直接由「同步转异步」层取�
   和原子 victim plan，拒绝不复制 payload；相邻分块可共享不可变 backing；命中以 pinned
   composite stream 输出并在 close/abort 时释放。自适应首触使用 doorkeeper timing
   passthrough，避免一次性扫描申请完整缓存 buffer。新增可关闭的本地开销 counters 和
-  不参与排名的 overhead ledger。模块测试通过；SF1 云 smoke 因执行主机没有 `pyspark`
-  而未启动，故没有新的性能结论或 oracle 变更。
+  不参与排名的 overhead ledger。模块测试通过。（更正：当时「主机没有 `pyspark`」是误用了
+  系统 `python3`，仓库 `.venv` 中有 PySpark 4.1.0。）后续实测否决了 doorkeeper，定稿见
+  `FINAL_TRACK1+TRACK2.md`（2026-09-24）。
 - **2026-09-14**：**Track1 P0 — Spark/S3A 直连接入（passthrough only）**。
   - Hadoop 3.4.2 扩展点 `fs.s3a.s3.client.factory.impl` 接入
     `Track1S3ClientFactory`：委托 `DefaultS3ClientFactory` 建客户端后用 JDK

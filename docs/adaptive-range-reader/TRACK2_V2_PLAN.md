@@ -1,5 +1,7 @@
 # Track 2 v2：面向文件格式层的 Parquet 布局计划生成
 
+> **终稿已发布**：最终采用的 `joint2` 计划与 SF1/SF8 结果见 [`FINAL_TRACK1+TRACK2.md`](FINAL_TRACK1+TRACK2.md)。
+
 状态：现行方案（取代 v1 的四维布局建议）
 上游文档：[TRACK2_M0_CONTRACT.md](TRACK2_M0_CONTRACT.md) r5、[TRACK2_PROJECT.md](TRACK2_PROJECT.md)
 被取代：[track2_report_new.md](track2_report_new.md) 描述的 v1 架构（保留为历史记录）

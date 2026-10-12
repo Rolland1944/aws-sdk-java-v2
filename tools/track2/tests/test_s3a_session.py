@@ -45,6 +45,7 @@ class Track1FactorySwitch(unittest.TestCase):
         extra = built.conf["spark.driver.extraJavaOptions"]
         self.assertIn("track1.s3a.probe.dir", extra)
         self.assertIn("-Dtrack1.d1=false", extra)
+        self.assertIn("-Dtrack1.d1.doorkeeper=false", extra)
         self.assertIn("-Dtrack1.d2=false", extra)
         self.assertIn("-Dtrack1.d4=false", extra)
         self.assertEqual(built.conf["spark.executor.extraJavaOptions"], extra)

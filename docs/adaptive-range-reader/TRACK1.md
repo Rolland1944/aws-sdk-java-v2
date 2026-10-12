@@ -1,5 +1,8 @@
 # Track1：Spark/S3A 直连的读路径优化（D1 / D2 / D4）
 
+> **终稿已发布**：最终设计与 SF1/SF8 2×2 结果见 [`FINAL_TRACK1+TRACK2.md`](FINAL_TRACK1+TRACK2.md)。
+> 本文件保留为过程记录；§0 的「联合 oracle ~7%」是 P2 阶段结论，已被固定 4 GiB W-TinyLFU 方案更新。
+
 > **定位**：本文件是 Track1 的工作文档。Track2 负责改 Parquet 布局；Track1 负责在 SDK / S3A
 > 读路径上透明地做缓存、同步转异步和请求合并。二者共用同一套 ClickBench + 真实 S3 评测口径。
 > 创建：2026-09-14。对应实现批次：P0 接入 → P1 三维基础版 → P2 固定组合联合 oracle。
@@ -822,8 +825,12 @@ regime 外推，等 P3 数字落地后再排。§6.1 之后「继续调固定 Tr
 
 ## 10. 更新日志
 
-- **2026-09-22**：D1 本地缓存热路径改造完成本地验证，云上消融待具备 PySpark 的 benchmark
-  主机执行，不能将其计入任何 oracle 或墙钟结论。
+- **2026-09-24**：定稿。SF1/SF8 Track1 × Track2 2×2 网格（每格 5 轮）完成，最终方案为
+  joint2 + 固定 4 GiB W-TinyLFU（zero-copy + shared backing，doorkeeper 关闭），相对原始基线
+  SF1 −21.7%、SF8 −25.9%。doorkeeper 在 SF8 上多出约 2.2 万 GET，被否决。另记：09-22/23 的
+  首批 hotpath 运行因只执行 `mvn test`、未 `package`，实际加载的是旧 JAR，那些结果作废。
+  详见 `FINAL_TRACK1+TRACK2.md`。同日将 `track1.d1.doorkeeper` 的代码与 benchmark 默认值改为 false。
+- **2026-09-22**：D1 本地缓存热路径改造完成本地验证。
   - 请求分块改为 descriptor-first：准入比较和完整 victim plan 在 payload 拷贝前完成；被拒
     请求的 `d1_rejected_payload_copy_bytes` 应为 0。成功准入时可转移 tee/fetch buffer
     所有权，让相邻块引用同一 immutable backing；兼容 A/B 档仍可选择成功后复制。
@@ -836,8 +843,8 @@ regime 外推，等 P3 数字落地后再排。§6.1 之后「继续调固定 Tr
     bytes/nanos；`track1_overhead_ledger.py` 明确标记 `used_for_ranking=false`。
     临时消融档为 baseline / deferred-copy / zero-copy / full，可由
     `run_track1_p3.py --phase hotpath` 运行；`--cells` 可选 4GiB 档用于 SF8。
-  - 本地模块完整测试通过；本机尝试 SF1 smoke 时在创建 Spark 前失败：
-    `ModuleNotFoundError: pyspark`。因此没有新增 SF1/SF8 墙钟、GET 或远端字节结果。
+  - 本地模块完整测试通过。（更正：当时记录的 `ModuleNotFoundError: pyspark` 是误用了系统
+    `python3`；benchmark 一律使用仓库 `.venv/bin/python`，其中有 PySpark 4.1.0。）
 - **2026-09-21**：P3-1 双窗落地。`WorkingSetWindow` 按字节 horizon 滚动；
   admission / budget 分窗；`admit_max` 不随空预算上浮；coverage 默认 1.0；
   TRACK 只升不降。SF1 P3-2 smoke：`000` 329.9s / `100` 277.1s / online 280.8s，

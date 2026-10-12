@@ -142,7 +142,7 @@ def build_session(args, run_id, collector_dir, eventlog_dir):
             track1_d1_fixed_admission=getattr(args, "track1_d1_fixed_admission", False),
             track1_d1_profile=getattr(args, "track1_d1_profile", False),
             track1_d1_zero_copy=getattr(args, "track1_d1_zero_copy", True),
-            track1_d1_doorkeeper=getattr(args, "track1_d1_doorkeeper", True),
+            track1_d1_doorkeeper=getattr(args, "track1_d1_doorkeeper", False),
             track1_d1_shared_backing=getattr(args, "track1_d1_shared_backing", True),
             track1_d1_hard_mib=getattr(args, "track1_d1_hard_mib", None),
             track1_d1_coverage=getattr(args, "track1_d1_coverage", None),
@@ -311,8 +311,11 @@ def main():
                     help="emit D1 local cache overhead counters")
     ap.add_argument("--no-track1-d1-zero-copy", action="store_false", dest="track1_d1_zero_copy",
                     help="materialize cache hits for A/B comparison")
+    ap.add_argument("--track1-d1-doorkeeper", action="store_true",
+                    help="enable the first-touch doorkeeper (off by default)")
     ap.add_argument("--no-track1-d1-doorkeeper", action="store_false", dest="track1_d1_doorkeeper",
-                    help="tee first-touch adaptive requests for A/B comparison")
+                    default=False,
+                    help="disable the doorkeeper (already the default)")
     ap.add_argument("--no-track1-d1-shared-backing", action="store_false", dest="track1_d1_shared_backing",
                     help="copy admitted request payloads for A/B comparison")
     ap.add_argument("--track1-d1-hard-mib", type=int, default=None,

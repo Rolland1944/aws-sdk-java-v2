@@ -243,7 +243,7 @@ public final class RuntimeConfig {
         b.d1FixedAdmission(boolProp("track1.d1.fixed.admission", false));
         b.d1Profile(boolProp("track1.d1.profile", false));
         b.d1ZeroCopy(boolProp("track1.d1.zero.copy", true));
-        b.d1Doorkeeper(boolProp("track1.d1.doorkeeper", true));
+        b.d1Doorkeeper(boolProp("track1.d1.doorkeeper", false));
         b.d1SharedBacking(boolProp("track1.d1.shared.backing", true));
         long cacheMiB = longProp("track1.d1.cache.mib", 256L);
         long observeBytes = Math.max(0L, cacheMiB) * 1024L * 1024L;
@@ -345,7 +345,7 @@ public final class RuntimeConfig {
         private boolean d1FixedAdmission;
         private boolean d1Profile;
         private boolean d1ZeroCopy = true;
-        private boolean d1Doorkeeper = true;
+        private boolean d1Doorkeeper = false;
         private boolean d1SharedBacking = true;
         private long d1HardCacheBytes = 256L * 1024 * 1024;
         private long d1ObserveBudgetBytes = 256L * 1024 * 1024;

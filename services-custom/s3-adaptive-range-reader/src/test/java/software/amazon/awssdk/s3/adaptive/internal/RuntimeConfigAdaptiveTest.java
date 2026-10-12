@@ -34,6 +34,7 @@ class RuntimeConfigAdaptiveTest {
         System.clearProperty("track1.d1.observe.gets");
         System.clearProperty("track1.d1.horizon.mib");
         System.clearProperty("track1.d1.horizon.events");
+        System.clearProperty("track1.d1.doorkeeper");
     }
 
     @Test
@@ -78,5 +79,18 @@ class RuntimeConfigAdaptiveTest {
         RuntimeConfig cfg = RuntimeConfig.fromSystemProperties();
         assertThat(cfg.d1FixedCapacity()).isTrue();
         assertThat(cfg.d1FixedAdmission()).isTrue();
+    }
+
+    @Test
+    void doorkeeperDefaultsOff() {
+        RuntimeConfig cfg = RuntimeConfig.fromSystemProperties();
+        assertThat(cfg.d1Doorkeeper()).isFalse();
+        assertThat(RuntimeConfig.builder().build().d1Doorkeeper()).isFalse();
+    }
+
+    @Test
+    void doorkeeperCanBeEnabled() {
+        System.setProperty("track1.d1.doorkeeper", "true");
+        assertThat(RuntimeConfig.fromSystemProperties().d1Doorkeeper()).isTrue();
     }
 }

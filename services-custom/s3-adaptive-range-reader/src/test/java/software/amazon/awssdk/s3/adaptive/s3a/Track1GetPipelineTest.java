@@ -137,13 +137,33 @@ class Track1GetPipelineTest {
                                           .d1Adaptive(true)
                                           .d1AdmitMaxBytes(8)
                                           .d1ObserveGets(1000)
+                                          .d1Doorkeeper(false)
+                                          .build());
+        S3Client wrapped = wrap();
+        assertThat(read(wrapped, 0, 19)).isEqualTo("0123456789abcdefghij".getBytes());
+        assertThat(runtime.stats().admitRejected()).isZero();
+        assertThat(runtime.stats().teedGets()).isEqualTo(1);
+        assertThat(runtime.controller().observations()).isEqualTo(1);
+        assertThat(runtime.controller().mode()).isEqualTo(D1SoftController.Mode.OBSERVE);
+        assertThat(read(wrapped, 0, 19)).isEqualTo("0123456789abcdefghij".getBytes());
+        assertThat(runtime.stats().teedGets()).isEqualTo(1);
+        assertThat(runtime.stats().cacheHits()).isEqualTo(1);
+    }
+
+    @Test
+    void adaptiveDoorkeeperDefersTeeUntilSecondTouch() throws Exception {
+        stubBody("0123456789abcdefghij");
+        runtime = newRuntime(RuntimeConfig.builder()
+                                          .d1Enabled(true)
+                                          .d1Adaptive(true)
+                                          .d1AdmitMaxBytes(8)
+                                          .d1ObserveGets(1000)
+                                          .d1Doorkeeper(true)
                                           .build());
         S3Client wrapped = wrap();
         assertThat(read(wrapped, 0, 19)).isEqualTo("0123456789abcdefghij".getBytes());
         assertThat(runtime.stats().admitRejected()).isZero();
         assertThat(runtime.stats().teedGets()).isZero();
-        assertThat(runtime.controller().observations()).isEqualTo(1);
-        assertThat(runtime.controller().mode()).isEqualTo(D1SoftController.Mode.OBSERVE);
         assertThat(read(wrapped, 0, 19)).isEqualTo("0123456789abcdefghij".getBytes());
         assertThat(runtime.stats().teedGets()).isEqualTo(1);
     }

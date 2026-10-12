@@ -60,7 +60,7 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
                         track1_d1_coverage=None, track1_d1_observe_gets=None,
                         track1_d1_min_mib=None, track1_d1_fixed_capacity=False,
                         track1_d1_fixed_admission=False, track1_d1_profile=False,
-                        track1_d1_zero_copy=True, track1_d1_doorkeeper=True,
+                        track1_d1_zero_copy=True, track1_d1_doorkeeper=False,
                         track1_d1_shared_backing=True):
     """Apply TRACK2_M0_CONTRACT.md 1.4 frozen reader settings.
 

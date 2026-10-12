@@ -164,7 +164,9 @@ def bench_argv(args, spec, dest):
         argv.append("--track1-d1-profile")
     if not spec.d1_zero_copy:
         argv.append("--no-track1-d1-zero-copy")
-    if not spec.d1_doorkeeper:
+    if spec.d1_doorkeeper:
+        argv.append("--track1-d1-doorkeeper")
+    else:
         argv.append("--no-track1-d1-doorkeeper")
     if not spec.d1_shared_backing:
         argv.append("--no-track1-d1-shared-backing")
