@@ -66,10 +66,11 @@ class Cell(NamedTuple):
     d1_fixed_admission: bool = False
     d1_profile: bool = False
     d1_zero_copy: bool = True
-    d1_doorkeeper: bool = True
+    d1_doorkeeper: bool = False
     d1_shared_backing: bool = True
     d1_hard_mib: int = 0
     d1_coverage: float = 1.0
+    d1_policy: str = ""
 
     def block_bytes(self):
         """Keep an admitted range in one cache block so a repeat read of the
@@ -170,6 +171,8 @@ def bench_argv(args, spec, dest):
         argv.append("--no-track1-d1-doorkeeper")
     if not spec.d1_shared_backing:
         argv.append("--no-track1-d1-shared-backing")
+    if spec.d1_policy:
+        argv.extend(["--track1-d1-policy", spec.d1_policy])
     if args.queries:
         argv.extend(["--queries", args.queries])
     return argv
@@ -229,6 +232,7 @@ def summarize_cell(cell_id, spec, reports):
         "d1_admit_bytes": spec.d1_admit_bytes,
         "d1_cache_mib": spec.d1_cache_mib,
         "d1_adaptive": spec.d1_adaptive,
+        "d1_policy": spec.d1_policy or ("wtinylfu" if spec.d1_adaptive else "lru"),
         "d1_target_budget": median_field(t1s, "d1_target_budget"),
         "d1_u_h": median_field(t1s, "d1_u_h"),
         "d1_r_h": median_field(t1s, "d1_r_h"),

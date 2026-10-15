@@ -61,7 +61,7 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
                         track1_d1_min_mib=None, track1_d1_fixed_capacity=False,
                         track1_d1_fixed_admission=False, track1_d1_profile=False,
                         track1_d1_zero_copy=True, track1_d1_doorkeeper=False,
-                        track1_d1_shared_backing=True):
+                        track1_d1_shared_backing=True, track1_d1_policy=""):
     """Apply TRACK2_M0_CONTRACT.md 1.4 frozen reader settings.
 
     ``track1_s3a`` is off by default so existing Track 2 E-0 numbers stay on
@@ -100,6 +100,8 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
         java_opts.append(f"-Dtrack1.d1.zero.copy={str(bool(track1_d1_zero_copy)).lower()}")
         java_opts.append(f"-Dtrack1.d1.doorkeeper={str(bool(track1_d1_doorkeeper)).lower()}")
         java_opts.append(f"-Dtrack1.d1.shared.backing={str(bool(track1_d1_shared_backing)).lower()}")
+        if track1_d1_policy:
+            java_opts.append(f"-Dtrack1.d1.policy={track1_d1_policy}")
         if track1_d1_block_bytes:
             java_opts.append(
                 f"-Dtrack1.d1.block.bytes={int(track1_d1_block_bytes)}")

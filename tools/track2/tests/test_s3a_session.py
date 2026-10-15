@@ -50,6 +50,15 @@ class Track1FactorySwitch(unittest.TestCase):
         self.assertIn("-Dtrack1.d4=false", extra)
         self.assertEqual(built.conf["spark.executor.extraJavaOptions"], extra)
 
+    def test_policy_opt_only_when_requested(self):
+        default = s3a_session.apply_frozen_reader(
+            _Builder(), "ak", "sk", track1_s3a=True, track1_d1=True)
+        self.assertNotIn("track1.d1.policy", default.conf["spark.driver.extraJavaOptions"])
+        built = s3a_session.apply_frozen_reader(
+            _Builder(), "ak", "sk", track1_s3a=True, track1_d1=True,
+            track1_d1_policy="sieve")
+        self.assertIn("-Dtrack1.d1.policy=sieve", built.conf["spark.driver.extraJavaOptions"])
+
     def test_dimensions_are_explicit_java_opts(self):
         built = s3a_session.apply_frozen_reader(
             _Builder(), "ak", "sk", track1_s3a=True,

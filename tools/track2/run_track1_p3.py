@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import phase3_meta as meta  # noqa: E402
 import run_track1_matrix as m  # noqa: E402
 import track1_cost_ledger as cost  # noqa: E402
 import track1_dynamic_oracle as oracle  # noqa: E402
@@ -134,6 +135,44 @@ HOTPATH_4G = tuple(
     for cell in HOTPATH_2G
 )
 
+# Replacement-policy comparison (Phase 3 §7). Every cell is fixed-capacity,
+# admit.bytes=0 (live 8 MiB limit), doorkeeper explicitly off, so only the
+# replacement/admission policy differs. `000` (no cache) is added by the phase.
+# AV stands for the size-aware class already compared with GDSF, AdaptSize, LHD
+# and LRB (Einziger et al., TOS 2022). The other cells are one representative of
+# each remaining class: W-TinyLFU (admission, size-oblivious), SIEVE (FIFO),
+# SLRU (segmented recency) and LRU. GDSF stays selectable but is not in this matrix.
+POLICIES = ("wtinylfu-av", "wtinylfu", "sieve", "slru", "lru")
+POLICY_SIZES = {"128m": 128, "256m": 256, "512m": 512, "1g": 1024, "2g": 2048,
+                "4g": 4096, "8g": 8192, "16g": 16384}
+
+# Capacity curve (Phase 3 §8.1, RQ2). The policy is fixed to W-TinyLFU-AV (the
+# current admission/replacement algorithm); only the capacity moves. SF1 sizes are
+# SF8 sizes scaled by 14.1/112.0 so both grids cover the same working-set ratios;
+# `16g` on SF1 exceeds the data (approximate upper bound: requests <= 8 MiB only).
+CAP_POLICY = "wtinylfu-av"
+CAP_SF1_SIZES = ("128m", "256m", "512m", "1g", "2g", "4g", "16g")
+CAP_SF8_SIZES = ("1g", "2g", "4g", "8g", "16g")
+
+
+def policy_cell(policy, size):
+    mib = POLICY_SIZES[size]
+    return m.Cell(
+        f"pol-{policy}-{size}",
+        d1=True,
+        d1_adaptive=True,
+        d1_fixed_capacity=True,
+        d1_hard_mib=mib,
+        d1_cache_mib=mib,
+        d1_admit_bytes=0,
+        d1_coverage=1.0,
+        d1_doorkeeper=False,
+        d1_policy=policy,
+    )
+
+
+POLICY_CELLS = tuple(policy_cell(p, s) for s in POLICY_SIZES for p in POLICIES)
+
 PHASES = {
     "characterize": FIXED,
     "budget-only": (
@@ -167,10 +206,22 @@ PHASES = {
         WTLFU_ONLINE,
     ),
     "hotpath": HOTPATH_2G,
+    "policy-512m": (m.Cell("000"),) + tuple(policy_cell(p, "512m") for p in POLICIES),
+    "policy-4g": (m.Cell("000"),) + tuple(policy_cell(p, "4g") for p in POLICIES),
+    "cap-sf1": (m.Cell("000"),) + tuple(policy_cell(CAP_POLICY, s) for s in CAP_SF1_SIZES),
+    "cap-sf8": (m.Cell("000"),) + tuple(policy_cell(CAP_POLICY, s) for s in CAP_SF8_SIZES),
+    # n=1 heap-feasibility probe for the largest SF8 arm; reports no percentages.
+    "cap-sf8-smoke": (policy_cell(CAP_POLICY, "16g"),),
 }
+# Dataset and driver heap are tied to the phase so a capacity grid cannot be run
+# against the wrong scale, and every arm of one grid shares one Xmx (P-5).
+PHASE_DATA = {"cap-sf1": SF1, "cap-sf8": SF8, "cap-sf8-smoke": SF8}
+PHASE_DRIVER_MEMORY = {"cap-sf1": "48g", "cap-sf8": "48g", "cap-sf8-smoke": "48g"}
+DEFAULT_DRIVER_MEMORY = "32g"
 CATALOG = {c.id: c for c in FIXED + HOLD_ADMIT + HOLD_BUDGET
            + (ONLINE, WTLFU_ONLINE, WTLFU_FIXED_4G, WTLFU_FIXED_8G,
-              WTLFU_FIXED_2G, WTLFU_2M_FIXED_2G) + HOTPATH_2G + HOTPATH_4G}
+              WTLFU_FIXED_2G, WTLFU_2M_FIXED_2G) + HOTPATH_2G + HOTPATH_4G
+           + POLICY_CELLS}
 
 
 def cells_for(phase):
@@ -208,7 +259,8 @@ def write_report(args, cells, slots, summaries):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data", default=SF1)
+    ap.add_argument("--data", default=None,
+                    help=f"default: per-phase ({PHASE_DATA}), else {SF1}")
     ap.add_argument("--out", required=True)
     ap.add_argument("--queries-file", default=DEFAULT_QUERIES)
     ap.add_argument("--tables", nargs="*", default=["hits"])
@@ -219,11 +271,17 @@ def main():
     ap.add_argument("--cells", default=None,
                     help="override phase cell list, comma-separated")
     ap.add_argument("--master", default="local[16]")
-    ap.add_argument("--driver-memory", default="32g")
+    ap.add_argument("--driver-memory", default=None,
+                    help=f"default: per-phase ({PHASE_DRIVER_MEMORY}), else {DEFAULT_DRIVER_MEMORY}")
     ap.add_argument("--resume", action="store_true", default=True)
     ap.add_argument("--no-resume", dest="resume", action="store_false")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--allow-stale-jar", action="store_true",
+                    help="skip the P-2 check that the JAR is newer than every source file")
     args = ap.parse_args()
+    args.data = args.data or PHASE_DATA.get(args.phase, SF1)
+    args.driver_memory = args.driver_memory or PHASE_DRIVER_MEMORY.get(
+        args.phase, DEFAULT_DRIVER_MEMORY)
 
     if args.cells:
         wanted = [x.strip() for x in args.cells.split(",") if x.strip()]
@@ -238,7 +296,18 @@ def main():
     slots = m.schedule(cells, args.runs)
     os.makedirs(args.out, exist_ok=True)
     print(f"# Track1 P3  phase={args.phase}  cells={[c.id for c in cells]}  "
-          f"runs={args.runs}  slots={len(slots)}  data={args.data}", flush=True)
+          f"runs={args.runs}  slots={len(slots)}  data={args.data}  "
+          f"driver={args.driver_memory}", flush=True)
+
+    if not args.dry_run:
+        problems = meta.preflight(allow_stale_jar=args.allow_stale_jar)
+        if problems:
+            for p in problems:
+                print(f"  PREFLIGHT FAIL: {p}", flush=True)
+            return 3
+    record = meta.collect(args, cells, slots, probe_dataset=not args.dry_run)
+    meta_path = meta.write(args.out, record, dry_run=args.dry_run)
+    print(f"  p-1 metadata   {meta_path}", flush=True)
 
     for i, slot in enumerate(slots, 1):
         dest = m.cell_dir(args.out, slot["cell"], slot["run"])

@@ -44,6 +44,7 @@ public final class RuntimeConfig {
     private final boolean d1Profile;
     private final boolean d1ZeroCopy;
     private final boolean d1Doorkeeper;
+    private final String d1Policy;
     private final boolean d1SharedBacking;
     private final long d1HardCacheBytes;
     private final long d1ObserveBudgetBytes;
@@ -76,6 +77,7 @@ public final class RuntimeConfig {
         this.d1Profile = b.d1Profile;
         this.d1ZeroCopy = b.d1ZeroCopy;
         this.d1Doorkeeper = b.d1Doorkeeper;
+        this.d1Policy = b.d1Policy == null ? "" : b.d1Policy.trim().toLowerCase(java.util.Locale.ROOT);
         this.d1SharedBacking = b.d1SharedBacking;
         this.d1HardCacheBytes = Math.max(1L, b.d1HardCacheBytes);
         this.d1ObserveBudgetBytes = Math.max(0L, b.d1ObserveBudgetBytes);
@@ -181,6 +183,15 @@ public final class RuntimeConfig {
         return d1Doorkeeper;
     }
 
+    /**
+     * Explicit replacement policy: {@code lru}, {@code slru}, {@code wtinylfu}, {@code wtinylfu-av},
+     * {@code gdsf}, {@code gdsf-unit} or {@code sieve}.
+     * Empty means "derive from {@link #d1Adaptive()}" (W-TinyLFU when adaptive, LRU otherwise).
+     */
+    public String d1Policy() {
+        return d1Policy;
+    }
+
     public boolean d1SharedBacking() {
         return d1SharedBacking;
     }
@@ -244,6 +255,7 @@ public final class RuntimeConfig {
         b.d1Profile(boolProp("track1.d1.profile", false));
         b.d1ZeroCopy(boolProp("track1.d1.zero.copy", true));
         b.d1Doorkeeper(boolProp("track1.d1.doorkeeper", false));
+        b.d1Policy(System.getProperty("track1.d1.policy", ""));
         b.d1SharedBacking(boolProp("track1.d1.shared.backing", true));
         long cacheMiB = longProp("track1.d1.cache.mib", 256L);
         long observeBytes = Math.max(0L, cacheMiB) * 1024L * 1024L;
@@ -346,6 +358,7 @@ public final class RuntimeConfig {
         private boolean d1Profile;
         private boolean d1ZeroCopy = true;
         private boolean d1Doorkeeper = false;
+        private String d1Policy = "";
         private boolean d1SharedBacking = true;
         private long d1HardCacheBytes = 256L * 1024 * 1024;
         private long d1ObserveBudgetBytes = 256L * 1024 * 1024;
@@ -453,6 +466,11 @@ public final class RuntimeConfig {
 
         public Builder d1Doorkeeper(boolean d1Doorkeeper) {
             this.d1Doorkeeper = d1Doorkeeper;
+            return this;
+        }
+
+        public Builder d1Policy(String d1Policy) {
+            this.d1Policy = d1Policy;
             return this;
         }
 

@@ -118,6 +118,8 @@ class Argv(unittest.TestCase):
         argv0 = m.bench_argv(A, m.Cell("000"), "/tmp/out")
         self.assertIn("--track1-s3a", argv0)
         self.assertNotIn("--track1-d1", argv0)
+        self.assertIn("--no-track1-d1-doorkeeper", argv)
+        self.assertNotIn("--track1-d1-doorkeeper", argv)
 
     def test_admission_sweep_cell_carries_cap_budget_and_block(self):
         class A:

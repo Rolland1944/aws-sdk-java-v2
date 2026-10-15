@@ -144,6 +144,7 @@ def build_session(args, run_id, collector_dir, eventlog_dir):
             track1_d1_zero_copy=getattr(args, "track1_d1_zero_copy", True),
             track1_d1_doorkeeper=getattr(args, "track1_d1_doorkeeper", False),
             track1_d1_shared_backing=getattr(args, "track1_d1_shared_backing", True),
+            track1_d1_policy=getattr(args, "track1_d1_policy", ""),
             track1_d1_hard_mib=getattr(args, "track1_d1_hard_mib", None),
             track1_d1_coverage=getattr(args, "track1_d1_coverage", None),
             track1_d1_observe_gets=getattr(args, "track1_d1_observe_gets", None),
@@ -316,6 +317,10 @@ def main():
     ap.add_argument("--no-track1-d1-doorkeeper", action="store_false", dest="track1_d1_doorkeeper",
                     default=False,
                     help="disable the doorkeeper (already the default)")
+    ap.add_argument("--track1-d1-policy", default="",
+                    choices=["", "lru", "slru", "wtinylfu", "wtinylfu-av", "gdsf", "gdsf-unit", "sieve"],
+                    help="D1 replacement policy; empty derives it from --track1-d1-adaptive "
+                         "(W-TinyLFU when adaptive, LRU otherwise)")
     ap.add_argument("--no-track1-d1-shared-backing", action="store_false", dest="track1_d1_shared_backing",
                     help="copy admitted request payloads for A/B comparison")
     ap.add_argument("--track1-d1-hard-mib", type=int, default=None,

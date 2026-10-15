@@ -42,6 +42,99 @@ class Phase(unittest.TestCase):
                          ["000", "100", "100-1g", "online"])
 
 
+class PolicyCells(unittest.TestCase):
+    def test_policy_phase_has_baseline_and_all_policies(self):
+        ids = [c.id for c in p3.cells_for("policy-512m")]
+        self.assertEqual(ids, ["000", "pol-wtinylfu-av-512m", "pol-wtinylfu-512m", "pol-sieve-512m",
+                               "pol-slru-512m", "pol-lru-512m"])
+
+    def test_policy_cells_differ_only_in_policy(self):
+        cells = [p3.policy_cell(p, "4g") for p in p3.POLICIES]
+        stripped = {c._replace(id="", d1_policy="") for c in cells}
+        self.assertEqual(len(stripped), 1)
+        only = stripped.pop()
+        self.assertFalse(only.d1_doorkeeper)
+        self.assertTrue(only.d1_fixed_capacity)
+        self.assertEqual(only.d1_admit_bytes, 0)
+        self.assertEqual(only.d1_hard_mib, 4096)
+
+    def test_policy_flag_reaches_argv(self):
+        argv = p3.m.bench_argv(_Args, p3.policy_cell("slru", "1g"), "/tmp/out")
+        self.assertEqual(argv[argv.index("--track1-d1-policy") + 1], "slru")
+        self.assertIn("--no-track1-d1-doorkeeper", argv)
+        self.assertEqual(argv[argv.index("--track1-d1-hard-mib") + 1], "1024")
+
+    def test_default_cells_do_not_pass_policy(self):
+        argv = p3.m.bench_argv(_Args, p3.ONLINE, "/tmp/out")
+        self.assertNotIn("--track1-d1-policy", argv)
+
+    def test_catalog_contains_policy_cells(self):
+        self.assertIn("pol-sieve-2g", p3.CATALOG)
+
+
+class CapacityPhases(unittest.TestCase):
+    def test_cap_sf8_arms(self):
+        ids = [c.id for c in p3.cells_for("cap-sf8")]
+        self.assertEqual(ids, ["000"] + [f"pol-wtinylfu-av-{s}" for s in ("1g", "2g", "4g", "8g", "16g")])
+
+    def test_cap_sf1_arms_mirror_sf8_ratios(self):
+        ids = [c.id for c in p3.cells_for("cap-sf1")]
+        self.assertEqual(ids[0], "000")
+        self.assertEqual([i.rsplit("-", 1)[1] for i in ids[1:]],
+                         ["128m", "256m", "512m", "1g", "2g", "4g", "16g"])
+        # SF1 / SF8 data ratio is 14.1 / 112.0 = 0.126; 4g -> 512m is the 3.6% arm.
+        self.assertAlmostEqual(512 / 1024 / 14.1, 4 / 112.0, delta=0.002)
+
+    def test_capacity_arms_differ_only_in_capacity(self):
+        arms = [c for c in p3.cells_for("cap-sf8") if c.id != "000"]
+        stripped = {c._replace(id="", d1_hard_mib=0, d1_cache_mib=0) for c in arms}
+        self.assertEqual(len(stripped), 1)
+        only = stripped.pop()
+        self.assertEqual(only.d1_policy, "wtinylfu-av")
+        self.assertTrue(only.d1_fixed_capacity)
+        self.assertFalse(only.d1_doorkeeper)
+        self.assertEqual(only.d1_admit_bytes, 0)
+        for c in arms:
+            self.assertEqual(c.d1_hard_mib, c.d1_cache_mib)
+
+    def test_phase_pins_data_and_heap(self):
+        self.assertTrue(p3.PHASE_DATA["cap-sf8"].endswith("clickbench_sf8"))
+        self.assertTrue(p3.PHASE_DATA["cap-sf1"].endswith("clickbench_sf1"))
+        for phase in ("cap-sf1", "cap-sf8", "cap-sf8-smoke"):
+            self.assertEqual(p3.PHASE_DRIVER_MEMORY[phase], "48g")
+        self.assertNotIn("policy-512m", p3.PHASE_DRIVER_MEMORY)
+
+    def test_smoke_phase_is_the_largest_sf8_arm_only(self):
+        self.assertEqual([c.id for c in p3.cells_for("cap-sf8-smoke")], ["pol-wtinylfu-av-16g"])
+
+    def test_meta_derives_the_dash_d_properties(self):
+        import phase3_meta as meta
+        spec = p3.CATALOG["pol-wtinylfu-av-8g"]
+        _conf, props = meta.spark_conf_for(spec)
+        self.assertIn("-Dtrack1.d1.policy=wtinylfu-av", props)
+        self.assertIn("-Dtrack1.d1.hard.mib=8192", props)
+        self.assertIn("-Dtrack1.d1.fixed.capacity=true", props)
+        self.assertIn("-Dtrack1.d1.doorkeeper=false", props)
+        self.assertFalse([p for p in props if p.startswith(meta.PER_RUN_PROPS)])
+        conf, _ = meta.spark_conf_for(spec)
+        self.assertNotIn("spark.hadoop.fs.s3a.secret.key", conf)
+        self.assertNotIn("spark.hadoop.fs.s3a.access.key", conf)
+
+    def test_meta_write_refuses_a_changed_build(self):
+        import json
+        import tempfile
+        import phase3_meta as meta
+        with tempfile.TemporaryDirectory() as d:
+            rec = {"jar_sha256": "a", "git_head": "h", "git_diff_sha256": "d",
+                   "recorded_at": "t", "argv0": []}
+            meta.write(d, rec)
+            meta.write(d, dict(rec))  # same build: resume is fine
+            with self.assertRaises(SystemExit):
+                meta.write(d, dict(rec, jar_sha256="b"))
+            with open(f"{d}/meta.json") as fh:
+                self.assertEqual(json.load(fh)["jar_sha256"], "a")
+
+
 class Argv(unittest.TestCase):
     def test_online_cell_sets_adaptive_flags(self):
         argv = p3.m.bench_argv(_Args, p3.ONLINE, "/tmp/out")

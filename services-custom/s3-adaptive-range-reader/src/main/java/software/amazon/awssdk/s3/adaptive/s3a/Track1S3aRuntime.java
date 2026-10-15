@@ -61,9 +61,7 @@ public final class Track1S3aRuntime {
         GlobalBudget budget = new GlobalBudget(config.globalCacheBytes());
         AppBudgetLease lease = new AppBudgetLease(budget, APP);
         this.appCache = new AppCache(lease);
-        if (config.d1Adaptive()) {
-            this.appCache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);
-        }
+        this.appCache.setReplacementPolicy(resolvePolicy(config));
         budget.register(APP, config.perAppReservedBytes(), appCache);
         this.cache = new Track1RangeCache(appCache, config.d1BlockBytes(), stats, config.d1Profile(),
                                            config.d1ZeroCopy(), config.d1SharedBacking());
@@ -77,6 +75,30 @@ public final class Track1S3aRuntime {
             this.queue.start();
         }
         this.pipeline = new Track1GetPipeline(this);
+    }
+
+    /** Explicit {@code track1.d1.policy} wins; otherwise W-TinyLFU iff adaptive, else LRU. */
+    static AppCache.ReplacementPolicy resolvePolicy(RuntimeConfig config) {
+        switch (config.d1Policy()) {
+            case "":
+                return config.d1Adaptive() ? AppCache.ReplacementPolicy.WTINYLFU : AppCache.ReplacementPolicy.LRU;
+            case "lru":
+                return AppCache.ReplacementPolicy.LRU;
+            case "wtinylfu":
+                return AppCache.ReplacementPolicy.WTINYLFU;
+            case "wtinylfu-av":
+                return AppCache.ReplacementPolicy.WTINYLFU_AV;
+            case "gdsf":
+                return AppCache.ReplacementPolicy.GDSF;
+            case "gdsf-unit":
+                return AppCache.ReplacementPolicy.GDSF_UNIT;
+            case "sieve":
+                return AppCache.ReplacementPolicy.SIEVE;
+            case "slru":
+                return AppCache.ReplacementPolicy.SLRU;
+            default:
+                throw new IllegalArgumentException("unknown track1.d1.policy: " + config.d1Policy());
+        }
     }
 
     public static Track1S3aRuntime shared() {
@@ -226,6 +248,10 @@ public final class Track1S3aRuntime {
             + ",\"d1_profile\":" + config.d1Profile()
             + ",\"d1_zero_copy\":" + config.d1ZeroCopy()
             + ",\"d1_doorkeeper\":" + config.d1Doorkeeper()
+            + ",\"d1_policy\":\"" + appCache.replacementPolicy() + "\""
+            + ",\"d1_av_resets\":" + appCache.avResets()
+            + ",\"d1_av_admitted_candidates\":" + appCache.avAdmittedCandidates()
+            + ",\"d1_av_rejected_candidates\":" + appCache.avRejectedCandidates()
             + ",\"d1_shared_backing\":" + config.d1SharedBacking()
             + ",\"d1_cache_lookup_ns\":" + stats.cacheLookupNanos()
             + ",\"d1_cache_hit_copy_ns\":" + stats.cacheHitCopyNanos()
