@@ -23,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import phase3_meta as meta  # noqa: E402
+import s3a_session  # noqa: E402
 import run_track1_matrix as m  # noqa: E402
 import track1_cost_ledger as cost  # noqa: E402
 import track1_dynamic_oracle as oracle  # noqa: E402
@@ -212,12 +213,24 @@ PHASES = {
     "cap-sf8": (m.Cell("000"),) + tuple(policy_cell(CAP_POLICY, s) for s in CAP_SF8_SIZES),
     # n=1 heap-feasibility probe for the largest SF8 arm; reports no percentages.
     "cap-sf8-smoke": (policy_cell(CAP_POLICY, "16g"),),
+    # AV vs the finalized W-TinyLFU on the finalized Track2 layout (SF8 joint2),
+    # fixed 4 GiB, same JAR, only -Dtrack1.d1.policy differs. Run once per cloud.
+    # `wtinylfu` here is the exact config of the 2x2 `joint2-track1-final` cell.
+    "av-vs-wtlfu-sf8-joint2": (policy_cell("wtinylfu-av", "4g"), policy_cell("wtinylfu", "4g")),
 }
 # Dataset and driver heap are tied to the phase so a capacity grid cannot be run
 # against the wrong scale, and every arm of one grid shares one Xmx (P-5).
-PHASE_DATA = {"cap-sf1": SF1, "cap-sf8": SF8, "cap-sf8-smoke": SF8}
-PHASE_DRIVER_MEMORY = {"cap-sf1": "48g", "cap-sf8": "48g", "cap-sf8-smoke": "48g"}
+SF8_JOINT2 = "s3a://home-haoyue/track2/clickbench_sf8_e0_uc1_joint2"
+PHASE_DATA = {"cap-sf1": SF1, "cap-sf8": SF8, "cap-sf8-smoke": SF8,
+              "av-vs-wtlfu-sf8-joint2": SF8_JOINT2}
+# The AV-vs-W-TinyLFU phase keeps the finalized 32g: the 2x2 results were taken at
+# 32g, and AV's higher peak heap must be measured under the same limit.
+PHASE_DRIVER_MEMORY = {"cap-sf1": "48g", "cap-sf8": "48g", "cap-sf8-smoke": "48g",
+                       "av-vs-wtlfu-sf8-joint2": "32g"}
 DEFAULT_DRIVER_MEMORY = "32g"
+# SF8 shuffle scratch peaked at ~46 GiB (2026-10-15 run that hit ENOSPC); start a
+# run only with that much headroom plus margin on the scratch disk.
+DEFAULT_MIN_FREE_GIB = 50.0
 CATALOG = {c.id: c for c in FIXED + HOLD_ADMIT + HOLD_BUDGET
            + (ONLINE, WTLFU_ONLINE, WTLFU_FIXED_4G, WTLFU_FIXED_8G,
               WTLFU_FIXED_2G, WTLFU_2M_FIXED_2G) + HOTPATH_2G + HOTPATH_4G
@@ -278,6 +291,9 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--allow-stale-jar", action="store_true",
                     help="skip the P-2 check that the JAR is newer than every source file")
+    ap.add_argument("--min-free-gib", type=float, default=DEFAULT_MIN_FREE_GIB,
+                    help="refuse to start a run when the scratch disk has less free space "
+                         f"(default {DEFAULT_MIN_FREE_GIB:g}; 0 disables the guard)")
     args = ap.parse_args()
     args.data = args.data or PHASE_DATA.get(args.phase, SF1)
     args.driver_memory = args.driver_memory or PHASE_DRIVER_MEMORY.get(
@@ -321,7 +337,28 @@ def main():
         print("  " + " ".join(argv), flush=True)
         if args.dry_run:
             continue
-        rc = subprocess.call(argv)
+        scratch = s3a_session.spark_scratch()
+        removed = meta.scratch_clean(scratch)
+        ok, free = meta.disk_guard(scratch, args.min_free_gib)
+        print(f"  scratch        cleaned {removed} leftover dirs; free {free:.1f} GiB "
+              f"(need >= {args.min_free_gib:g})", flush=True)
+        if args.min_free_gib and not ok:
+            print(f"  DISK GUARD: only {free:.1f} GiB free on the scratch disk "
+                  f"({scratch}); free space or lower --min-free-gib. Not starting "
+                  f"{label}.", flush=True)
+            return 4
+        with meta.DiskSampler(scratch) as sampler:
+            rc = subprocess.call(argv)
+        os.makedirs(dest, exist_ok=True)
+        with open(os.path.join(dest, "disk.json"), "w") as fh:
+            json.dump({"scratch": scratch, "free_gib_before": round(free, 2),
+                       "free_gib_after": round(meta.free_gib(scratch), 2),
+                       "min_free_gib_during": (round(sampler.min_free, 2)
+                                               if sampler.min_free is not None else None),
+                       "samples": sampler.samples, "exit": rc}, fh, indent=2)
+        print(f"  disk           min free during run "
+              f"{sampler.min_free if sampler.min_free is None else round(sampler.min_free, 1)} GiB",
+              flush=True)
         if rc not in (0, 1):
             return rc
         if not m.run_ok(report_path):

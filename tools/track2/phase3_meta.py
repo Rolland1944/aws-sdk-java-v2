@@ -90,6 +90,77 @@ def preflight(allow_stale_jar=False):
     return problems
 
 
+SCRATCH_PREFIXES = ("blockmgr-", "spark-")
+
+
+def scratch_in_use():
+    """True when a benchmark process may be using the scratch directory."""
+    out = _run(["pgrep", "-f", "run_benchmark.py"])
+    return bool(out)
+
+
+def scratch_clean(path):
+    """Remove Spark leftovers (blockmgr-*, spark-*) from `path`, nothing else.
+
+    A killed or crashed JVM leaves its shuffle files behind; they are the whole
+    reason a later run can hit ENOSPC. Returns the number of directories removed.
+    Refuses while a benchmark process is alive.
+    """
+    if scratch_in_use():
+        raise SystemExit("refusing to clean scratch: a run_benchmark.py process is alive")
+    removed = 0
+    if os.path.isdir(path):
+        for name in os.listdir(path):
+            full = os.path.join(path, name)
+            if name.startswith(SCRATCH_PREFIXES) and os.path.isdir(full) and not os.path.islink(full):
+                shutil.rmtree(full, ignore_errors=True)
+                removed += 1
+    return removed
+
+
+def free_gib(path):
+    return shutil.disk_usage(path).free / 2**30
+
+
+def disk_guard(path, min_free_gib):
+    """(ok, free_gib). A run needs about 46 GiB of scratch at SF8 (observed peak);
+    refuse to start below `min_free_gib` instead of failing half an hour in."""
+    free = free_gib(path)
+    return free >= min_free_gib, free
+
+
+class DiskSampler:
+    """Samples free space of `path` every `period_s`; keeps the minimum.
+
+    Gives each (cell, round) its own evidence of how close scratch came to the
+    limit, whether or not the run fails.
+    """
+
+    def __init__(self, path, period_s=10.0):
+        import threading
+        self.path, self.period = path, period_s
+        self.min_free = None
+        self.samples = 0
+        self._stop = threading.Event()
+        self._t = threading.Thread(target=self._loop, daemon=True)
+
+    def _loop(self):
+        while not self._stop.is_set():
+            f = free_gib(self.path)
+            self.min_free = f if self.min_free is None else min(self.min_free, f)
+            self.samples += 1
+            self._stop.wait(self.period)
+
+    def __enter__(self):
+        self._t.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._t.join(timeout=5)
+        return False
+
+
 def _imds(path):
     try:
         req = urllib.request.Request("http://169.254.169.254/latest/api/token", method="PUT",

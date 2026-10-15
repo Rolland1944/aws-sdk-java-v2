@@ -104,6 +104,19 @@ class CapacityPhases(unittest.TestCase):
             self.assertEqual(p3.PHASE_DRIVER_MEMORY[phase], "48g")
         self.assertNotIn("policy-512m", p3.PHASE_DRIVER_MEMORY)
 
+    def test_av_vs_wtlfu_phase(self):
+        cells = p3.cells_for("av-vs-wtlfu-sf8-joint2")
+        self.assertEqual([c.id for c in cells], ["pol-wtinylfu-av-4g", "pol-wtinylfu-4g"])
+        self.assertEqual({c._replace(id="", d1_policy="") for c in cells}.__len__(), 1)
+        self.assertTrue(p3.PHASE_DATA["av-vs-wtlfu-sf8-joint2"].endswith("clickbench_sf8_e0_uc1_joint2"))
+        self.assertEqual(p3.PHASE_DRIVER_MEMORY["av-vs-wtlfu-sf8-joint2"], "32g")
+        wt = cells[1]
+        # same cache settings as the finalized 2x2 `joint2-track1-final` cell
+        self.assertTrue(wt.d1_adaptive and wt.d1_fixed_capacity)
+        self.assertEqual((wt.d1_cache_mib, wt.d1_hard_mib, wt.d1_admit_bytes), (4096, 4096, 0))
+        self.assertFalse(wt.d1_doorkeeper)
+        self.assertTrue(wt.d1_zero_copy and wt.d1_shared_backing)
+
     def test_smoke_phase_is_the_largest_sf8_arm_only(self):
         self.assertEqual([c.id for c in p3.cells_for("cap-sf8-smoke")], ["pol-wtinylfu-av-16g"])
 
@@ -133,6 +146,59 @@ class CapacityPhases(unittest.TestCase):
                 meta.write(d, dict(rec, jar_sha256="b"))
             with open(f"{d}/meta.json") as fh:
                 self.assertEqual(json.load(fh)["jar_sha256"], "a")
+
+
+class DiskGuard(unittest.TestCase):
+    def test_clean_removes_only_spark_leftovers(self):
+        import os
+        import tempfile
+        import phase3_meta as meta
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("blockmgr-abc", "spark-123", "keep-me", "notes"):
+                os.makedirs(os.path.join(d, name, "sub"))
+                with open(os.path.join(d, name, "sub", "f"), "w") as fh:
+                    fh.write("x")
+            real = meta.scratch_in_use
+            meta.scratch_in_use = lambda: False
+            try:
+                self.assertEqual(meta.scratch_clean(d), 2)
+            finally:
+                meta.scratch_in_use = real
+            self.assertEqual(sorted(os.listdir(d)), ["keep-me", "notes"])
+
+    def test_clean_refuses_while_a_run_is_alive(self):
+        import tempfile
+        import phase3_meta as meta
+        real = meta.scratch_in_use
+        meta.scratch_in_use = lambda: True
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                with self.assertRaises(SystemExit):
+                    meta.scratch_clean(d)
+        finally:
+            meta.scratch_in_use = real
+
+    def test_guard_threshold(self):
+        import tempfile
+        import phase3_meta as meta
+        with tempfile.TemporaryDirectory() as d:
+            ok, free = meta.disk_guard(d, 0.0)
+            self.assertTrue(ok)
+            self.assertGreater(free, 0)
+            self.assertFalse(meta.disk_guard(d, free + 1024.0)[0])
+
+    def test_sampler_records_minimum(self):
+        import tempfile
+        import time
+        import phase3_meta as meta
+        with tempfile.TemporaryDirectory() as d:
+            with meta.DiskSampler(d, period_s=0.05) as sampler:
+                time.sleep(0.2)
+            self.assertGreaterEqual(sampler.samples, 2)
+            self.assertIsNotNone(sampler.min_free)
+
+    def test_default_threshold_covers_the_observed_scratch_peak(self):
+        self.assertGreaterEqual(p3.DEFAULT_MIN_FREE_GIB, 46.0)
 
 
 class Argv(unittest.TestCase):
