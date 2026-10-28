@@ -124,7 +124,8 @@ def check_written_layout(args, out, plan_path, table):
                      base_geom.get("n_rg") or 0)
     cand_tasks = min(vf.scan_task_count(geom.get("file_sizes") or []),
                      geom.get("n_rg") or 0)
-    if cand_tasks < base_tasks:
+    if (os.environ.get("S3ARR_SCAN_TASK_FLOOR", "1") != "0"
+            and cand_tasks < base_tasks):
         ok = False
         failures.append(f"written scan tasks {cand_tasks} < baseline {base_tasks}")
     report = {
@@ -480,7 +481,7 @@ def main():
         argv = py("plan_deterministic.py",
                   "--dataset-snapshot", snapshot, "--access-profile", profile,
                   "--sysconst", args.sysconst, "--regime", args.regime,
-                  "--dataset", "clickbench", "--plan-id", "e0-deterministic",
+                  "--plan-id", "e0-deterministic",
                   # L0 filters candidates against the renderer that will
                   # actually write them, during the search. Planning for
                   # PyArrow and then executing on Spark hands UC2 a layout
@@ -503,7 +504,7 @@ def main():
         else:
             argv = py("write_layout.py", "--source", args.source,
                       "--out", args.candidate_out, "--candidate", plan,
-                      "--tables", *args.tables, "--dataset", "clickbench",
+                      "--tables", *args.tables,
                       "--master", args.master,
                       "--driver-memory", args.driver_memory, "--verify")
         if run(f"7/8 rewrite ({args.use_case.upper()})", argv, args.dry_run):

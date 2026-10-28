@@ -59,7 +59,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import advisor_policy as policy  # noqa: E402
 import layout_actions as la  # noqa: E402
-from dataset_snapshot import _normalise, list_files, list_tables  # noqa: E402
+from dataset_snapshot import _normalise, _sample, list_files, list_tables  # noqa: E402
 from parse_footer import _open_filesystem  # noqa: E402
 
 DEFAULT_SAMPLE_ROWS = 200_000
@@ -81,22 +81,39 @@ BASELINE_ENCODING = "baseline"
 
 
 def sample_table(fs, files, sample_rows):
-    """Read up to sample_rows from the first files of a table."""
+    """Read up to sample_rows, spread across the table.
+
+    The first file is not a stand-in for the rest. NYC yellow months from
+    2009 and 2025 do not have the same populated columns, so a probe of only
+    the first file prices later columns as if they were empty.
+    """
     import pyarrow as pa
     import pyarrow.parquet as pq
 
+    if not files:
+        return None
+    picks = _sample(files, min(len(files), 24))
+    per_file = max(1, -(-sample_rows // len(picks)))
     batches = []
     rows = 0
-    for path, _size in files:
-        with fs.open_input_file(path) as handle:
-            pf = pq.ParquetFile(handle)
-            for batch in pf.iter_batches(batch_size=65536):
-                batches.append(batch)
-                rows += batch.num_rows
-                if rows >= sample_rows:
-                    break
+    for path, _size in picks:
         if rows >= sample_rows:
             break
+        need = min(per_file, sample_rows - rows)
+        with fs.open_input_file(path) as handle:
+            pf = pq.ParquetFile(handle)
+            got = 0
+            for batch in pf.iter_batches(batch_size=min(65536, need)):
+                take = min(batch.num_rows, need - got)
+                if take <= 0:
+                    break
+                if take < batch.num_rows:
+                    batch = batch.slice(0, take)
+                batches.append(batch)
+                got += take
+                if got >= need:
+                    break
+        rows += got
     if not batches:
         return None
     return pa.Table.from_batches(batches).slice(0, sample_rows)
@@ -140,6 +157,10 @@ def probe_column(table, column, codecs, encodings):
         encoding moves it while a codec does not.
         """
         kwargs = {"compression": ("NONE" if codec == "uncompressed" else codec)}
+        # UC1 writes timestamps as INT96. Probing them as PyArrow's default
+        # INT64 lets DELTA_BINARY_PACKED look legal, then the rewrite fails.
+        if pa.types.is_timestamp(field.type):
+            kwargs["use_deprecated_int96_timestamps"] = True
         if encoding == BASELINE_ENCODING:
             pass
         elif encoding == "RLE_DICTIONARY":
@@ -242,6 +263,8 @@ def probe_page_geometry(sample, ladder, default_page_bytes, codec):
 
     def write(page_bytes=None):
         kwargs = {"compression": codec, "write_page_index": True}
+        if any(pa.types.is_timestamp(f.type) for f in sample.schema):
+            kwargs["use_deprecated_int96_timestamps"] = True
         if page_bytes:
             kwargs["data_page_size"] = int(page_bytes)
         buf = io.BytesIO()

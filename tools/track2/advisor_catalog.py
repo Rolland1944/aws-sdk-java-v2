@@ -36,12 +36,11 @@ import dataset_snapshot  # noqa: E402
 
 
 class AdvisorCatalog:
-    def __init__(self, dataset, profile, dataset_name="clickbench",
+    def __init__(self, dataset, profile,
                  parallelism=policy.PARALLELISM,
                  large_table_bytes=policy.LARGE_TABLE_BYTES):
         self.dataset = dataset
         self.profile = profile
-        self.dataset_name = dataset_name
         self.parallelism = parallelism
 
         self.BASELINE_GEOMETRY = dataset.BASELINE_GEOMETRY
@@ -95,7 +94,6 @@ class AdvisorCatalog:
 
     def provenance(self):
         return {
-            "dataset": self.dataset_name,
             "layout": self.dataset.layout,
             "contract": "TRACK2_M0_CONTRACT.md r5 (SDK + footer only)",
             "geometry_source": (self.dataset.doc.get("source") or {}).get("geometry"),
@@ -109,24 +107,20 @@ class AdvisorCatalog:
         }
 
 
-def load(dataset_snapshot_path, access_profile_path, dataset_name="clickbench",
-         **kwargs):
+def load(dataset_snapshot_path, access_profile_path, **kwargs):
     return AdvisorCatalog(
         dataset_snapshot.load(dataset_snapshot_path),
         access_profile.load(access_profile_path),
-        dataset_name=dataset_name, **kwargs)
+        **kwargs)
 
 
 def add_arguments(ap):
-    """The three flags every advisor entry point needs."""
+    """The two measurements every advisor entry point needs."""
     ap.add_argument("--dataset-snapshot", required=True,
                     help="dataset_snapshot.py output: measured layout geometry")
     ap.add_argument("--access-profile", required=True,
                     help="access_profile.py output: column weight, co-access, patterns")
-    ap.add_argument("--dataset", choices=("tpch", "clickbench"), default="clickbench",
-                    help="selects dataset-specific policy in advisor_policy")
 
 
 def from_args(args, **kwargs):
-    return load(args.dataset_snapshot, args.access_profile, args.dataset,
-                **kwargs)
+    return load(args.dataset_snapshot, args.access_profile, **kwargs)

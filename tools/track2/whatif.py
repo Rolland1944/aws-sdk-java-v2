@@ -136,12 +136,15 @@ def l0_check(candidate, source_bytes=None, writer="pyarrow"):
         # wave. Fewer, heavier scan tasks shrink the sum while lengthening
         # the critical path, which L1 cannot see, so the task count may not
         # fall below the baseline's.
-        base_tasks = vf.predict_geometry(
-            table, {"candidate_id": "baseline", "actions": []})["n_work_tasks"]
-        if g["n_work_tasks"] < base_tasks:
-            violations.append(
-                f"{table} scan tasks {g['n_work_tasks']} < baseline "
-                f"{base_tasks} (Spark-packed splits owning a row group)")
+        # S3ARR_SCAN_TASK_FLOOR=0 leaves this off. The SF1 paired grid showed
+        # the floor rejecting the layout that actually won.
+        if os.environ.get("S3ARR_SCAN_TASK_FLOOR", "1") != "0":
+            base_tasks = vf.predict_geometry(
+                table, {"candidate_id": "baseline", "actions": []})["n_work_tasks"]
+            if g["n_work_tasks"] < base_tasks:
+                violations.append(
+                    f"{table} scan tasks {g['n_work_tasks']} < baseline "
+                    f"{base_tasks} (Spark-packed splits owning a row group)")
 
     return (not violations), violations, geom
 

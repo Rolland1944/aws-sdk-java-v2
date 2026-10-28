@@ -105,10 +105,15 @@ def source_file_size_target(fs, files):
 
 
 def source_row_width(fs, files, sample=4):
-    """Mean uncompressed bytes per row, for the byte -> row-count conversion."""
+    """Mean uncompressed bytes per row, for the byte -> row-count conversion.
+
+    `sample` is ignored. L1 rescales row groups with the table-wide mean, and
+    the first files of a multi-year table can be much wider than that mean.
+    """
     import pyarrow.parquet as pq
     total_bytes = total_rows = 0
-    for path in files[:sample]:
+    del sample
+    for path in files:
         with fs.open_input_file(path) as handle:
             md = pq.ParquetFile(handle).metadata
         for i in range(md.num_row_groups):
