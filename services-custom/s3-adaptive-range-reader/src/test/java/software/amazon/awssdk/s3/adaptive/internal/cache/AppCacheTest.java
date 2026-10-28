@@ -217,6 +217,44 @@ class AppCacheTest {
     }
 
     @Test
+    void plainWindowCandidateUsesOnlyOneVictimFrequencyForUnequalBlocks() {
+        AppCache cache = cache(1000);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU_PLAIN);
+        for (int i = 0; i < 10; i++) {
+            assertThat(cache.putRequest("o", i * 100L, bytes(100), 100)).isTrue();
+        }
+        for (int i = 0; i < 9; i++) {
+            assertThat(cache.findCovering("o", i * 100L, (i + 1L) * 100L)).isNotNull();
+        }
+        assertThat(cache.putRequest("o", 5000, bytes(250), 250)).isFalse();
+        assertThat(cache.putRequest("o", 5000, bytes(250), 250)).isTrue();
+        assertThat(cache.lastVictimCount()).isGreaterThanOrEqualTo(2);
+        assertThat(cache.findCovering("o", 5000, 5250)).isNotNull();
+        assertThat(cache.cachedBytes()).isLessThanOrEqualTo(1000);
+        assertThat(cache.windowBytes() + cache.probationBytes() + cache.protectedBytes())
+            .isEqualTo(cache.cachedBytes());
+    }
+
+    @Test
+    void plainOwnedPiecesStayWithinBudgetAndPinnedVictimsRemain() {
+        AppCache cache = cache(1000);
+        cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU_PLAIN);
+        assertThat(cache.putRequestOwned("o", 0, bytes(300), 100)).isTrue();
+        AppCache.PinnedRange pin = cache.pinCoveringSpan("o", 0, 100);
+        assertThat(pin).isNotNull();
+        for (int i = 3; i < 60; i++) {
+            cache.putRequestOwned("o", i * 100L, bytes(100), 100);
+            assertThat(cache.cachedBytes()).isLessThanOrEqualTo(1000);
+            assertThat(cache.windowBytes() + cache.probationBytes() + cache.protectedBytes())
+                .isEqualTo(cache.cachedBytes());
+        }
+        assertThat(cache.findCovering("o", 0, 100)).isNotNull();
+        pin.close();
+        cache.setSoftCapacity(500);
+        assertThat(cache.cachedBytes()).isLessThanOrEqualTo(500);
+    }
+
+    @Test
     void multiBlockRequestIsAllOrNothing() {
         AppCache cache = cache(300);
         cache.setReplacementPolicy(AppCache.ReplacementPolicy.WTINYLFU);

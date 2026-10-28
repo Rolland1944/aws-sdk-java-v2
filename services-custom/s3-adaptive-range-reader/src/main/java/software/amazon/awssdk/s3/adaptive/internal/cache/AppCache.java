@@ -52,6 +52,8 @@ public final class AppCache implements CacheEvictor {
     public enum ReplacementPolicy {
         LRU,
         WTINYLFU,
+        /** Window TinyLFU: frequency-only, single-victim admission (no remote cost or aggregated-victim score). */
+        WTINYLFU_PLAIN,
         /** Greedy-Dual-Size-Frequency with the measured remote cost of a block as its cost. */
         GDSF,
         /** GDSF with a unit cost, i.e. the classic size-and-frequency-aware hit-ratio variant. */
@@ -107,6 +109,12 @@ public final class AppCache implements CacheEvictor {
     private long avResets;
     private long avRejectedCandidates;
     private long avAdmittedCandidates;
+    // Independent frequency estimator for the plain single-victim policy.
+    private final Map<BlockKey, Integer> plainFrequency = new HashMap<>();
+    private long plainAccesses;
+    private long plainResets;
+    private long plainAdmittedCandidates;
+    private long plainRejectedCandidates;
     private long nominalBlockBytes = 1024L * 1024L;
     private final Map<BlockKey, EntryMeta> metas = new HashMap<>();
     private final Map<CachedBlock, Integer> pins = new IdentityHashMap<CachedBlock, Integer>();
@@ -305,6 +313,10 @@ public final class AppCache implements CacheEvictor {
             if (policy == ReplacementPolicy.WTINYLFU_AV) {
                 return putSingleAv(objectId, start, data, origin);
             }
+            if (policy == ReplacementPolicy.WTINYLFU_PLAIN) {
+                return plainInsertPieces(objectId, Collections.singletonList(new Piece(start, 0, data.length)),
+                                         data, origin);
+            }
             return putLru(objectId, start, data, origin);
         }
     }
@@ -334,6 +346,11 @@ public final class AppCache implements CacheEvictor {
         synchronized (budget) {
             if (policy == ReplacementPolicy.WTINYLFU_AV) {
                 return putRequestAv(objectId, start, data, blockBytes, owned);
+            }
+            if (policy == ReplacementPolicy.WTINYLFU_PLAIN) {
+                nominalBlockBytes = blockBytes;
+                return plainInsertPieces(objectId, pieces(start, data, blockBytes),
+                                         owned ? data : Arrays.copyOf(data, data.length), data.length);
             }
             if (policy != ReplacementPolicy.WTINYLFU) {
                 return putRequestLru(objectId, start, data, blockBytes, owned);
@@ -676,6 +693,138 @@ public final class AppCache implements CacheEvictor {
         }
     }
 
+    // Plain W-TinyLFU: new blocks enter the window, and a window victim competes with
+    // ONE main victim by frequency. Additional main evictions needed for variable-sized
+    // blocks are byte-accounting only; their frequencies are not summed (unlike AV).
+    private boolean plainInsertPieces(String objectId, List<Piece> pieces, byte[] payload, long originBytes) {
+        int inserted = 0;
+        for (Piece piece : pieces) {
+            BlockKey key = new BlockKey(objectId, piece.start);
+            plainRecordAccess(key);
+            CachedBlock previous = blocks.get(key);
+            if (previous != null) {
+                if (isPinned(previous)) {
+                    rejectedBlocks++;
+                    continue;
+                }
+                releaseDetached(key, false);
+            }
+            if (piece.length <= effectiveSoftCapacity() && piece.length <= budget.capacity()
+                && plainMakeRoom(key, piece.length) && lease.acquire(piece.length)) {
+                insert(objectId, key, piece.start, payload, piece.offset, piece.length, originBytes);
+                inserted++;
+            } else {
+                rejectedBlocks++;
+            }
+        }
+        return inserted == pieces.size();
+    }
+
+    private boolean plainMakeRoom(BlockKey newKey, long length) {
+        long maxWindow = Math.max(windowTarget(), length);
+        while (windowBytes + length > maxWindow) {
+            BlockKey candidate = firstEvictable(window);
+            if (candidate == null) {
+                break;
+            }
+            EntryMeta meta = metas.get(candidate);
+            if (meta == null) {
+                window.remove(candidate);
+                continue;
+            }
+            removeFromSegment(candidate, meta);
+            long mainCapacity = avMainCapacity();
+            long mainFree = Math.max(0L, mainCapacity - probationBytes - protectedBytes);
+            if (meta.bytes <= mainCapacity && plainEvictOrAdmit(candidate, meta.bytes - mainFree)) {
+                meta.segment = Segment.PROBATION;
+                probation.add(candidate);
+                probationBytes += meta.bytes;
+                enforceProtected();
+                plainAdmittedCandidates++;
+            } else {
+                releaseDetached(candidate, true);
+                plainRejectedCandidates++;
+            }
+        }
+        return plainEvictOrAdmit(newKey, cachedBytes + length - effectiveSoftCapacity());
+    }
+
+    /** Frequency comparison is independent of item size and remote cost. */
+    private boolean plainEvictOrAdmit(BlockKey candidate, long needed) {
+        if (needed <= 0L) {
+            return true;
+        }
+        List<BlockKey> victims = new ArrayList<BlockKey>();
+        long bytes = takeVictims(probation, Collections.<BlockKey>emptySet(), needed, 0L, victims);
+        if (bytes < needed) {
+            bytes = takeVictims(protectedQ, Collections.<BlockKey>emptySet(), needed, bytes, victims);
+        }
+        int firstVictimFrequency = victims.isEmpty() ? 0 : plainFrequency.getOrDefault(victims.get(0), 0);
+        lastVictimCount = victims.size();
+        lastVictimBytes = bytes;
+        lastVictimBenefit = firstVictimFrequency;
+        if (bytes < needed || victims.isEmpty()
+            || plainFrequency.getOrDefault(candidate, 0) < firstVictimFrequency) {
+            return false;
+        }
+        for (BlockKey victim : victims) {
+            releaseDetached(victim, true);
+        }
+        return true;
+    }
+
+    private void plainRecordAccess(BlockKey key) {
+        int before = plainFrequency.getOrDefault(key, 0);
+        if (before < AV_SAMPLE_FACTOR) {
+            plainFrequency.put(key, before + 1);
+        }
+        if (++plainAccesses >= avSampleSize()) {
+            plainAccesses = 0L;
+            plainResets++;
+            Iterator<Map.Entry<BlockKey, Integer>> it = plainFrequency.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<BlockKey, Integer> entry = it.next();
+                int next = entry.getValue() / 2;
+                if (next == 0) {
+                    it.remove();
+                } else {
+                    entry.setValue(next);
+                }
+            }
+        }
+    }
+
+    private void plainTouch(BlockKey key) {
+        plainRecordAccess(key);
+        EntryMeta meta = metas.get(key);
+        if (meta == null) {
+            return;
+        }
+        if (meta.segment == Segment.WINDOW) {
+            moveToTail(window, key);
+        } else {
+            avPromoteMain(key);
+        }
+    }
+
+    public long plainResets() {
+        synchronized (budget) {
+            return plainResets;
+        }
+    }
+
+    public long plainAdmittedCandidates() {
+        synchronized (budget) {
+            return plainAdmittedCandidates;
+        }
+    }
+
+    public long plainRejectedCandidates() {
+        synchronized (budget) {
+            return plainRejectedCandidates;
+        }
+    }
+
     private boolean putLru(String objectId, long start, byte[] data, long origin) {
         return putLru(objectId, start, data, 0, data.length, origin);
     }
@@ -850,7 +999,7 @@ public final class AppCache implements CacheEvictor {
 
     private boolean usesSegments() {
         return policy == ReplacementPolicy.WTINYLFU || policy == ReplacementPolicy.WTINYLFU_AV
-               || policy == ReplacementPolicy.SLRU;
+               || policy == ReplacementPolicy.WTINYLFU_PLAIN || policy == ReplacementPolicy.SLRU;
     }
 
     private BlockKey indexVictim() {
@@ -934,8 +1083,8 @@ public final class AppCache implements CacheEvictor {
             index.insert(key, bytes);
             return;
         }
-        if (policy == ReplacementPolicy.WTINYLFU_AV) {
-            // Always admitted to the window; overflow is resolved by avMakeRoom() before the next insert.
+        if (policy == ReplacementPolicy.WTINYLFU_AV || policy == ReplacementPolicy.WTINYLFU_PLAIN) {
+            // New items enter the window; overflow is resolved before the next insert.
             window.add(key);
             windowBytes += bytes;
             return;
@@ -963,6 +1112,10 @@ public final class AppCache implements CacheEvictor {
         }
         if (policy == ReplacementPolicy.WTINYLFU_AV) {
             avTouch(key);
+            return;
+        }
+        if (policy == ReplacementPolicy.WTINYLFU_PLAIN) {
+            plainTouch(key);
             return;
         }
         if (policy == ReplacementPolicy.SLRU) {
@@ -1399,6 +1552,9 @@ public final class AppCache implements CacheEvictor {
         synchronized (budget) {
             if (policy == ReplacementPolicy.WTINYLFU_AV) {
                 return avFrequency.size() * 48L;
+            }
+            if (policy == ReplacementPolicy.WTINYLFU_PLAIN) {
+                return plainFrequency.size() * 48L;
             }
             return policy == ReplacementPolicy.WTINYLFU
                    ? sketchBytes + (rejectGhosts.size() + evictionGhosts.size()) * 48L : 0L;

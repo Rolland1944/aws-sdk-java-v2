@@ -85,7 +85,10 @@ public final class Track1S3aRuntime {
             case "lru":
                 return AppCache.ReplacementPolicy.LRU;
             case "wtinylfu":
+            case "wtinylfu-test":
                 return AppCache.ReplacementPolicy.WTINYLFU;
+            case "wtinylfu-plain":
+                return AppCache.ReplacementPolicy.WTINYLFU_PLAIN;
             case "wtinylfu-av":
                 return AppCache.ReplacementPolicy.WTINYLFU_AV;
             case "gdsf":
@@ -252,6 +255,10 @@ public final class Track1S3aRuntime {
             + ",\"d1_av_resets\":" + appCache.avResets()
             + ",\"d1_av_admitted_candidates\":" + appCache.avAdmittedCandidates()
             + ",\"d1_av_rejected_candidates\":" + appCache.avRejectedCandidates()
+            + ",\"d1_plain_resets\":" + appCache.plainResets()
+            + ",\"d1_plain_admitted_candidates\":" + appCache.plainAdmittedCandidates()
+            + ",\"d1_plain_rejected_candidates\":" + appCache.plainRejectedCandidates()
+            + ",\"d1_policy_configured\":\"" + config.d1Policy() + "\""
             + ",\"d1_shared_backing\":" + config.d1SharedBacking()
             + ",\"d1_cache_lookup_ns\":" + stats.cacheLookupNanos()
             + ",\"d1_cache_hit_copy_ns\":" + stats.cacheHitCopyNanos()

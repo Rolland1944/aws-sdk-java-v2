@@ -96,8 +96,11 @@ def schedule(cells, runs):
     slots = []
     ids = [c[0] if isinstance(c, tuple) else c["id"] for c in cells]
     by_id = {c[0]: c for c in cells}
+    if not ids:
+        return slots
     for rnd in range(1, runs + 1):
-        rot = ids[rnd - 1:] + ids[:rnd - 1]
+        k = (rnd - 1) % len(ids)  # keeps rotating when runs > cells (top-up rounds)
+        rot = ids[k:] + ids[:k]
         for cid in rot:
             slots.append({"cell": cid, "run": rnd, "spec": by_id[cid]})
     return slots

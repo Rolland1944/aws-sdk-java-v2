@@ -318,7 +318,8 @@ def main():
                     default=False,
                     help="disable the doorkeeper (already the default)")
     ap.add_argument("--track1-d1-policy", default="",
-                    choices=["", "lru", "slru", "wtinylfu", "wtinylfu-av", "gdsf", "gdsf-unit", "sieve"],
+                    choices=["", "lru", "slru", "wtinylfu", "wtinylfu-test", "wtinylfu-plain",
+                             "wtinylfu-av", "gdsf", "gdsf-unit", "sieve"],
                     help="D1 replacement policy; empty derives it from --track1-d1-adaptive "
                          "(W-TinyLFU when adaptive, LRU otherwise)")
     ap.add_argument("--no-track1-d1-shared-backing", action="store_false", dest="track1_d1_shared_backing",

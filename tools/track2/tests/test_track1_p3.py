@@ -48,6 +48,19 @@ class PolicyCells(unittest.TestCase):
         self.assertEqual(ids, ["000", "pol-wtinylfu-av-512m", "pol-wtinylfu-512m", "pol-sieve-512m",
                                "pol-slru-512m", "pol-lru-512m"])
 
+    def test_sf8_joint2_policy_matrix_has_three_wtinylfu_arms(self):
+        cells = p3.cells_for("policy-sf8-joint2")
+        self.assertEqual([c.id for c in cells], [
+            "000", "pol-wtinylfu-test-4g", "pol-wtinylfu-plain-4g", "pol-wtinylfu-av-4g",
+            "pol-sieve-4g", "pol-slru-4g", "pol-lru-4g"])
+        self.assertEqual(len({c._replace(id="", d1_policy="") for c in cells[1:]}), 1)
+        self.assertEqual(p3.PHASE_DATA["policy-sf8-joint2"], p3.SF8_JOINT2)
+        self.assertEqual(p3.PHASE_DRIVER_MEMORY["policy-sf8-joint2"], "32g")
+        for policy in ("wtinylfu-test", "wtinylfu-plain", "wtinylfu-av"):
+            spec = p3.CATALOG[f"pol-{policy}-4g"]
+            argv = p3.m.bench_argv(_Args, spec, "/tmp/out")
+            self.assertEqual(argv[argv.index("--track1-d1-policy") + 1], policy)
+
     def test_policy_cells_differ_only_in_policy(self):
         cells = [p3.policy_cell(p, "4g") for p in p3.POLICIES]
         stripped = {c._replace(id="", d1_policy="") for c in cells}
@@ -75,7 +88,7 @@ class PolicyCells(unittest.TestCase):
 class CapacityPhases(unittest.TestCase):
     def test_cap_sf8_arms(self):
         ids = [c.id for c in p3.cells_for("cap-sf8")]
-        self.assertEqual(ids, ["000"] + [f"pol-wtinylfu-av-{s}" for s in ("1g", "2g", "4g", "8g", "16g")])
+        self.assertEqual(ids, ["000"] + [f"pol-wtinylfu-{s}" for s in ("1g", "2g", "4g", "8g", "16g")])
 
     def test_cap_sf1_arms_mirror_sf8_ratios(self):
         ids = [c.id for c in p3.cells_for("cap-sf1")]
@@ -90,7 +103,7 @@ class CapacityPhases(unittest.TestCase):
         stripped = {c._replace(id="", d1_hard_mib=0, d1_cache_mib=0) for c in arms}
         self.assertEqual(len(stripped), 1)
         only = stripped.pop()
-        self.assertEqual(only.d1_policy, "wtinylfu-av")
+        self.assertEqual(only.d1_policy, "wtinylfu")
         self.assertTrue(only.d1_fixed_capacity)
         self.assertFalse(only.d1_doorkeeper)
         self.assertEqual(only.d1_admit_bytes, 0)
@@ -104,7 +117,14 @@ class CapacityPhases(unittest.TestCase):
             self.assertEqual(p3.PHASE_DRIVER_MEMORY[phase], "48g")
         self.assertNotIn("policy-512m", p3.PHASE_DRIVER_MEMORY)
 
-    def test_av_vs_wtlfu_phase(self):
+    def test_capacity_phases_never_use_av(self):
+        for phase in ("cap-sf1", "cap-sf8", "cap-sf8-smoke"):
+            for c in p3.cells_for(phase):
+                self.assertNotIn("av", c.id.split("-"), c.id)
+                self.assertNotEqual(c.d1_policy, "wtinylfu-av")
+        self.assertEqual(p3.CAP_POLICY, "wtinylfu")
+
+    def test_av_vs_wtlfu_phase(self):  # retired phase, kept reproducible
         cells = p3.cells_for("av-vs-wtlfu-sf8-joint2")
         self.assertEqual([c.id for c in cells], ["pol-wtinylfu-av-4g", "pol-wtinylfu-4g"])
         self.assertEqual({c._replace(id="", d1_policy="") for c in cells}.__len__(), 1)
@@ -118,13 +138,13 @@ class CapacityPhases(unittest.TestCase):
         self.assertTrue(wt.d1_zero_copy and wt.d1_shared_backing)
 
     def test_smoke_phase_is_the_largest_sf8_arm_only(self):
-        self.assertEqual([c.id for c in p3.cells_for("cap-sf8-smoke")], ["pol-wtinylfu-av-16g"])
+        self.assertEqual([c.id for c in p3.cells_for("cap-sf8-smoke")], ["pol-wtinylfu-16g"])
 
     def test_meta_derives_the_dash_d_properties(self):
         import phase3_meta as meta
-        spec = p3.CATALOG["pol-wtinylfu-av-8g"]
+        spec = p3.CATALOG["pol-wtinylfu-8g"]
         _conf, props = meta.spark_conf_for(spec)
-        self.assertIn("-Dtrack1.d1.policy=wtinylfu-av", props)
+        self.assertIn("-Dtrack1.d1.policy=wtinylfu", props)
         self.assertIn("-Dtrack1.d1.hard.mib=8192", props)
         self.assertIn("-Dtrack1.d1.fixed.capacity=true", props)
         self.assertIn("-Dtrack1.d1.doorkeeper=false", props)
@@ -146,6 +166,53 @@ class CapacityPhases(unittest.TestCase):
                 meta.write(d, dict(rec, jar_sha256="b"))
             with open(f"{d}/meta.json") as fh:
                 self.assertEqual(json.load(fh)["jar_sha256"], "a")
+
+
+class CleanEnv(unittest.TestCase):
+    SHIM = "/home/u/.codebuddy-server-cn/bin/x/extensions/genie/out/vendor/shim/safe-bin"
+
+    def test_removes_session_vars_and_shim_path(self):
+        import phase3_meta as meta
+        env = meta.clean_env({"CODEBUDDY_SESSION_ID": "a", "CLAUDE_SESSION_ID": "b",
+                              "SAFE_DELETE_REAL_RM": "/bin/rm", "HOME": "/h",
+                              "PATH": f"{self.SHIM}:/usr/bin:/bin"})
+        self.assertNotIn("CODEBUDDY_SESSION_ID", env)
+        self.assertNotIn("CLAUDE_SESSION_ID", env)
+        self.assertNotIn("SAFE_DELETE_REAL_RM", env)
+        self.assertEqual(env["PATH"], "/usr/bin:/bin")
+        self.assertEqual(env["HOME"], "/h")
+
+    def test_does_not_mutate_the_caller_env(self):
+        import phase3_meta as meta
+        src = {"CODEBUDDY_SESSION_ID": "a", "PATH": f"{self.SHIM}:/usr/bin"}
+        meta.clean_env(src)
+        self.assertIn("CODEBUDDY_SESSION_ID", src)
+
+    def test_removes_the_python_and_bash_hooks(self):
+        import phase3_meta as meta
+        shim = self.SHIM.rsplit("/safe-bin", 1)[0]
+        env = {"PYTHONPATH": f"{shim}:/opt/mylib", "BASH_ENV": f"{self.SHIM}/safe-delete-bash-env.sh",
+               "CODEBUDDY_SAFE_DELETE_ENABLED": "1", "PATH": "/usr/bin"}
+        self.assertTrue(meta.needs_clean_env(env))
+        out = meta.clean_env(env)
+        self.assertEqual(out["PYTHONPATH"], "/opt/mylib")
+        self.assertNotIn("BASH_ENV", out)
+        self.assertNotIn("CODEBUDDY_SAFE_DELETE_ENABLED", out)
+        self.assertFalse(meta.needs_clean_env(out))
+
+    def test_pythonpath_dropped_when_only_the_shim_was_on_it(self):
+        import phase3_meta as meta
+        shim = self.SHIM.rsplit("/safe-bin", 1)[0]
+        self.assertNotIn("PYTHONPATH", meta.clean_env({"PYTHONPATH": shim, "PATH": "/usr/bin"}))
+
+    def test_a_plain_environment_needs_no_cleaning(self):
+        import phase3_meta as meta
+        self.assertFalse(meta.needs_clean_env({"PATH": "/usr/bin:/bin", "HOME": "/h"}))
+
+    def test_rm_resolves_to_a_real_binary(self):
+        import phase3_meta as meta
+        rm = meta.real_rm({"PATH": f"{self.SHIM}:/usr/bin:/bin"})
+        self.assertTrue(rm and "safe-bin" not in rm)
 
 
 class DiskGuard(unittest.TestCase):

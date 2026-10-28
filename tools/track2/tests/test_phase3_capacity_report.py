@@ -58,17 +58,17 @@ class EndToEnd(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             for rnd in (1, 2, 3):
                 _write_run(root, "000", rnd, 2000 + rnd)
-                _write_run(root, "pol-wtinylfu-av-4g", rnd, 1700 + rnd)
-                _write_run(root, "pol-wtinylfu-av-8g", rnd, 1600 + rnd)
+                _write_run(root, "pol-wtinylfu-4g", rnd, 1700 + rnd)
+                _write_run(root, "pol-wtinylfu-8g", rnd, 1600 + rnd)
             # an arm that did not fit the heap: archived as a failure, not dropped
-            _write_run(root, "pol-wtinylfu-av-16g", 1, 0, error="OutOfMemoryError: Java heap space")
-            rep = cap.build(root, "pol-wtinylfu-av-4g", 112.0)
-            self.assertEqual(rep["g1"]["best_larger"], "pol-wtinylfu-av-8g")
+            _write_run(root, "pol-wtinylfu-16g", 1, 0, error="OutOfMemoryError: Java heap space")
+            rep = cap.build(root, "pol-wtinylfu-4g", 112.0)
+            self.assertEqual(rep["g1"]["best_larger"], "pol-wtinylfu-8g")
             self.assertEqual(rep["g1"]["verdict"], "PASS")
-            self.assertEqual([x["cell"] for x in rep["failures"]], ["pol-wtinylfu-av-16g"])
+            self.assertEqual([x["cell"] for x in rep["failures"]], ["pol-wtinylfu-16g"])
             self.assertEqual(rep["p8_row_mismatch"], [])
             rho = {r["cell"]: r["rho"] for r in rep["table1"]}
-            self.assertAlmostEqual(rho["pol-wtinylfu-av-4g"], 4 / 112.0)
+            self.assertAlmostEqual(rho["pol-wtinylfu-4g"], 4 / 112.0)
             md = cap.render(rep)
             self.assertIn("OutOfMemoryError", md)
             self.assertIn("**PASS**", md)
@@ -77,16 +77,16 @@ class EndToEnd(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             for rnd in (1, 2, 3):
                 _write_run(root, "000", rnd, 100)
-                _write_run(root, "pol-wtinylfu-av-4g", rnd, 90, rows=2 if rnd == 2 else 1)
-            rep = cap.build(root, "pol-wtinylfu-av-4g", None)
+                _write_run(root, "pol-wtinylfu-4g", rnd, 90, rows=2 if rnd == 2 else 1)
+            rep = cap.build(root, "pol-wtinylfu-4g", None)
             self.assertEqual([x["query"] for x in rep["p8_row_mismatch"]], [1])
 
     def test_regression_check_flags_slow_queries(self):
         with tempfile.TemporaryDirectory() as root:
             for rnd in (1, 2, 3):
                 _write_run(root, "000", rnd, 100)
-                _write_run(root, "pol-wtinylfu-av-4g", rnd, 140)  # +20 s per query > 15% and >= 1 s
-            rep = cap.build(root, "pol-wtinylfu-av-4g", None)
+                _write_run(root, "pol-wtinylfu-4g", rnd, 140)  # +20 s per query > 15% and >= 1 s
+            rep = cap.build(root, "pol-wtinylfu-4g", None)
             self.assertEqual({r["query"] for r in rep["table4_regressions"]}, {1, 2})
 
 

@@ -144,14 +144,19 @@ HOTPATH_4G = tuple(
 # each remaining class: W-TinyLFU (admission, size-oblivious), SIEVE (FIFO),
 # SLRU (segmented recency) and LRU. GDSF stays selectable but is not in this matrix.
 POLICIES = ("wtinylfu-av", "wtinylfu", "sieve", "slru", "lru")
+# Keep policy-512m/policy-4g intact for the historical SF1 matrix. The SF8
+# joint2 comparison adds two explicit names without changing the old `wtinylfu`
+# parameter, which still selects the frozen team implementation.
+SF8_POLICY_MATRIX = ("wtinylfu-test", "wtinylfu-plain", "wtinylfu-av", "sieve", "slru", "lru")
 POLICY_SIZES = {"128m": 128, "256m": 256, "512m": 512, "1g": 1024, "2g": 2048,
                 "4g": 4096, "8g": 8192, "16g": 16384}
 
-# Capacity curve (Phase 3 §8.1, RQ2). The policy is fixed to W-TinyLFU-AV (the
-# current admission/replacement algorithm); only the capacity moves. SF1 sizes are
-# SF8 sizes scaled by 14.1/112.0 so both grids cover the same working-set ratios;
-# `16g` on SF1 exceeds the data (approximate upper bound: requests <= 8 MiB only).
-CAP_POLICY = "wtinylfu-av"
+# Capacity curve (Phase 3 §8.1, RQ2). The policy is fixed to the frozen W-TinyLFU
+# (`wtinylfu`, FINAL_TRACK1+TRACK2.md §4.3); only the capacity moves. W-TinyLFU-AV was
+# evaluated and not adopted (PHASE3_PLAN.md §0.1). SF1 sizes are SF8 sizes scaled by
+# 14.1/112.0 so both grids cover the same working-set ratios; `16g` on SF1 exceeds
+# the data (approximate upper bound: requests <= 8 MiB only).
+CAP_POLICY = "wtinylfu"
 CAP_SF1_SIZES = ("128m", "256m", "512m", "1g", "2g", "4g", "16g")
 CAP_SF8_SIZES = ("1g", "2g", "4g", "8g", "16g")
 
@@ -209,24 +214,26 @@ PHASES = {
     "hotpath": HOTPATH_2G,
     "policy-512m": (m.Cell("000"),) + tuple(policy_cell(p, "512m") for p in POLICIES),
     "policy-4g": (m.Cell("000"),) + tuple(policy_cell(p, "4g") for p in POLICIES),
+    "policy-sf8-joint2": (m.Cell("000"),) + tuple(policy_cell(p, "4g") for p in SF8_POLICY_MATRIX),
     "cap-sf1": (m.Cell("000"),) + tuple(policy_cell(CAP_POLICY, s) for s in CAP_SF1_SIZES),
     "cap-sf8": (m.Cell("000"),) + tuple(policy_cell(CAP_POLICY, s) for s in CAP_SF8_SIZES),
     # n=1 heap-feasibility probe for the largest SF8 arm; reports no percentages.
     "cap-sf8-smoke": (policy_cell(CAP_POLICY, "16g"),),
-    # AV vs the finalized W-TinyLFU on the finalized Track2 layout (SF8 joint2),
-    # fixed 4 GiB, same JAR, only -Dtrack1.d1.policy differs. Run once per cloud.
-    # `wtinylfu` here is the exact config of the 2x2 `joint2-track1-final` cell.
+    # RETIRED 2026-10-15: AV vs the finalized W-TinyLFU on SF8 joint2 (fixed 4 GiB, same
+    # JAR, only -Dtrack1.d1.policy differs). Decision: keep `wtinylfu`; AV not adopted
+    # (PHASE3_PLAN.md §0.1). Kept so the archived results/phase3/*_av_vs_wtlfu_* run stays
+    # reproducible; do not use it for new experiments.
     "av-vs-wtlfu-sf8-joint2": (policy_cell("wtinylfu-av", "4g"), policy_cell("wtinylfu", "4g")),
 }
 # Dataset and driver heap are tied to the phase so a capacity grid cannot be run
 # against the wrong scale, and every arm of one grid shares one Xmx (P-5).
 SF8_JOINT2 = "s3a://home-haoyue/track2/clickbench_sf8_e0_uc1_joint2"
 PHASE_DATA = {"cap-sf1": SF1, "cap-sf8": SF8, "cap-sf8-smoke": SF8,
-              "av-vs-wtlfu-sf8-joint2": SF8_JOINT2}
+              "policy-sf8-joint2": SF8_JOINT2, "av-vs-wtlfu-sf8-joint2": SF8_JOINT2}
 # The AV-vs-W-TinyLFU phase keeps the finalized 32g: the 2x2 results were taken at
 # 32g, and AV's higher peak heap must be measured under the same limit.
 PHASE_DRIVER_MEMORY = {"cap-sf1": "48g", "cap-sf8": "48g", "cap-sf8-smoke": "48g",
-                       "av-vs-wtlfu-sf8-joint2": "32g"}
+                       "policy-sf8-joint2": "32g", "av-vs-wtlfu-sf8-joint2": "32g"}
 DEFAULT_DRIVER_MEMORY = "32g"
 # SF8 shuffle scratch peaked at ~46 GiB (2026-10-15 run that hit ENOSPC); start a
 # run only with that much headroom plus margin on the scratch disk.
@@ -234,7 +241,7 @@ DEFAULT_MIN_FREE_GIB = 50.0
 CATALOG = {c.id: c for c in FIXED + HOLD_ADMIT + HOLD_BUDGET
            + (ONLINE, WTLFU_ONLINE, WTLFU_FIXED_4G, WTLFU_FIXED_8G,
               WTLFU_FIXED_2G, WTLFU_2M_FIXED_2G) + HOTPATH_2G + HOTPATH_4G
-           + POLICY_CELLS}
+           + POLICY_CELLS + tuple(policy_cell(p, "4g") for p in SF8_POLICY_MATRIX)}
 
 
 def cells_for(phase):
@@ -270,6 +277,10 @@ def write_report(args, cells, slots, summaries):
 
 
 def main():
+    # Re-run under an environment without the IDE's safe-delete shim (see
+    # phase3_meta.clean_env): its PYTHONPATH hook would reroute this process's own
+    # scratch cleanup through the trash and its bulk-delete guard.
+    meta.reexec_clean()
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", default=None,
@@ -348,7 +359,7 @@ def main():
                   f"{label}.", flush=True)
             return 4
         with meta.DiskSampler(scratch) as sampler:
-            rc = subprocess.call(argv)
+            rc = subprocess.call(argv, env=meta.clean_env())
         os.makedirs(dest, exist_ok=True)
         with open(os.path.join(dest, "disk.json"), "w") as fh:
             json.dump({"scratch": scratch, "free_gib_before": round(free, 2),

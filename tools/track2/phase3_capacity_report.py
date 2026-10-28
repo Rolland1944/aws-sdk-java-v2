@@ -294,6 +294,29 @@ def render(rep):
     return "\n".join(L) + "\n"
 
 
+def make_report(out, reference=None, dataset_gib=None, append_result=None, title=None):
+    """Build the report for a grid directory, write capacity_report.{json,md} there and,
+    when `append_result` is given, append it to PHASE3_RESULT.md as a `## <title>` section.
+    Returns (report dict, markdown)."""
+    if append_result and not title:
+        raise SystemExit("--append-result needs --title")
+    gib = dataset_gib
+    meta_path = os.path.join(out, "meta.json")
+    if gib is None and os.path.isfile(meta_path):
+        size = (m.load(meta_path).get("dataset") or {}).get("bytes")
+        gib = round(size / GIB, 2) if size else None
+    rep = build(out, reference, gib)
+    md = render(rep)
+    with open(os.path.join(out, "capacity_report.json"), "w") as fh:
+        json.dump(rep, fh, indent=2, default=str)
+    with open(os.path.join(out, "capacity_report.md"), "w") as fh:
+        fh.write(md)
+    if append_result:
+        with open(append_result, "a", encoding="utf-8") as fh:
+            fh.write(f"\n---\n\n## {title}\n\n{md}")
+    return rep, md
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -305,23 +328,10 @@ def main():
     ap.add_argument("--title", default=None, help="section heading used with --append-result")
     args = ap.parse_args()
 
-    gib = args.dataset_gib
-    meta_path = os.path.join(args.out, "meta.json")
-    if gib is None and os.path.isfile(meta_path):
-        size = (m.load(meta_path).get("dataset") or {}).get("bytes")
-        gib = round(size / GIB, 2) if size else None
-    rep = build(args.out, args.reference, gib)
-    md = render(rep)
-    with open(os.path.join(args.out, "capacity_report.json"), "w") as fh:
-        json.dump(rep, fh, indent=2, default=str)
-    with open(os.path.join(args.out, "capacity_report.md"), "w") as fh:
-        fh.write(md)
+    rep, md = make_report(args.out, args.reference, args.dataset_gib,
+                          append_result=args.append_result, title=args.title)
     print(md)
     if args.append_result:
-        if not args.title:
-            raise SystemExit("--append-result needs --title")
-        with open(args.append_result, "a") as fh:
-            fh.write(f"\n---\n\n## {args.title}\n\n{md}")
         print(f"appended to {args.append_result}")
     return 0
 

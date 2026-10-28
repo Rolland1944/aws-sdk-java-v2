@@ -184,8 +184,9 @@ public final class RuntimeConfig {
     }
 
     /**
-     * Explicit replacement policy: {@code lru}, {@code slru}, {@code wtinylfu}, {@code wtinylfu-av},
-     * {@code gdsf}, {@code gdsf-unit} or {@code sieve}.
+     * Explicit replacement policy: {@code lru}, {@code slru}, {@code wtinylfu} (frozen team policy),
+     * {@code wtinylfu-test} (same frozen policy), {@code wtinylfu-plain} (frequency-only single-victim),
+     * {@code wtinylfu-av}, {@code gdsf}, {@code gdsf-unit} or {@code sieve}.
      * Empty means "derive from {@link #d1Adaptive()}" (W-TinyLFU when adaptive, LRU otherwise).
      */
     public String d1Policy() {
