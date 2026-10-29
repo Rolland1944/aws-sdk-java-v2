@@ -615,58 +615,6 @@ def verify_footers(fs, out_dir, sample, expect):
 
 # -------------------------------------------------------------------------- main
 
-def partition_groups(src, files):
-    """Group source files by their subdirectory under the table root.
-
-    A Hive-partitioned layout (day=2015-02-15/ …) must survive the rewrite:
-    flattening it would drop the `day` column the reader synthesises, and every
-    partition-pruning query would silently change meaning. Row groups never
-    span a partition, which is what the reader assumes anyway.
-    """
-    groups = {}
-    for path in files:
-        rel = os.path.relpath(path, src)
-        groups.setdefault(os.path.dirname(rel), []).append(path)
-    return {k: groups[k] for k in sorted(groups)}
-
-
-def merge_verified(parts):
-    """Fold per-partition verification into one table-level verdict."""
-    import statistics
-
-    codecs, encodings, failures = set(), set(), []
-    files = files_sampled = rg_sampled = 0
-    rg_med, rg_max = [], []
-    status = "pass"
-    for v in parts:
-        if v.get("status") != "pass":
-            status = "fail"
-        files += v.get("files") or 0
-        files_sampled += v.get("files_sampled") or 0
-        rg_sampled += v.get("row_groups_sampled") or 0
-        if v.get("row_group_bytes_median"):
-            rg_med.append(v["row_group_bytes_median"])
-        if v.get("row_group_bytes_max"):
-            rg_max.append(v["row_group_bytes_max"])
-        codecs |= set(v.get("compression_codecs") or [])
-        encodings |= set(v.get("encodings") or [])
-        label = v.get("partition") or "table"
-        for f in (v.get("failures") or []):
-            failures.append(f"{label}: {f}")
-        if v.get("detail"):
-            failures.append(f"{label}: {v['detail']}")
-    return {"status": status, "files": files, "files_sampled": files_sampled,
-            "row_groups_sampled": rg_sampled,
-            "column_order": next((v.get("column_order") for v in parts
-                                  if v.get("column_order")), None),
-            "page_index_present": all(v.get("page_index_present") for v in parts)
-                                  if parts else None,
-            "row_group_bytes_median": int(statistics.median(rg_med)) if rg_med else None,
-            "row_group_bytes_max": max(rg_max) if rg_max else None,
-            "compression_codecs": sorted(codecs), "encodings": sorted(encodings),
-            "failures": failures, "partitions": parts}
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -678,9 +626,6 @@ def main():
     ap.add_argument("--batch-rows", type=int, default=DEFAULT_BATCH_ROWS)
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--verify-sample", type=int, default=20)
-    ap.add_argument("--partition-dirs", action="store_true",
-                    help="preserve Hive partition subdirectories (day=...) "
-                         "instead of flattening every source file into one dir")
     ap.add_argument("--manifest", default=None)
     args = ap.parse_args()
 
@@ -729,36 +674,12 @@ def main():
         dest = f"{out_base.rstrip('/')}/{table}"
         out_fs.create_dir(dest, recursive=True)
         started = time.time()
-        if args.partition_dirs:
-            groups = partition_groups(src, files)
-            recs = []
-            for reldir, group in groups.items():
-                gdest = dest if reldir in ("", ".") else f"{dest}/{reldir}"
-                out_fs.create_dir(gdest, recursive=True)
-                label = table if reldir in ("", ".") else f"{table}/{reldir}"
-                r = write_table(source_fs, group, out_fs, gdest, rendered, label,
-                                notes, args.batch_rows)
-                r["path"] = gdest
-                r["partition"] = reldir
-                recs.append(r)
-            rec = {
-                "rows": sum(r["rows"] for r in recs),
-                "files": sum(r["files"] for r in recs),
-                "column_order": recs[0]["column_order"],
-                "row_group_size_rows": recs[0]["row_group_size_rows"],
-                "writer_kwargs": recs[0]["writer_kwargs"],
-                "path": dest,
-                "partitions": {r["partition"]: {"rows": r["rows"],
-                                                "files": r["files"],
-                                                "path": r["path"]}
-                               for r in recs},
-            }
-            notes.append(f"{table}: preserved {len(recs)} partition "
-                         f"director(ies): {', '.join(r['partition'] for r in recs)}")
-        else:
-            rec = write_table(source_fs, files, out_fs, dest, rendered, table,
-                              notes, args.batch_rows)
-            rec["path"] = dest
+        # write_table detects and preserves Hive partition directories itself;
+        # one writer group per partition prevents files and row groups from
+        # crossing day= boundaries.
+        rec = write_table(source_fs, files, out_fs, dest, rendered, table,
+                          notes, args.batch_rows)
+        rec["path"] = dest
         rec["elapsed_seconds"] = round(time.time() - started, 1)
         if args.verify:
             expect = {
@@ -775,16 +696,8 @@ def main():
                 ).get("footer_index_bytes_per_chunk")
                 expect["page_bytes"] = int(rendered.page_size)
                 expect["baseline_footer_index_per_chunk"] = source_index
-            if args.partition_dirs:
-                parts = []
-                for r in recs:
-                    v = verify_footers(out_fs, r["path"], args.verify_sample, expect)
-                    v["partition"] = r["partition"]
-                    parts.append(v)
-                rec["verified"] = merge_verified(parts)
-            else:
-                rec["verified"] = verify_footers(out_fs, dest, args.verify_sample,
-                                                 expect)
+            rec["verified"] = verify_footers(out_fs, dest, args.verify_sample,
+                                             expect)
         results[table] = rec
         print(f"  {table:10s} {rec['elapsed_seconds']:7.1f}s  "
               f"{rec['rows']} rows -> {rec['files']} file(s)  {dest}", flush=True)
