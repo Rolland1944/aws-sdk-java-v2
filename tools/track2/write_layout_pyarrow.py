@@ -327,6 +327,84 @@ class RotatingWriter:
         self.rg_in_file = 0
 
 
+def hive_partition_dir(path):
+    """Hive partition directories immediately above a data file.
+
+    ``.../criteo/day=2015-02-15/part.parquet`` returns ``day=2015-02-15``.
+    A file that sits directly in the table directory returns ``""``.
+    """
+    parent = os.path.dirname(path.rstrip("/"))
+    parts = []
+    while True:
+        name = os.path.basename(parent)
+        if not name or "=" not in name:
+            break
+        parts.append(name)
+        nxt = os.path.dirname(parent)
+        if nxt == parent:
+            break
+        parent = nxt
+    return "/".join(reversed(parts))
+
+
+def partition_groups(files, rg_quota):
+    """Contiguous runs of files that share a hive partition directory.
+
+    ``files`` is sorted, so one partition is one run. ``rg_quota``, when
+    set, is sliced in that same file order.
+    """
+    groups = []
+    start = 0
+    while start < len(files):
+        key = hive_partition_dir(files[start])
+        end = start + 1
+        while end < len(files) and hive_partition_dir(files[end]) == key:
+            end += 1
+        quota = rg_quota[start:end] if rg_quota else None
+        groups.append((key, files[start:end], quota))
+        start = end
+    return groups
+
+
+def write_file_group(source_fs, files, out_fs, out_dir, schema, order,
+                     target_bytes, kwargs, rg_quota, row_group_size, batch_rows):
+    """Write one partition (or a whole unpartitioned table) and close it."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    out_fs.create_dir(out_dir, recursive=True)
+    writer = RotatingWriter(out_fs, out_dir, schema, target_bytes, kwargs,
+                            rg_quota=rg_quota)
+    read_batch = max(batch_rows, row_group_size or batch_rows)
+    rows = 0
+    pending = None
+    try:
+        for path in files:
+            with source_fs.open_input_file(path) as handle:
+                pf = pq.ParquetFile(handle)
+                for batch in pf.iter_batches(batch_size=read_batch, columns=order):
+                    chunk = pa.Table.from_batches([batch]).select(order).cast(schema)
+                    pending = chunk if pending is None else pa.concat_tables(
+                        [pending, chunk])
+                    if not row_group_size:
+                        writer.write(pending, row_group_size)
+                        rows += pending.num_rows
+                        pending = None
+                        continue
+                    while pending is not None and pending.num_rows >= row_group_size:
+                        writer.write(pending.slice(0, row_group_size), row_group_size)
+                        rows += row_group_size
+                        pending = pending.slice(row_group_size)
+                        if pending.num_rows == 0:
+                            pending = None
+        if pending is not None and pending.num_rows:
+            writer.write(pending, row_group_size)
+            rows += pending.num_rows
+    finally:
+        writer.close()
+    return rows, writer.paths
+
+
 def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
                 notes, batch_rows=DEFAULT_BATCH_ROWS):
     import pyarrow as pa
@@ -339,6 +417,8 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
     schema = pa.schema([source_schema.field(name) for name in order],
                        metadata=source_schema.metadata)
 
+    groups = partition_groups(source_files, None)
+    partitioned = any(key for key, _files, _quota in groups)
     row_group_size = None
     rg_bytes = rendered.row_group_size or DEFAULT_ROW_GROUP_BYTES
     width = source_row_width(source_fs, source_files)
@@ -349,9 +429,17 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
     else:
         # `row_group=baseline` -> no action -> cut so the written RG count
         # equals the source footer count, which is what L1 priced.
+        # A hive partition boundary cannot sit inside a row group, so a
+        # partitioned table uses that same ceil per partition. The sum of
+        # those counts is the table's source row-group count.
         row_group_size, src_rg, src_rows = source_row_group_geometry(
             source_fs, source_files)
-        if row_group_size:
+        if row_group_size and partitioned:
+            notes.append(
+                f"{table}: row group size left at baseline by the plan; "
+                f"cutting each hive partition with ceil(rows/row_groups) "
+                f"to keep {src_rg} row groups in total")
+        elif row_group_size:
             notes.append(
                 f"{table}: row group size left at baseline by the plan; "
                 f"using {row_group_size} rows/RG = ceil({src_rows}/{src_rg}) "
@@ -391,39 +479,30 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
             notes.append(f"{table}: file size left at baseline by the plan; "
                          f"rotating at the source median "
                          f"{target_bytes // 2 ** 20} MiB to preserve file count")
-    writer = RotatingWriter(out_fs, out_dir, schema, target_bytes, kwargs,
-                            rg_quota=rg_quota)
+    groups = partition_groups(source_files, rg_quota)
+    if partitioned:
+        keys = [key for key, _files, _quota in groups]
+        notes.append(
+            f"{table}: preserving {len(groups)} hive partition(s) {keys}; "
+            f"an output file does not cross a partition boundary")
     # Buffer across source-file boundaries so a target RG row count is
     # realized. Writing each source file independently left one residual RG
-    # per input file (225 instead of ~165 on ClickBench SF1).
-    read_batch = max(batch_rows, row_group_size or batch_rows)
+    # per input file (225 instead of ~165 on ClickBench SF1). Partition
+    # groups are closed separately so a row group never mixes two days.
     rows = 0
-    pending = None
-    try:
-        for path in source_files:
-            with source_fs.open_input_file(path) as handle:
-                pf = pq.ParquetFile(handle)
-                for batch in pf.iter_batches(batch_size=read_batch, columns=order):
-                    chunk = pa.Table.from_batches([batch]).select(order).cast(schema)
-                    pending = chunk if pending is None else pa.concat_tables(
-                        [pending, chunk])
-                    if not row_group_size:
-                        writer.write(pending, row_group_size)
-                        rows += pending.num_rows
-                        pending = None
-                        continue
-                    while pending is not None and pending.num_rows >= row_group_size:
-                        writer.write(pending.slice(0, row_group_size), row_group_size)
-                        rows += row_group_size
-                        pending = pending.slice(row_group_size)
-                        if pending.num_rows == 0:
-                            pending = None
-        if pending is not None and pending.num_rows:
-            writer.write(pending, row_group_size)
-            rows += pending.num_rows
-    finally:
-        writer.close()
-    return {"rows": rows, "files": len(writer.paths), "column_order": order,
+    paths = []
+    for key, files, quota in groups:
+        dest = f"{out_dir}/{key}" if key else out_dir
+        group_rg_rows = row_group_size
+        if partitioned and not rendered.row_group_size:
+            group_rg_rows, _n_rg, _n_rows = source_row_group_geometry(
+                source_fs, files)
+        group_rows, group_paths = write_file_group(
+            source_fs, files, out_fs, dest, schema, order, target_bytes,
+            kwargs, quota, group_rg_rows, batch_rows)
+        rows += group_rows
+        paths.extend(group_paths)
+    return {"rows": rows, "files": len(paths), "column_order": order,
             "row_group_size_rows": row_group_size,
             "writer_kwargs": {k: v for k, v in kwargs.items()
                               if k != "column_encoding" or len(str(v)) < 2000}}
