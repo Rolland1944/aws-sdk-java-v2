@@ -253,6 +253,11 @@ Q20–Q22 把这一点摊开了。原始布局上 Track1 给每个 epoch 再省 
 ## 4. NovoMCP Compound Screen，COS，2026-10-30
 
 完成时间 2026-10-30 13:14 +08:00。20 格全部成功，没有查询错误，四格 CV 都低于 5%。Driver 是 48g。
+## 4. Criteo CTR，AWS S3，2026-10-30
+
+完成时间 2026-10-30 02:39 +08:00（2026-10-29 18:39 UTC）。20 格全部成功，没有查询错误、OOM 或 scratch ENOSPC。四格 CV 都低于 5%。Driver 是 48g；`spark.cleaner.periodicGC.interval=30s`，scratch 使用独立 NVMe。
+
+本节是 §3 COS Criteo 的 AWS 复现。第一次 AWS 测试使用旧 scan-task floor，planner 只允许列重排，joint 没有墙钟收益；该结果不进入本节主表。这里使用修复后的 planner、`S3ARR_SCAN_TASK_FLOOR=0` 和独立的 `joint2_v2` 前缀，从零重写并重跑四格五轮。
 
 ### 4.1 数据与协议
 
@@ -330,3 +335,114 @@ Track1 是更大的单项收益。原始布局上，它把远程 GET 从 21,724 
 这不是缓存效率下降：两个布局的命中率基本相同，useful bytes 也接近。joint 先消掉约 4,895 个逻辑 GET，留下可由缓存消掉的请求总数更少，因此 Track1 的绝对收益从 86 秒缩到 63 秒。也就是说，这是由重叠请求集合变小造成的替代关系。
 
 联合收益仍然显著：11 相比 00 少 99.31 s、远程 GET 少 82.3%、远端字节少 30.0%。但把原始布局上的 Track1 收益与不带 Track1 的 Track2 收益相加，会高估 23.70 s；该差值量化了两者在重复 column-chunk 读取上的重叠。
+| 数据 | Criteo 点击日志，4 个 `day=` 分区；原始文件 Snappy |
+| 行数 | 747,844,676 |
+| 原始布局 | 973 文件、973 行组、43.60 GiB（46,821,457,841 字节） |
+| joint v2 布局 | 32 文件、973 行组、42.02 GiB（45,117,882,165 字节），仍按 `day=` 分目录 |
+| 查询 | `Criteo-CTR-FE-v1`，24 条；Q20–Q22 是相同训练输入扫描的 3 个 epoch |
+| 机器 | AWS EC2，Spark `local[16]`，driver 48g |
+| 存储 | AWS S3，`us-east-2` |
+| 原始前缀 | `s3://home-haoyue/track2/criteo_clicklogs/criteo/` |
+| joint 前缀 | `s3://home-haoyue/track2/criteo_clicklogs_joint2_v2/criteo/` |
+| sysconst | `measured_cross_cloud`：RTT 79.4 ms，带宽 8116.0 MiB/s，K_busy 6.22，K_data 3.20，K_metadata 4.62 |
+| 查询文件 | `tools/track2/criteo_queries.json`，SHA-256 `415179647688865cfc7d5401d9daa3ff98d02ff173365aeffcdbd67a2085196e` |
+| 结果目录 | `docs/adaptive-range-reader/results/track2/criteo_2x2_n5_48g_gc30s_v2/` |
+
+规划输入是 AWS 本次 00 的 `dataset_snapshot.json`、`access_profile.json`、`sysconst.json` 和 `layout_probe.json`，不再有 `--dataset` 名称开关。规划设置 `S3ARR_SCAN_TASK_FLOOR=0`，UC1 PyArrow，压缩探测打开。L1 选择 `order=seriation`、`compression=joint-codec-encoding`、`page=baseline`、`file=32f`、`rg=baseline`。40 列改为 zstd；3 个类别列用 `DELTA_LENGTH_BYTE_ARRAY`，1 个整数列用 `PLAIN`；显式 encoding 使 `use_dictionary=[]`。虚拟候选预计 37,198 次 GET、108.19 GiB、`t_io=551.4 s`。
+
+模型几何门没有通过，且失败结果保留在 `geometry_gate.json`：预测 24 文件、34.56 GB，实际 32 文件、45.12 GB；行数和 973 个行组对齐。实际 writer 关闭全局 dictionary 后，压缩率与 probe 预测不一致。这是 advisor 的几何预测问题，不能把虚拟候选的 551.4 s 当成写出布局的预测。
+
+实际写出通过全量 footer 检查：32/32 文件、973/973 行组，ZSTD、4 个显式 encoding、page index 全部落地；行数和四个分区逐日行数一致。AWS 写出布局与提供的 COS manifest 物理等价：文件数、行组数、row-group rows、codec、encoding map、dictionary 模式相同，RG 中位大小 259.33 MB（COS 259.39 MB）。S3 上传后，四个分区对象数和字节数均与本地逐项相等。Q1 返回 1 行，Q2 按 DATE 类型的 `day` 分组返回 4 行。
+
+### 4.2 墙钟与 IO
+
+| 格 | 五轮查询时间和 (s) | 中位数 | CV | GET | 远端字节 | 峰值堆中位数 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 00 原始 | 1706.7 / 1774.4 / 1794.2 / 1761.1 / 1815.5 | 1774.4 | 2.08% | 81,492 | 196.51 GiB | 11.97 GiB |
+| 10 原始 + Track1 | 1521.1 / 1531.7 / 1579.3 / 1574.0 / 1541.4 | 1541.4 | 1.49% | 20,513 | 190.95 GiB | 25.44 GiB |
+| 01 joint v2 | 1421.9 / 1449.8 / 1425.1 / 1457.8 / 1436.8 | 1436.8 | 0.96% | 44,242 | 187.87 GiB | 4.78 GiB |
+| 11 joint v2 + Track1 | 1323.8 / 1316.0 / 1338.2 / 1339.7 / 1386.8 | 1338.2 | 1.83% | 15,357 | 180.54 GiB | 15.12 GiB |
+
+00 和 01 的 GET/远端字节五轮逐轮相同；10 的 GET 中位数是 20,513，11 是 15,357。所有比较的五轮配对方向都一致：joint 5/5 更快，Track1 在两个布局上均 5/5 更快，组合也 5/5 更快。
+
+按墙钟中位数：
+
+| 比较 | 差值 | 比例 |
+| --- | ---: | ---: |
+| Track1，加在原始布局上（10−00） | −233.0 s | −13.1% |
+| Track1，加在 joint 上（11−01） | −98.5 s | −6.9% |
+| Track2，没有 Track1（01−00） | −337.6 s | −19.0% |
+| Track2，有 Track1（11−10） | −203.2 s | −13.2% |
+| 两项一起（11−00） | −436.2 s | −24.6%（1.326×） |
+
+分开两项的和是 −570.6 s，一起跑下来是 −436.2 s，重叠约 134.4 s。布局减少了缓存原本能命中的一部分小请求，因此两项是替代关系；这和 §3 COS Criteo 的结论一致。
+
+按轮配对：
+
+| 轮 | 00→10 | 01→11 | 00→01 | 10→11 |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | −185.5 s | −98.1 s | −284.7 s | −197.3 s |
+| 2 | −242.7 s | −133.8 s | −324.6 s | −215.7 s |
+| 3 | −214.9 s | −86.8 s | −369.1 s | −241.1 s |
+| 4 | −187.1 s | −118.2 s | −303.3 s | −234.3 s |
+| 5 | −274.1 s | −50.0 s | −378.7 s | −154.6 s |
+
+### 4.3 堆与 GC
+
+`peak_heap_bytes` 是 Track1 probe 在一个 Spark 进程内观测到的最大 JVM heap used，不是 Xmx；四格 Xmx 均为 48g。表中给出五轮中位数和范围。
+
+| 格 | 峰值堆中位数 | 五轮范围 | 4 GiB D1 峰值 | GC 时间中位数 | GC 次数中位数 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 00 原始 | 11.97 GiB | 1.43–13.10 GiB | 0 | 77.91 s | 1,255 |
+| 10 原始 + Track1 | 25.44 GiB | 24.89–26.35 GiB | 4.00 GiB | 75.20 s | 984 |
+| 01 joint v2 | 4.78 GiB | 1.39–12.84 GiB | 0 | 16.64 s | 2,008 |
+| 11 joint v2 + Track1 | 15.12 GiB | 14.56–16.84 GiB | 4.00 GiB | 13.13 s | 1,214 |
+
+Track1 在原始布局上把峰值堆中位数提高 13.47 GiB（11.97→25.44），远大于 4 GiB 的缓存预算。不能把差值全部归因于缓存本体；它还包含命中路径上 SDK/Spark 对象的存活、不同查询阶段的峰值时刻以及 GC 时序。即便如此，25.44 GiB 仍比 48g Xmx 留有约 22.6 GiB 的名义余量，五轮峰值稳定在 24.89–26.35 GiB，没有 OOM。
+
+joint v2 显著降低了堆和 GC 压力：不开 Track1 时，峰值堆中位数从 11.97 降至 4.78 GiB，GC 时间从 77.91 降至 16.64 s；开 Track1 时，峰值从 25.44 降至 15.12 GiB，GC 时间从 75.20 降至 13.13 s。原因不是更小的 D1——两格都装满 4.00 GiB——而是 joint 将文件从 973 收到 32、远程 GET 从 81,492 降到 44,242，元数据和读取对象的短期分配量随之下降。GC 次数在 joint-off 反而更多（约 2,008 次），但单次停顿更短，总 GC 时间低约 79%；周期 GC 每 30 秒会影响次数，所以应以总 GC 时间和峰值堆为主，不把次数直接解读成压力大小。
+
+Track1 的缓存行为：
+
+| 指标 | 原始 + Track1 | joint v2 + Track1 |
+| --- | ---: | ---: |
+| cache hit 中位数 | 60,979 | 28,885 |
+| 命中率（hits / (hits + misses)） | 81.8% | 77.3% |
+| cache useful bytes 中位数 | 5.57 GiB | 7.34 GiB |
+| admitted blocks 中位数 | 12,655 | 12,316 |
+| rejected blocks 中位数 | 17,152 | 8,780 |
+| evicted bytes 中位数 | 0.63 GiB | 1.59 GiB |
+| cached / peak cached | 4.00 / 4.00 GiB | 4.00 / 4.00 GiB |
+
+原始布局的命中率更高、命中次数更多，因为它保留了大量可由后续查询重复利用的小 range；joint 已把其中一部分合并掉。joint 的 useful bytes 反而更多，说明留下来的命中单次更大；这也是命中次数减少但仍有 6.9% 增量收益的原因。
+
+### 4.4 逐查询与 COS 对照
+
+joint v2 使 24/24 条查询全部变快；Track1 在原始和 joint 上也都是 24/24 变快。布局收益最大的是 Q1–Q3、Q6、Q13：约 −31%～−36%。Q8（26 个类别列缺失率）是 −23.2%；Q20–Q22 三个训练 epoch是 −15.5%、−17.2%、−16.5%；Validation/Test 是 −15.4%/−14.8%。组合后 Q2/Q3 约 −73%，Q13 −50.8%，Q6 −49.6%。
+
+AWS 与 COS 的 IO 基本复现：joint 都是 44,242 GET / 187.87 GiB；joint+Track1 是 AWS 15,357 GET / 180.54 GiB，对 COS 15,510 GET / 180.55 GiB。由此可以把两边墙钟差异归因于执行环境，而不是物理布局或 S3 range 访问模式。
+
+| 效应 | AWS S3 | COS |
+| --- | ---: | ---: |
+| Track1 @ 原始 | −13.1% | −20.8% |
+| joint @ off | −19.0% | −21.4% |
+| Track1 @ joint | −6.9% | −11.2% |
+| 组合 | −24.6% | −30.2% |
+
+两个环境方向一致：joint 是主收益，Track1 是进一步增量；joint 又降低峰值堆和 GC 时间。COS 绝对墙钟更短、缓存增量更大，可能来自 CPU/字符串解码吞吐、对象存储延迟、JVM/GC 版本或宿主机噪声；仅凭这组数据不能继续拆分。
+
+### 4.5 复现与保留的失败证据
+
+小体积结果归档在：
+
+```text
+docs/adaptive-range-reader/results/track2/criteo_2x2_n5_48g_gc30s_v2/
+```
+
+包括 20 个轮次报告、计划、物化 manifest、candidate snapshot、分区/上传检查和准备日志。大体积 IO 轨迹保留在：
+
+```text
+/mnt/ssd-cache/criteo_local/grid/criteo_2x2_n5_48g_gc30s_v2/
+```
+
+`geometry_gate.json` 保留模型预测失败（24 文件/34.56 GB vs 实测 32 文件/45.12 GB）；`cos_reference_gate.json` 记录 AWS 写出布局与 COS 物理参考逐项等价。后续修 planner 压缩/encoding 建模时，应先让原 geometry gate 通过，而不是继续依赖参考门。
