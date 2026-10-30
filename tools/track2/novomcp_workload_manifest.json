@@ -1,0 +1,130 @@
+{
+  "workload_id": "NovoMCP-Compound-Screen-v1",
+  "generator_version": "1",
+  "generated_at": "2026-10-29T13:25:00+00:00",
+  "dataset_uri": "s3a://home-haoyue/track2/novomcp_open_corpus_lite/compounds",
+  "table": "compounds",
+  "objects": {
+    "n_files": 21,
+    "source_total_bytes": 36797876065,
+    "effective_total_bytes": 36797876083,
+    "row_groups": 132
+  },
+  "rows": {
+    "total": 122454458
+  },
+  "schema": {
+    "columns": 59,
+    "baseline_codec": "snappy",
+    "schema_exceptions": {
+      "pubchem_novomcp_lite_00020.parquet": {
+        "rows": 2353,
+        "hba": "int64 instead of double",
+        "hbd": "int64 instead of double",
+        "normalized_for_spark": {
+          "effective_types": {
+            "hba": "double",
+            "hbd": "double"
+          },
+          "source_bytes": 552343,
+          "effective_bytes": 552361,
+          "record": "/data/home/haoyueli/track2-data/novomcp_open_corpus_lite/schema_normalization.json"
+        }
+      }
+    }
+  },
+  "workload_shape": {
+    "domain": "compound-library screening",
+    "sections": [
+      "inventory and completeness",
+      "physicochemical property distributions",
+      "drug-likeness and PAINS summaries",
+      "ADMET, toxicity, and CYP risk summaries",
+      "candidate-screen filters",
+      "three repeated candidate-scoring input scans"
+    ],
+    "repeated_queries": [
+      18,
+      19,
+      20
+    ],
+    "result_row_cap": 1000
+  },
+  "sampled_quantile_boundaries": {
+    "molecular_weight": [
+      200,
+      400,
+      600,
+      800
+    ],
+    "xlogp": [
+      1,
+      3,
+      5
+    ],
+    "qed": [
+      0.2,
+      0.4,
+      0.6,
+      0.8
+    ],
+    "synthetic_accessibility": [
+      3,
+      5,
+      7
+    ],
+    "overall_toxicity_score": [
+      0.3,
+      0.6,
+      0.8
+    ],
+    "bioavailability_probability": [
+      0.6,
+      0.8,
+      0.9
+    ]
+  },
+  "query_count": 20,
+  "query_order": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "queries_sha256": "a2b4bfc30dcffb9d518bd0b2e84cfae4e9df1fda6fb3a7a3176242dce548c1dc",
+  "constraints": {
+    "no_random": true,
+    "no_current_timestamp": true,
+    "no_tablesample": true,
+    "no_limit_without_order_by": true,
+    "no_spark_cache": true,
+    "one_spark_process_per_cell_and_round": true,
+    "query_choice_excludes": [
+      "baseline timing",
+      "candidate timing",
+      "any layout geometry"
+    ]
+  },
+  "notes": [
+    "The workload measures SQL-level compound screening, not end-to-end MCP-agent orchestration, docking, or molecular-model inference.",
+    "Queries 18-20 are byte-identical on purpose: three candidate-scoring input epochs.",
+    "No query uses SELECT * because the benchmark runner collects query results to the driver.",
+    "The first validation run must establish whether Spark can read the hba/hbd physical-type exception before the frozen workload is used for a grid."
+  ]
+}

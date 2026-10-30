@@ -113,6 +113,12 @@ ENCODINGS = tuple(ENCODING_PHYSICAL_TYPES)
 # selects an encoding family (contract §6.2 M-5).
 SPARK_EXPRESSIBLE_ENCODINGS = {"RLE_DICTIONARY", "PLAIN"}
 
+# PyArrow can write BYTE_STREAM_SPLIT, but the Spark vectorized Parquet reader
+# used by both UC1 and UC2 E2 benchmarks rejects it at execution time. UC1 is
+# allowed to own a richer writer; that does not make an unreadable file a legal
+# experimental candidate.
+SPARK_VECTORISED_UNREADABLE_ENCODINGS = {"BYTE_STREAM_SPLIT"}
+
 
 def normalise_codec(value):
     v = str(value or "").strip().lower()
@@ -348,6 +354,11 @@ def check_l0(rendered, source_bytes=None, schema=None, physical_types=None,
             violations.append(
                 f"encoding '{encoding}' on {column} is not a Parquet encoding "
                 f"{ENCODINGS}")
+            continue
+        if encoding in SPARK_VECTORISED_UNREADABLE_ENCODINGS:
+            violations.append(
+                f"encoding {encoding} on {column} is unreadable by the Spark "
+                "vectorized Parquet reader used by the benchmark")
             continue
         allowed = ENCODING_PHYSICAL_TYPES[encoding]
         ptype = (physical_types or {}).get(column)
