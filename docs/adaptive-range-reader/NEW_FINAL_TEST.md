@@ -253,11 +253,6 @@ Q20–Q22 把这一点摊开了。原始布局上 Track1 给每个 epoch 再省 
 ## 4. NovoMCP Compound Screen，COS，2026-10-30
 
 完成时间 2026-10-30 13:14 +08:00。20 格全部成功，没有查询错误，四格 CV 都低于 5%。Driver 是 48g。
-## 4. Criteo CTR，AWS S3，2026-10-30
-
-完成时间 2026-10-30 02:39 +08:00（2026-10-29 18:39 UTC）。20 格全部成功，没有查询错误、OOM 或 scratch ENOSPC。四格 CV 都低于 5%。Driver 是 48g；`spark.cleaner.periodicGC.interval=30s`，scratch 使用独立 NVMe。
-
-本节是 §3 COS Criteo 的 AWS 复现。第一次 AWS 测试使用旧 scan-task floor，planner 只允许列重排，joint 没有墙钟收益；该结果不进入本节主表。这里使用修复后的 planner、`S3ARR_SCAN_TASK_FLOOR=0` 和独立的 `joint2_v2` 前缀，从零重写并重跑四格五轮。
 
 ### 4.1 数据与协议
 
@@ -335,6 +330,19 @@ Track1 是更大的单项收益。原始布局上，它把远程 GET 从 21,724 
 这不是缓存效率下降：两个布局的命中率基本相同，useful bytes 也接近。joint 先消掉约 4,895 个逻辑 GET，留下可由缓存消掉的请求总数更少，因此 Track1 的绝对收益从 86 秒缩到 63 秒。也就是说，这是由重叠请求集合变小造成的替代关系。
 
 联合收益仍然显著：11 相比 00 少 99.31 s、远程 GET 少 82.3%、远端字节少 30.0%。但把原始布局上的 Track1 收益与不带 Track1 的 Track2 收益相加，会高估 23.70 s；该差值量化了两者在重复 column-chunk 读取上的重叠。
+
+---
+
+## 5. Criteo CTR，AWS S3，2026-10-30
+
+完成时间 2026-10-30 02:39 +08:00（2026-10-29 18:39 UTC）。20 格全部成功，没有查询错误、OOM 或 scratch ENOSPC。四格 CV 都低于 5%。Driver 是 48g；`spark.cleaner.periodicGC.interval=30s`，scratch 使用独立 NVMe。
+
+本节是 §3 COS Criteo 的 AWS 复现。第一次 AWS 测试使用旧 scan-task floor，planner 只允许列重排，joint 没有墙钟收益；该结果不进入本节主表。这里使用修复后的 planner、`S3ARR_SCAN_TASK_FLOOR=0` 和独立的 `joint2_v2` 前缀，从零重写并重跑四格五轮。
+
+### 5.1 数据与协议
+
+| 项 | 值 |
+| --- | --- |
 | 数据 | Criteo 点击日志，4 个 `day=` 分区；原始文件 Snappy |
 | 行数 | 747,844,676 |
 | 原始布局 | 973 文件、973 行组、43.60 GiB（46,821,457,841 字节） |
@@ -354,7 +362,7 @@ Track1 是更大的单项收益。原始布局上，它把远程 GET 从 21,724 
 
 实际写出通过全量 footer 检查：32/32 文件、973/973 行组，ZSTD、4 个显式 encoding、page index 全部落地；行数和四个分区逐日行数一致。AWS 写出布局与提供的 COS manifest 物理等价：文件数、行组数、row-group rows、codec、encoding map、dictionary 模式相同，RG 中位大小 259.33 MB（COS 259.39 MB）。S3 上传后，四个分区对象数和字节数均与本地逐项相等。Q1 返回 1 行，Q2 按 DATE 类型的 `day` 分组返回 4 行。
 
-### 4.2 墙钟与 IO
+### 5.2 墙钟与 IO
 
 | 格 | 五轮查询时间和 (s) | 中位数 | CV | GET | 远端字节 | 峰值堆中位数 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -387,7 +395,7 @@ Track1 是更大的单项收益。原始布局上，它把远程 GET 从 21,724 
 | 4 | −187.1 s | −118.2 s | −303.3 s | −234.3 s |
 | 5 | −274.1 s | −50.0 s | −378.7 s | −154.6 s |
 
-### 4.3 堆与 GC
+### 5.3 堆与 GC
 
 `peak_heap_bytes` 是 Track1 probe 在一个 Spark 进程内观测到的最大 JVM heap used，不是 Xmx；四格 Xmx 均为 48g。表中给出五轮中位数和范围。
 
@@ -416,7 +424,7 @@ Track1 的缓存行为：
 
 原始布局的命中率更高、命中次数更多，因为它保留了大量可由后续查询重复利用的小 range；joint 已把其中一部分合并掉。joint 的 useful bytes 反而更多，说明留下来的命中单次更大；这也是命中次数减少但仍有 6.9% 增量收益的原因。
 
-### 4.4 逐查询与 COS 对照
+### 5.4 逐查询与 COS 对照
 
 joint v2 使 24/24 条查询全部变快；Track1 在原始和 joint 上也都是 24/24 变快。布局收益最大的是 Q1–Q3、Q6、Q13：约 −31%～−36%。Q8（26 个类别列缺失率）是 −23.2%；Q20–Q22 三个训练 epoch是 −15.5%、−17.2%、−16.5%；Validation/Test 是 −15.4%/−14.8%。组合后 Q2/Q3 约 −73%，Q13 −50.8%，Q6 −49.6%。
 
@@ -431,7 +439,7 @@ AWS 与 COS 的 IO 基本复现：joint 都是 44,242 GET / 187.87 GiB；joint+T
 
 两个环境方向一致：joint 是主收益，Track1 是进一步增量；joint 又降低峰值堆和 GC 时间。COS 绝对墙钟更短、缓存增量更大，可能来自 CPU/字符串解码吞吐、对象存储延迟、JVM/GC 版本或宿主机噪声；仅凭这组数据不能继续拆分。
 
-### 4.5 复现与保留的失败证据
+### 5.5 复现与保留的失败证据
 
 小体积结果归档在：
 
@@ -446,3 +454,355 @@ docs/adaptive-range-reader/results/track2/criteo_2x2_n5_48g_gc30s_v2/
 ```
 
 `geometry_gate.json` 保留模型预测失败（24 文件/34.56 GB vs 实测 32 文件/45.12 GB）；`cos_reference_gate.json` 记录 AWS 写出布局与 COS 物理参考逐项等价。后续修 planner 压缩/encoding 建模时，应先让原 geometry gate 通过，而不是继续依赖参考门。
+
+---
+
+## 6. NovoMCP 化合物筛选，AWS S3，2026-10-30
+
+完成时间 2026-10-30 18:07 +08:00（10:07 UTC）。20 格全部成功，没有查询错误、OOM 或 scratch ENOSPC。四格 CV 都低于 5%。Driver 是 48g；`spark.cleaner.periodicGC.interval=30s`，scratch 使用独立 NVMe。
+
+本节参照前三次 COS 2×2 的协议，但数据放在 AWS S3，并且这次规划不再有 `--dataset` 名称开关：planner 只读本次 00 的 `dataset_snapshot.json`、`access_profile.json`、`sysconst.json` 和 `layout_probe.json`。
+
+### 6.1 数据与协议
+
+| 项 | 值 |
+| --- | --- |
+| 数据 | NovoMCP Open Corpus Lite，化合物表，Snappy，59 列，无 `day=` 分区 |
+| 行数 | 122,454,458 |
+| 原始布局 | 21 个文件，132 个行组，34.27 GiB（36,797,876,065 字节） |
+| joint 布局 | 20 个文件，132 个行组，29.08 GiB（31,212,517,905 字节），写成 `compounds/part-NNNNN.parquet` |
+| 查询 | `NovoMCP-Compound-Screen-v1`，20 条；Q18–Q20 是相同候选打分输入扫描的 3 个 epoch |
+| 机器 | AWS EC2，Spark `local[16]`，driver 48g |
+| 存储 | AWS S3，`us-east-2` |
+| 原始前缀 | `s3://home-haoyue/track2/novomcp_open_corpus_lite/`（表 `compounds`） |
+| joint 前缀 | `s3://home-haoyue/track2/novomcp_open_corpus_lite_joint2/`（表 `compounds`） |
+| sysconst | `measured_cross_cloud`：RTT 25.5 ms，带宽 131.9 MiB/s，K_busy 6.77，K_data 5.67，K_metadata 2.28 |
+| 查询文件 | `tools/track2/novomcp_queries.json`，SHA-256 `a2b4bfc30dcffb9d518bd0b2e84cfae4e9df1fda6fb3a7a3176242dce548c1dc` |
+| 结果目录 | `docs/adaptive-range-reader/results/track2/novomcp_2x2_n5_48g_gc30s_r2/` |
+
+规划输入全部来自本次 00：`S3ARR_SCAN_TASK_FLOOR=0`，UC1 PyArrow，压缩探测打开。L1 选择 `order=seriation`、`compression=global-zstd`、`page=baseline`、`file=26f`、`rg=baseline`，3 个动作：全局 zstd、列顺序 seriation、目标文件 1,415,302,927 字节。虚拟候选预计 18,961 次 GET、62.92 GiB、`t_io=156.7 s`。
+
+几何门通过。行组数对齐（132），行数对齐（122,454,458）。文件数预测 22、写出 20；压缩后体积预测 29.96 GiB、写出 29.08 GiB，差 3%，在容差内。这次没有出现 Criteo 那种 `-31%` 的压缩率预测偏差。
+
+字节覆盖率门禁通过（>0.95）。关联阶段把 21 个本地文件的 footer 与 00 的 IO 轨迹按路径后缀对齐，这是本轮能直接用本地文件做规划输入的前提。
+
+### 6.2 墙钟与 IO
+
+| 格 | 五轮查询时间和 (s) | 中位数 | CV | GET | 远端字节 | 峰值堆中位数 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 00 原始 | 191.0 / 197.3 / 201.7 / 197.0 / 192.0 | 197.0 | 1.99% | 21,724 | 83.08 GiB | 13.25 GiB |
+| 10 原始 + Track1 | 171.6 / 175.7 / 183.4 / 176.6 / 174.1 | 175.7 | 2.25% | 4,949 | 72.10 GiB | 18.51 GiB |
+| 01 joint | 191.3 / 189.9 / 189.4 / 189.3 / 189.2 | 189.4 | 0.39% | 16,829 | 68.60 GiB | 6.50 GiB |
+| 11 joint + Track1 | 173.4 / 174.0 / 174.4 / 171.9 / 170.1 | 173.4 | 0.91% | 3,649 | 58.17 GiB | 21.59 GiB |
+
+按墙钟中位数：
+
+| 比较 | 差值 | 比例 |
+| --- | ---: | ---: |
+| Track1，加在原始布局上（10−00） | −21.3 s | −10.8% |
+| Track1，加在 joint 上（11−01） | −16.0 s | −8.5% |
+| Track2，没有 Track1（01−00） | −7.6 s | −3.8% |
+| Track2，有 Track1（11−10） | −2.3 s | −1.3% |
+| 两项一起（11−00） | −23.6 s | −12.0%（1.136×） |
+
+分开两项的和是 −28.9 s，一起跑下来是 −23.6 s，重叠约 5.3 s。两者基本可加，替代关系比 Criteo 弱很多。和 NYC Yellow、Criteo 相反，这次 Track1 是主收益，布局只贡献 −3.8%。
+
+### 6.3 堆与 GC
+
+`peak_heap_bytes` 是 Track1 probe 观测到的最大 JVM heap used，不是 Xmx；四格 Xmx 均为 48g。
+
+| 格 | 峰值堆中位数 | 4 GiB D1 峰值 | GC 时间中位数 |
+| --- | ---: | ---: | ---: |
+| 00 原始 | 13.25 GiB | 0 | 3.9 s |
+| 10 原始 + Track1 | 18.51 GiB | 4.00 GiB | 4.7 s |
+| 01 joint | 6.50 GiB | 0 | 3.7 s |
+| 11 joint + Track1 | 21.59 GiB | 4.00 GiB | 3.9 s |
+
+两点值得记录。第一，joint 不开 Track1 时峰值堆从 13.25 降到 6.50 GiB，和 Criteo 的方向一致：更少、更大的文件降低了元数据和读取对象的短期分配。第二，joint + Track1 的峰值堆（21.59 GiB）反而高于原始 + Track1（18.51 GiB），尽管 joint 的 GET 更少、useful bytes 相近（10.42 vs 10.99 GiB）。原因是 joint 的单次 GET 更大（远端 58.17 GiB 用 3,649 次 GET），缓存块和工作集更集中，命中路径上同时存活的对象更多。这也说明峰值堆不能简单用 GET 数解释，必须实测。四格 GC 时间都在 3.7–4.7 s，不是瓶颈。
+
+Track1 的逻辑请求命中率按 `cache_hits / (cache_hits + 远程 GET)` 计算：原始布局 77.2%（命中 16,775，远程 4,949），joint 78.3%（命中 13,180，远程 3,649），与 COS 的 77.0% / 77.2% 基本相同。`track1.cache_misses` 是缓存内部查找口径，若用它作分母会得到 89.9% / 85.0%，不能与“逻辑 GET 被缓存消掉多少”混用。joint 已经合并掉一部分请求，留给缓存消除的绝对请求数变少，所以墙钟收益从 21.3 s 降到 16.0 s；这不是缓存能力下降。
+
+### 6.4 逐查询
+
+布局并不是对所有查询都有效：
+
+- 布局变快：Q1–Q13、Q17，共 14 条；最大是 Q10 −25.6%、Q11 −14.6%、Q2 −10.3%、Q1 −9.0%
+- 布局变慢：Q14 +7.6%、Q15 +4.5%、Q16 +2.4%，以及 **Q18–Q20 三个候选打分 epoch 分别 +9.9%、+8.2%、+4.9%**
+
+这是本轮最关键的结果。joint 把文件从 21 收到 20、把行组放大，GET 降 22.5%、远端字节降 17.4%，但三条 epoch 查询反而变慢。它们要扫全表的打分输入列，工作集远大于 4 GiB；更大的单次读让解码和聚合的峰值资源上升。布局在窄列和中等扫描上有效（Q10 −25.6%），在宽 epoch 扫描上无效。
+
+Track1 在这张表上没有回退：canonical 和 joint 上都是 20/20 变快。最大收益是 Q15 −43.7%、Q7 −29.9%、Q4 −29.2%、Q3 −24.2%，这些查询反复读取同一批理化性质列，工作集在 4 GiB 内。
+
+组合后仍有 3 条回退：Q18 +4.7%、Q19 +6.5%、Q20 +1.8%。也就是说，对这条 workload，`joint + Track1` 的总收益 −12.0% 全部来自非 epoch 查询；若只看 Q18–Q20，joint 是负收益，只有 Track1 有效。
+
+### 6.5 过程中的两处偏差
+
+**第一，基线文件需要规范化。** `pubchem_novomcp_lite_00020.parquet`（2,353 行，552,343 字节）的 `hba`/`hbd` 是 int64，其余 20 个文件是 double。这会让压缩探测直接失败：
+
+```text
+ArrowInvalid: Schema at index 20 was different
+```
+
+也会让两个 canonical 格报：
+
+```text
+[FAILED_READ_FILE.PARQUET_COLUMN_DATA_TYPE_MISMATCH]
+```
+
+处理方式与 COS 那次一致：只规范化这一个文件，`hba`/`hbd` 改为 double，Snappy、1 个行组、2,353 行、59 列、列顺序不变，原文件保留为备份。本地副本和 S3 原始前缀都做了替换，其余 20 个文件未动。记录见：
+
+```text
+docs/adaptive-range-reader/results/track2/novomcp_2x2_n5_48g_gc30s_r2/schema_normalization.json
+```
+
+首次网格的前两格因此失败（`canonical-off/final` run 1 各有 8 条查询报类型不匹配）。规范化 S3 文件后，整个网格从零重跑；失败结果没有进入本节主表。
+
+**第二，网格运行载体不是 tmux。** 计划是在 tmux 里跑，但两次 `tmux new-session` 等待确认超时，最终用 `setsid nohup` 后台运行。效果等价于脱离当前会话，但本轮没有 tmux 会话可 attach；结果、日志和退出状态都完整保留。
+
+### 6.6 复现
+
+小体积结果归档在：
+
+```text
+docs/adaptive-range-reader/results/track2/novomcp_2x2_n5_48g_gc30s_r2/
+```
+
+包括 20 个轮次报告、`plan_deterministic.json`、物化 manifest、candidate snapshot、footer/关联覆盖率、上传核对和规范化记录。大体积 IO 轨迹保留在：
+
+```text
+/mnt/ssd-cache/novomcp_local/grid/novomcp_2x2_n5_48g_gc30s_r2/
+```
+
+---
+
+## 7. NYC Yellow Taxi，AWS S3，2026-11-01
+
+完成时间 2026-11-01 14:30 +08:00（06:30 UTC）。20 格全部成功，没有查询错误、OOM 或 scratch ENOSPC。四格 CV 都低于 5%。Driver 是 48g；`spark.cleaner.periodicGC.interval=30s`，scratch 使用独立 NVMe。
+
+本节把 §1 的 COS NYC Yellow 搬到 AWS S3 重跑。两份布局由 COS 复制而来，本机只做传输与核对，没有重新规划或重写布局。
+
+### 7.1 数据与协议
+
+| 项 | 值 |
+| --- | --- |
+| 数据 | NYC TLC Yellow Taxi 月度 Parquet，收成一张表 `nyc_yellow` |
+| 原始布局 | 204 个文件，42.17 GiB（42,168,461,705 字节） |
+| joint 布局 | 109 个文件，41.22 GiB（41,223,818,584 字节） |
+| 查询 | 4 个 epoch，同一组训练列各扫一遍；语句只在 epoch 常量上不同 |
+| 机器 | AWS EC2，Spark `local[16]`，driver 48g |
+| 存储 | AWS S3，`us-east-2` |
+| 原始前缀 | `s3://home-haoyue/nyc_yellow/`，benchmark 根 `s3a://home-haoyue`，`--tables nyc_yellow` |
+| joint 前缀 | `s3://home-haoyue/nyc_yellow_joint2/nyc_yellow/`，benchmark 根 `s3a://home-haoyue/nyc_yellow_joint2`，`--tables nyc_yellow` |
+| 查询文件 | `tools/track2/nyc_yellow_epoch_queries.json` |
+| 结果目录 | `docs/adaptive-range-reader/results/track2/nyc_yellow_2x2_n5_48g_gc30s/` |
+
+协议与之前的 AWS 网格一致：四格都传 `--track1-s3a`。因此 00/01 是 Track1 passthrough factory（D1/D2/D4 全关），10/11 打开 D1；这里的 Track1 效应只隔离 D1，不包含客户端工厂切换。COS 那次 NYC（§1）在 00/01 用原生 S3A，所以两边的 Track1 百分比不能直接横比。
+
+### 7.2 墙钟与 IO
+
+| 格 | 五轮查询时间和 (s) | 中位数 | CV | GET | 远端字节 | 峰值堆中位数 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 00 原始 | 342.9 / 345.3 / 348.9 / 340.2 / 353.5 | 345.3 | 1.34% | 121,730 | 104.10 GiB | 1.99 GiB |
+| 10 原始 + Track1 | 315.5 / 327.2 / 318.2 / 317.4 / 319.4 | 318.2 | 1.26% | 108,885 | 92.04 GiB | 8.64 GiB |
+| 01 joint | 277.3 / 284.6 / 288.0 / 291.1 / 283.2 | 284.6 | 1.63% | 9,266 | 109.33 GiB | 12.89 GiB |
+| 11 joint + Track1 | 275.0 / 273.1 / 279.9 / 275.7 / 271.9 | 275.0 | 1.00% | 5,351 | 100.44 GiB | 17.19 GiB |
+
+按墙钟中位数：
+
+| 比较 | 差值 | 比例 |
+| --- | ---: | ---: |
+| Track1，加在原始布局上（10−00） | −27.1 s | −7.8% |
+| Track1，加在 joint 上（11−01） | −9.6 s | −3.4% |
+| Track2，没有 Track1（01−00） | −60.7 s | −17.6% |
+| Track2，有 Track1（11−10） | −43.2 s | −13.6% |
+| 两项一起（11−00） | −70.3 s | −20.4% |
+
+四项配对差全部 5/5 同方向：
+
+| 比较 | 五轮配对比例 |
+| --- | ---: |
+| 00→10 | −8.0 / −5.2 / −8.8 / −6.7 / −9.6 % |
+| 00→01 | −19.1 / −17.6 / −17.5 / −14.4 / −19.9 % |
+| 01→11 | −0.8 / −4.0 / −2.8 / −5.3 / −4.0 % |
+| 00→11 | −19.8 / −20.9 / −19.8 / −19.0 / −23.1 % |
+
+分开两项的和是 −87.8 s，一起跑下来是 −70.3 s，重叠约 17.5 s。仍是替代关系，但比 Criteo 弱。
+
+### 7.3 读法
+
+这次布局收益主要来自请求数，不是传输量。joint 把 GET 从 121,730 降到 9,266（−92.4%），远端字节反而从 104.10 升到 109.33 GiB（+5.0%）。文件从 204 收到 109，读变大变少。AWS 的 RTT 很低（Criteo 那次拟合是 25.5 ms），但 12 万次请求仍然主导墙钟；合并成 9 千次大读后墙钟降 17.6%。
+
+逐查询非常一致，四个 epoch 都是 −15.6% 到 −18.7%：
+
+| 查询 | 00 | 10 | 01 | 11 | 01 相对 00 | 11 相对 00 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Q1 | 90.0 | 88.8 | 75.9 | 69.9 | −15.6% | −22.4% |
+| Q2 | 85.9 | 76.8 | 69.8 | 68.2 | −18.7% | −20.6% |
+| Q3 | 85.2 | 76.5 | 70.2 | 68.1 | −17.6% | −20.1% |
+| Q4 | 84.9 | 76.9 | 69.4 | 68.8 | −18.3% | −18.9% |
+
+Track1 在 joint 上只剩 −3.4%，因为 joint 已经把可复用的重复请求消掉大半：逻辑命中率在 joint+Track1 是 42.3%（命中 3,915，远程 5,351），而原始+Track1 只有 10.6%（命中 12,845，远程 108,885）。命中的绝对字节反而更少（8.89 vs 12.06 GiB）。
+
+### 7.4 堆
+
+`peak_heap_bytes` 是 probe 观测到的最大 JVM heap used，不是 48g Xmx。
+
+| 格 | 峰值堆中位数 | 4 GiB D1 峰值 | GC 时间中位数 |
+| --- | ---: | ---: | ---: |
+| 00 原始 | 1.99 GiB | 0 | 4.5 s |
+| 10 原始 + Track1 | 8.64 GiB | 4.00 GiB | 4.0 s |
+| 01 joint | 12.89 GiB | 0 | 5.2 s |
+| 11 joint + Track1 | 17.19 GiB | 4.00 GiB | 5.4 s |
+
+这张表和 Criteo、NovoMCP 相反：joint 提高了峰值堆。原因是 joint 的单次读大得多（109.33 GiB 只用 9,266 次 GET），解码/聚合批次和缓存块同时存活的对象更多。四格 GC 时间都在 4.0–5.4 s，不是瓶颈；堆峰值最高 17.19 GiB，距 48g Xmx 仍有较大余量，没有 OOM。
+
+### 7.5 过程中的两个问题
+
+**第一，凭证文件格式导致首轮 20 格全部秒退。** `~/.aws/credentials` 的 `[aws]` 段里有两组重复的 `aws_access_key_id` / `aws_secret_access_key`，而 `s3a_session.load_creds()` 用严格模式解析：
+
+```text
+configparser.DuplicateOptionError: option 'aws_access_key_id' in section 'aws' already exists
+```
+
+20 个 slot 在每个约 1 秒内失败，`grid.exit=0` 但 0 份报告。失败目录保留为：
+
+```text
+/mnt/ssd-spare/nyc_grid/nyc_yellow_2x2_n5_48g_gc30s_failed_credparse/
+```
+
+处理方式是给 `load_creds()` 增加两个可选环境变量，不改用户凭证文件、也不把密钥写进命令历史：
+
+```text
+S3ARR_AWS_CREDENTIALS_FILE  指定单 profile 凭证文件
+S3ARR_AWS_SECTION           指定读取哪个段
+```
+
+本次用一份权限 `0600`、只含 AWS `[default]` 的临时文件启动。这个改动是加性兼容的：不设环境变量时行为与之前完全相同。
+
+**第二，AWS 与 COS 的 Track1 口径不同。** COS NYC 的 00/01 用原生 S3A；本次 AWS 四格都用 Track1 factory。因此本节的 −7.8% 与 §1 的 Track1 百分比不是同一个量，不能直接比较大小。已在 §7.7 补跑 00/01 不传 `--track1-s3a` 的对照轮，实测两版四格差异在 ±1.6% 以内。
+
+### 7.6 复现
+
+结果归档在：
+
+```text
+docs/adaptive-range-reader/results/track2/nyc_yellow_2x2_n5_48g_gc30s/
+```
+
+大体积 IO 轨迹保留在：
+
+```text
+/mnt/ssd-spare/nyc_grid/nyc_yellow_2x2_n5_48g_gc30s/
+```
+
+### 7.7 COS 协议对照轮（2026-11-01）
+
+§7.5 第二点留下的口径缺口：本节补跑一次 **00/01 不传 `--track1-s3a`（原生 S3A client）、10/11 传 `--track1-s3a` 并开 D1** 的网格，与 COS NYC 的协议一致。其余配置与 §7 完全相同（48g、`periodicGC=30s`、`local[16]`、4 条 epoch 查询、五轮轮换、scratch 独占 nvme2）。20/20 有效，无查询错误。
+
+逐格对照（五轮中位数，秒）：
+
+| 臂 | 同 factory（四格都 `--track1-s3a`） | COS 协议（00/01 原生 S3A） | 差 |
+| --- | ---: | ---: | ---: |
+| `canonical-track1-off` | 345.3 | 350.7 | +1.6% |
+| `canonical-track1-final` | 318.2 | 321.2 | +0.9% |
+| `joint2-track1-off` | 284.6 | 282.3 | −0.8% |
+| `joint2-track1-final` | 275.0 | 275.2 | +0.1% |
+
+COS 协议版自身的因子效应（CV 均 <1.5%）：
+
+- 布局效应（Track1 off）**−19.5%**
+- Track1 在原始布局上 **−8.4%**（此口径包含 client factory 切换 + D1）
+- Track1 在候选布局上 −2.5%
+- 组合 **−21.5%**
+
+结论：**passthrough factory 本身没有可观开销。** 四格差异全部在 ±1.6% 以内，且方向不一致（off 臂 +1.6%、joint2-off 臂 −0.8%），与两版 CV（0.7%–1.6%）同量级，属于噪声而非系统差。因此 §7 的 −7.8% 与 §1 COS 的 Track1 百分比**可以直接比较**：若两者仍有明显差距，原因在 D1 行为与介质，不在 client 切换。IO 侧也一致：两版 GET 数几乎逐位相同（121,730 / 108,88x / 9,266 / 5,35x），字节数完全相同，说明 client 切换不改变请求形状。
+
+编排脚本：`run_nyc_2x2_grid_cos_protocol.py`（`run_nyc_2x2_grid.py` 的变体，仅在 `not spec.d1` 时移除 `--track1-s3a`）。结果目录：
+
+```text
+/mnt/ssd-spare/nyc_grid/nyc_yellow_2x2_n5_48g_gc30s_cos_protocol/
+```
+
+---
+
+## 8. ClickBench SF8，AWS S3，当前协议重跑，2026-11-02
+
+完成时间 2026-11-02 11:50 +08:00（03:50 UTC）。20 格全部成功，没有查询错误、OOM 或 scratch ENOSPC。四格 CV 均低于 1.2%。Driver 是 48g；`spark.cleaner.periodicGC.interval=30s`；scratch 使用独立 NVMe。
+
+本节补的是五种 AWS 负载里最后一个尚未使用当前运行协议的负载。ClickBench 此前只有 2026-09-23/24 的旧网格（SF1 与 SF8，32g、无周期 GC），与 §5 至 §7 的 TPC-H / Criteo / NovoMCP / NYC 不同代次，不能并列进主表。这里按当前协议重跑 SF8，并**复用已验证的 `joint2` 物理布局，不重新规划、不重写**。
+
+### 8.1 数据与协议
+
+| 项 | 值 |
+| --- | --- |
+| 数据 | ClickBench `hits` 表，SF8 |
+| 行数 | 799,979,976 |
+| 原始布局 | `s3a://home-haoyue/track2/clickbench_sf8`，881 个对象，120,252,196,875 字节 |
+| joint 布局 | `s3a://home-haoyue/track2/clickbench_sf8_e0_uc1_joint2`，176 个对象，87,957,897,552 字节 |
+| joint 物化 | 174 个 Parquet 文件，行组 591,702 行，行组中位 424.37 MB，最大 519.47 MB，manifest 校验 `pass` |
+| 查询 | `tools/track2/clickbench_queries.json`，Q1–Q43；SHA-256 `8775514e0ba2aa41230803e15afe43e753bccef72081d9fc0dd69eb550007fbb` |
+| 机器 | AWS EC2，Spark `local[16]`，driver 48g |
+| 存储 | AWS S3，`us-east-2` |
+| Track1 | 四格都传 `--track1-s3a`；final 为固定 4 GiB W-TinyLFU、adaptive、admit 0 |
+| 结果目录 | `/mnt/ssd-cache/clickbench_grid/clickbench_sf8_2x2_n5_48g_gc30s_current/` |
+
+不重写布局的依据：本次要统一的是**运行协议**（堆、GC、scratch、JAR、Track1 配置、轮换方式），这些都不改变 Parquet 物理形态。旧 `joint2` 由 2026-09-10 的旧版 planner 产出，其目标文件约 470 MB、compression/encoding 选择也来自旧流水线；若论文要声称"五种负载全部由当前 planner 端到端生成"，才需要重跑规划与重写。主表按"当前协议 + 既有已验证布局"口径成立。
+
+### 8.2 墙钟与 IO
+
+| 臂 | 五轮查询时间和 (s) | 中位数 | CV | GET | 远端字节 | 命中率 | 峰值堆中位数 | GC 时间中位数 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| canonical + off | 2405 / 2351 / 2398 / 2358 / 2396 | 2395.5 | 0.93% | 262,309 | 371.9 GiB | — | 3.56 GiB | 30.9 s |
+| canonical + final | 1991 / 1975 / 1936 / 1934 / 1957 | 1957.3 | 1.13% | 70,844 | 333.1 GiB | 75.7% | 22.55 GiB | 24.5 s |
+| joint + off | 1865 / 1847 / 1849 / 1875 / 1837 | 1848.8 | 0.73% | 183,675 | 252.1 GiB | — | 7.01 GiB | 23.6 s |
+| joint + final | 1645 / 1651 / 1637 / 1639 / 1634 | **1638.9** | 0.36% | 44,597 | 210.5 GiB | 78.0% | 23.60 GiB | 17.2 s |
+
+按中位数：
+
+| 比较 | 差值 | 比例 |
+| --- | ---: | ---: |
+| Track1，加在原始布局上 | −438.2 s | **−18.3%** |
+| Track1，加在 joint 上 | −209.9 s | −11.4% |
+| 布局（Track1 off） | −546.7 s | **−22.8%** |
+| 布局（Track1 final） | −318.4 s | −16.3% |
+| 两项一起 | −756.6 s | **−31.6%（1.46×）** |
+
+分开两项的和是 −984.9 s，一起跑下来是 −756.6 s，重叠约 228.4 s（9.5 个百分点），仍是替代关系。
+
+43 条查询全部变快：布局无回归，Track1 在原始布局和 joint 上也无回归。布局收益最大的是 Q37 −63%、Q38/Q39 −56%、Q43/Q42 −54%、Q41 −53%；最小的是 Q29 −5%、Q33 −12%、Q30 −13%、Q23 −13%。这是目前五种 AWS 负载里最稳的一组：四臂 CV 全部低于 1.2%，`joint + final` 只有 0.36%。
+
+### 8.3 与旧网格的对照（旧结果不进主表）
+
+| 臂 | 旧（2026-09，32g，无 gc30s） | 新（当前协议） | 差 |
+| --- | ---: | ---: | ---: |
+| canonical + off | 2309.5 | 2395.5 | +3.7% |
+| canonical + final | 2038.1 | 1957.3 | −4.0% |
+| joint + off | 1896.2 | 1848.8 | −2.5% |
+| joint + final | 1711.8 | 1638.9 | −4.3% |
+
+三点：
+
+1. **off 臂慢 3.7%，带 Track1 的三格快 2.5–4.3%。** 48g 堆让 off 臂 GC 时间从 20.7 s 升到 30.9 s；带缓存的三格 GC 时间反而下降，D1 命中率也从 73.8% 升到 75.7%。因此 Track1 效应由旧 −11.8% 放大到 −18.3%，组合由 −25.9% 到 **−31.6%**。
+2. **IO 形状完全没变。** 两个 off 格 GET 逐位相同（262,309 / 183,675），远端字节也相同（371.9 / 252.1 GiB）。这既说明布局复用有效，也说明差异只来自运行时，不是物理布局或访问模式变化。
+3. **堆纪律仍然成立。** final 两臂峰值堆 22.55 / 23.60 GiB，接近但低于 48g Xmx，五轮没有 OOM。
+
+**绝对墙钟不可与旧网格横比。** 协议变了（32g → 48g 并新增周期 GC），且两次相隔一个多月，机器与网络状态未必一致。旧 SF8 结果只保留为代次对照，不再进入主表；ClickBench 主表一行应采用本节的 −22.8% / −18.3% / −31.6%。
+
+### 8.4 复现
+
+编排脚本 `run_clickbench_sf8_2x2_grid.py` 由 §7 的同 factory 网格脚本改出，只改数据前缀、表名、查询文件和实验名，运行协议部分（48g、`local[16]`、`periodicGC=30s`、轮换、每格独立进程）保持不变。启动命令：
+
+```bash
+tmux new-session -d -s clickbench_sf8_current "bash -lc 'cd /home/ec2-user/aws-sdk-java-v2; \
+  env -u CODEBUDDY_SESSION_ID -u CLAUDE_SESSION_ID \
+  S3ARR_AWS_CREDENTIALS_FILE=<临时凭证文件> AWS_DEFAULT_REGION=us-east-2 \
+  /home/ec2-user/aws-sdk-java-v2/.venv/bin/python \
+  <grid>/run_clickbench_sf8_2x2_grid.py --out <grid> --runs 5 --driver-memory 48g \
+  --scratch /mnt/ssd-spare/track2-scratch --resume > <grid>/grid.log 2>&1'"
+```
+
+结果目录（小体积报告与大体积 IO 轨迹都在数据盘）：
+
+```text
+/mnt/ssd-cache/clickbench_grid/clickbench_sf8_2x2_n5_48g_gc30s_current/
+```

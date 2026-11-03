@@ -17,12 +17,27 @@ HADOOP_AWS_JAR = os.path.join(S3A_JARS, "hadoop-aws-3.4.2.jar")
 
 
 def load_creds():
-    path = os.path.expanduser("~/.aws/credentials")
+    """Access key/secret for the S3A filesystem.
+
+    The path and section are overridable because one credentials file often has
+    to hold more than one object store (AWS S3 and COS), and `configparser`
+    aborts on a duplicated key anywhere in the file even when the section we
+    want is clean. Pointing at a single-profile file keeps the benchmark honest
+    about which identity it used, without editing the operator's credentials.
+
+    S3ARR_AWS_CREDENTIALS_FILE  path to a credentials file (default ~/.aws/credentials)
+    S3ARR_AWS_SECTION           section to read (default "default", else first)
+    """
+    path = os.environ.get("S3ARR_AWS_CREDENTIALS_FILE",
+                          os.path.expanduser("~/.aws/credentials"))
     if not os.path.exists(path):
-        raise FileNotFoundError("missing ~/.aws/credentials")
+        raise FileNotFoundError(f"missing {path}")
     cp = configparser.ConfigParser()
     cp.read(path)
-    section = "default" if "default" in cp else cp.sections()[0]
+    section = (os.environ.get("S3ARR_AWS_SECTION")
+               or ("default" if "default" in cp else cp.sections()[0]))
+    if section not in cp:
+        raise ValueError(f"credentials section {section!r} not in {path}")
     ak = cp[section].get("aws_access_key_id")
     sk = cp[section].get("aws_secret_access_key")
     if not ak or not sk:
