@@ -31,10 +31,10 @@
 
 在 GET 次数主导墙钟的读路径上，变长对象这一类用 AV 作代表（Einziger、Eytan、Friedman、Manes，*Lightweight Robust Size Aware Cache Management*，ACM TOS 18(3)，2022；该文已与 GDSF、AdaptSize、LHD、LRB 比较），再和其余几类各取一个代表比较：
 
-| 格子 | 代表 |
+| 缓存算法 | 代表 |
 | --- | --- |
 | 无缓存（`000`） | 基线 |
-| `wtinylfu-av` | 变长对象、大小感知准入（论文版 Aggregated Victims） |
+| `wtinylfu-av` | 变长对象、大小感知准入 |
 | `wtinylfu` | 准入过滤，无大小感知 |
 | `sieve` | FIFO 系 |
 | `slru` | 分段最近使用（保护区占容量 80%） |
