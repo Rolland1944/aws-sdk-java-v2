@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import os
@@ -166,6 +167,30 @@ def register_tables(spark, data_root, tables):
         spark.read.parquet(path).createOrReplaceTempView(table)
 
 
+def result_sha256(rows):
+    """Stable content hash for a collected SQL result, insensitive to row order."""
+    def normalise(value):
+        if hasattr(value, "asDict"):
+            return {k: normalise(v) for k, v in value.asDict(recursive=True).items()}
+        if isinstance(value, dict):
+            return {str(k): normalise(v) for k, v in value.items()}
+        if isinstance(value, (tuple, list)):
+            return [normalise(v) for v in value]
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+        return value
+
+    encoded = sorted(
+        json.dumps(normalise(row), sort_keys=True, separators=(",", ":"), default=str)
+        for row in rows
+    )
+    digest = hashlib.sha256()
+    for row in encoded:
+        digest.update(row.encode())
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
 def run_once(args, run_id, queries, collector_dir, eventlog_dir):
     dropped = drop_os_page_cache()
     t_session = time.time()
@@ -178,6 +203,7 @@ def run_once(args, run_id, queries, collector_dir, eventlog_dir):
         t0 = time.time()
         err = None
         nout = None
+        result_hash = None
         # Stamp the query number into the event log. Spark records this as the
         # SQL execution's description, which makes the log self-describing when
         # a run has to be explained after the fact. Since r5 nothing in the
@@ -186,6 +212,7 @@ def run_once(args, run_id, queries, collector_dir, eventlog_dir):
         try:
             result = spark.sql(sql).collect()
             nout = len(result)
+            result_hash = result_sha256(result)
         except Exception as exc:  # keep going so one query does not kill the run
             err = f"{type(exc).__name__}: {exc}"
         elapsed = time.time() - t0
@@ -194,6 +221,7 @@ def run_once(args, run_id, queries, collector_dir, eventlog_dir):
             "query": qnr,
             "wall_s": round(elapsed, 3),
             "rows": nout,
+            "result_sha256": result_hash,
             "error": err,
         })
         status = "ERR" if err else "ok"

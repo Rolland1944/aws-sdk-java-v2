@@ -103,22 +103,41 @@ def _sample(items, n):
     return [items[int(i * step)] for i in range(n)]
 
 
-def count_row_groups(fs, files):
-    """Exact row-group and row totals from every footer, not a sample.
+def _partition_key(table_path, file_path):
+    """Stable relative parent path; ``""`` represents an unpartitioned table."""
+    parent = os.path.dirname(file_path)
+    rel = os.path.relpath(parent, table_path).replace(os.sep, "/")
+    return "" if rel == "." else rel
+
+
+def partition_geometry(fs, files, table_path):
+    """Exact footer geometry per writer partition and for the whole table.
 
     L1 and the UC1 writer both treat `n_rg` as the thing `rg=baseline` must
     reproduce. Estimating it as `round(sampled rg/file × files)` turned
     ClickBench's 169 row groups into 165, and the writer then aimed at the
-    wrong number.
+    wrong number.  Partitions are additionally retained because a writer never
+    lets a row group or target file cross a Hive partition boundary: modelling
+    the table as one continuous byte stream undercounts tail row groups/files.
     """
     import pyarrow.parquet as pq
-    n_rg = n_rows = 0
-    for path, _size in files:
+    parts = {}
+    for path, size in files:
         with fs.open_input_file(path) as handle:
             md = pq.ParquetFile(handle).metadata
-        n_rg += md.num_row_groups
-        n_rows += md.num_rows
-    return n_rg, n_rows
+        rec = parts.setdefault(_partition_key(table_path, path), {
+            "files": 0, "n_rg": 0, "n_rows": 0, "compressed_bytes": 0,
+            "uncompressed_bytes": 0, "file_sizes": [],
+        })
+        rec["files"] += 1
+        rec["n_rg"] += md.num_row_groups
+        rec["n_rows"] += md.num_rows
+        rec["compressed_bytes"] += size
+        rec["file_sizes"].append(size)
+        rec["uncompressed_bytes"] += sum(
+            md.row_group(index).total_byte_size
+            for index in range(md.num_row_groups))
+    return parts
 
 
 def scan_footers(fs, files, sample_n):
@@ -224,7 +243,9 @@ def build(layout, column_stats_path=None, sample_files=DEFAULT_SAMPLE_FILES,
         if not files:
             continue
         footer = scan_footers(fs, files, sample_files)
-        n_rg, n_rows = count_row_groups(fs, files)
+        partitions = partition_geometry(fs, files, path)
+        n_rg = sum(rec["n_rg"] for rec in partitions.values())
+        n_rows = sum(rec["n_rows"] for rec in partitions.values())
         file_sizes = [s for _p, s in files]
         n_scan_units = sum(max(1, -(-s // SPLIT_SIZE_BYTES)) for s in file_sizes)
         geometry[table] = {
@@ -241,6 +262,7 @@ def build(layout, column_stats_path=None, sample_files=DEFAULT_SAMPLE_FILES,
             "n_scan_units": n_scan_units,
             "split_size_bytes": SPLIT_SIZE_BYTES,
             "path": path,
+            "partitions": partitions,
         }
         column_order[table] = footer["column_order"]
         column_share[table] = footer["column_share"]

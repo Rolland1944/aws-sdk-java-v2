@@ -77,6 +77,62 @@ class ScanUnitCount(unittest.TestCase):
         self.assertGreater(large, 100)
 
 
+class PartitionGeometry(unittest.TestCase):
+    def setUp(self):
+        self.old_catalog = vf.catalog
+        cat = DummyCatalog()
+        cat.BASELINE_GEOMETRY["hits"].update({
+            "files": 2,
+            "n_rg": 2,
+            "rg_per_file": 1.0,
+            "rg_bytes": 500,
+            "compressed_bytes": 2000,
+            "file_sizes": [1000, 1000],
+            "partitions": {
+                "day=a": {
+                    "files": 1, "n_rg": 1, "n_rows": 4_000,
+                    "compressed_bytes": 1000, "uncompressed_bytes": 40_000,
+                    "file_sizes": [1000],
+                },
+                "day=b": {
+                    "files": 1, "n_rg": 1, "n_rows": 4_000,
+                    "compressed_bytes": 1000, "uncompressed_bytes": 40_000,
+                    "file_sizes": [1000],
+                },
+            },
+        })
+        vf.catalog = cat
+
+    def tearDown(self):
+        vf.catalog = self.old_catalog
+
+    def test_row_group_and_file_ceilings_apply_per_partition(self):
+        # The renderer floors to 1,024 rows/RG; 4,000 rows per partition thus
+        # yield four row groups in each partition.
+        # partition.  A 500 B target holds two RGs, but cannot span days.
+        candidate = {"actions": [
+            {"canonical": la.ROW_GROUP_SIZE, "value": 5_000, "table": "hits"},
+            {"canonical": la.TARGET_FILE_SIZE, "value": 500, "table": "hits"},
+        ]}
+        geom = vf.predict_geometry("hits", candidate)
+        self.assertEqual(geom["n_rg"], 8)
+        self.assertEqual(geom["n_files"], 4)
+        self.assertEqual(geom["partitions"]["day=a"]["n_rg"], 4)
+        self.assertEqual(geom["partitions"]["day=b"]["n_files"], 2)
+
+    def test_baseline_file_action_keeps_partition_file_topology(self):
+        # A row-group-only action must not re-derive the file count from a
+        # buffered byte target.  Four new RGs remain assigned to each source
+        # file in its own partition.
+        candidate = {"actions": [
+            {"canonical": la.ROW_GROUP_SIZE, "value": 5_000, "table": "hits"},
+        ]}
+        geom = vf.predict_geometry("hits", candidate)
+        self.assertEqual(geom["n_rg"], 8)
+        self.assertEqual(geom["n_files"], 2)
+        self.assertEqual(geom["partitions"]["day=a"]["n_files"], 1)
+
+
 class DummyCatalog:
     def __init__(self):
         self.BASELINE_GEOMETRY = {

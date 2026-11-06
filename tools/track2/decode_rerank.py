@@ -64,7 +64,7 @@ def enumerate_legal(catalog, table, regime, vectored, probe, dims, writer):
                             f"{order_label}|{codec_label}|{page_label}|"
                             f"{file_label}|{rg_label}"),
                             "actions": actions}
-                        ok, _, _ = whatif.l0_check(cand, writer=writer)
+                        ok, _, geom = whatif.l0_check(cand, writer=writer)
                         if not ok:
                             rejected += 1
                             continue
@@ -84,6 +84,16 @@ def enumerate_legal(catalog, table, regime, vectored, probe, dims, writer):
                             "decode_priced": ev["decode_priced"],
                             "bytes_gib": ev["bytes_gib"],
                             "ranged_gets": ev["ranged_gets"],
+                            # Keep the executable plan and virtual geometry
+                            # alongside the score.  Consumers that materialise
+                            # a frozen subset (rank-fidelity studies) must not
+                            # reconstruct actions from display labels.
+                            "actions": actions,
+                            "predicted_geometry": {
+                                key: geom.get(key)
+                                for key in ("n_files", "n_rg", "compressed_bytes",
+                                            "n_scan_units", "n_work_tasks")
+                            },
                         })
     return points, rejected, notes
 

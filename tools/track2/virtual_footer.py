@@ -422,20 +422,17 @@ def column_order_for(table, candidate):
 
 
 def predict_geometry(table, candidate):
-    """Scale file/RG counts from the measured baseline.
+    """Scale file/RG counts from the measured baseline, per writer partition.
 
-    Baseline (no file-size or row-group action) is replayed as measured:
-    fractional `rg_per_file` is kept, and `n_rg` is *not* rounded up to a
-    multiple of `n_files`. That rounding used to turn ClickBench's 165 row
-    groups into 220 before L1 ever priced a point.
+    A PyArrow writer does not cross a Hive partition when buffering rows,
+    closing a row group or rotating a target-sized file.  The virtual footer
+    must therefore apply the same ceilings per partition, rather than price a
+    table as one continuous stream and invent a layout the renderer cannot
+    produce.
     """
     base = catalog.BASELINE_GEOMETRY[table]
     base_files = base["files"]
-    # Row groups per file is not an integer in practice: Spark's output averages
-    # 1.5. The snapshot carries the measured total, so use it rather than
-    # rounding a ratio and multiplying the error by the file count.
     base_rg = base.get("n_rg") or int(round(base["files"] * base["rg_per_file"]))
-    base_rg_b = base["rg_bytes"]  # mean uncompressed; base_rg * this = total
     lay = layout_for(table, candidate)
 
     # Compression changes the byte total, hence the file count for a given
@@ -447,35 +444,85 @@ def predict_geometry(table, candidate):
         ratio = table_compression_ratio(table, lay.get("column_ratios"))
     compressed = table_bytes(table) * ratio
 
-    file_bytes = lay["file_bytes"]
-    if not file_bytes and abs(ratio - 1.0) > 0.01 and base.get("file_sizes"):
-        # file=baseline under a new codec: the UC1 writer rotates at the
-        # median source file size, so shrunk bytes mean fewer files.
-        sizes = sorted(base["file_sizes"])
-        file_bytes = sizes[len(sizes) // 2]
-    n_files = max(1, int(math.ceil(compressed / file_bytes))) if file_bytes else base_files
+    parts = base.get("partitions") or {
+        "": {
+            "files": base_files,
+            "n_rg": base_rg,
+            "n_rows": base.get("n_rows"),
+            "compressed_bytes": table_bytes(table),
+            "uncompressed_bytes": (base.get("rg_bytes") or 0) * base_rg,
+            "file_sizes": base.get("file_sizes") or [],
+        },
+    }
+    all_sizes = sorted(base.get("file_sizes") or [])
+    baseline_target = all_sizes[len(all_sizes) // 2] if all_sizes else None
+    total_rows = sum(rec.get("n_rows") or 0 for rec in parts.values())
+    total_unc = sum(rec.get("uncompressed_bytes") or 0 for rec in parts.values())
+    # This is the same whole-source mean width used by write_layout_pyarrow.
+    width = total_unc / total_rows if total_rows and total_unc else None
+    requested_rg = lay["rg_bytes"]
+    row_group_rows = (max(1024, int(requested_rg / width))
+                      if requested_rg and width else None)
+    target_file = lay["file_bytes"]
 
-    rg_bytes = lay["rg_bytes"]
-    if rg_bytes:
-        n_rg = max(1, int(round(base_rg * (base_rg_b / rg_bytes))))
-    else:
-        # rg=baseline keeps rows/RG. File merge must not invent extra RGs;
-        # the writer is required to buffer across source files so this holds.
-        n_rg = base_rg
-    # A file must contain at least one row group, but do not invent extra row
-    # groups just to make n_rg divisible by n_files.
-    if file_bytes:
-        # Writers close a file only after a row group lands, so a file holds
-        # the fewest whole row groups whose bytes reach the target, and there
-        # are never more files than row groups.
-        rg_c = compressed / n_rg
-        per_file = max(1, int(math.ceil(file_bytes / rg_c)))
-        n_files = max(1, int(math.ceil(n_rg / per_file)))
-        file_bytes = compressed / n_files
-    if n_rg < n_files:
-        n_rg = n_files
+    predicted_parts = {}
+    n_files = n_rg = 0
+    file_sizes = []
+    for key, rec in parts.items():
+        part_rows = rec.get("n_rows") or 0
+        part_rg = rec.get("n_rg") or 1
+        part_bytes = (rec.get("compressed_bytes") or 0) * ratio
+        if row_group_rows and part_rows:
+            part_n_rg = max(1, int(math.ceil(part_rows / row_group_rows)))
+        elif requested_rg:
+            # Older snapshots do not carry rows/uncompressed bytes per
+            # partition. Preserve the pre-r6 aggregate scaling for them.
+            part_rg_bytes = ((rec.get("uncompressed_bytes") or 0) / part_rg
+                             if rec.get("uncompressed_bytes") else
+                             base.get("rg_bytes"))
+            part_n_rg = max(1, int(round(part_rg * (part_rg_bytes / requested_rg))))
+        else:
+            # No RG action reproduces the measured source count per partition.
+            part_n_rg = part_rg
+
+        # ``file=baseline`` is a per-partition output-file topology
+        # constraint.  It does not mean "rotate at the source median byte
+        # target": ParquetWriter's buffered byte position is not the final
+        # compressed file size.  When an RG action changes the number of
+        # groups, the renderer spreads them deterministically over the source
+        # partition's file count.  A smaller RG count cannot produce empty
+        # parquet files, so it caps that count.
+        effective_target = target_file
+        keep_source_quota = not target_file
+        if keep_source_quota:
+            part_n_files = min(rec.get("files") or 1, part_n_rg)
+            part_sizes = list(rec.get("file_sizes") or [])
+            if (part_n_files != (rec.get("files") or 1) or
+                    requested_rg or not part_sizes):
+                part_sizes = predict_file_sizes(part_bytes, part_n_files, None, rec)
+        else:
+            effective_target = effective_target or baseline_target
+            rg_compressed = part_bytes / part_n_rg
+            per_file = max(1, int(math.ceil(effective_target / rg_compressed))) \
+                if effective_target and rg_compressed else 1
+            part_n_files = max(1, int(math.ceil(part_n_rg / per_file)))
+            # The writer tests the target after a complete RG; model the
+            # resulting files as full groups plus one remainder.
+            part_sizes = predict_file_sizes(
+                part_bytes, part_n_files,
+                part_bytes / part_n_files if part_n_files else None, rec)
+        predicted_parts[key] = {
+            "n_files": part_n_files,
+            "n_rg": part_n_rg,
+            "compressed_bytes": part_bytes,
+        }
+        n_files += part_n_files
+        n_rg += part_n_rg
+        file_sizes.extend(part_sizes)
+
+    if not file_sizes:
+        file_sizes = predict_file_sizes(compressed, n_files, None, base)
     rg_per_file = n_rg / n_files
-    file_sizes = predict_file_sizes(compressed, n_files, file_bytes, base)
     split = (base.get("split_size_bytes") or SPLIT_SIZE_BYTES)
     n_scan_units = scan_unit_count(file_sizes, split)
     n_scan_tasks = scan_task_count(file_sizes, split)
@@ -493,6 +540,7 @@ def predict_geometry(table, candidate):
         "n_scan_tasks": n_scan_tasks,
         "n_work_tasks": min(n_scan_tasks, n_rg),
         "split_size_bytes": split,
+        "partitions": predicted_parts,
     }
 
 

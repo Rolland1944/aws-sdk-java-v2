@@ -159,6 +159,34 @@ def source_rg_per_file(fs, files):
     return counts
 
 
+def source_dictionary_policy(fs, files):
+    """Uniform source dictionary state per column, from every source footer.
+
+    ``use_dictionary`` is an allow-list in PyArrow. Once a plan names one
+    explicit encoding, passing that list without the source state makes
+    PyArrow choose a new policy for every other column.  Preserve a uniform
+    source ``False`` as well as ``True``; return ``None`` for a mixed source
+    because no one writer setting can faithfully reproduce chunk-level
+    variation.
+    """
+    import pyarrow.parquet as pq
+
+    observed = {}
+    for path in files:
+        with fs.open_input_file(path) as handle:
+            md = pq.ParquetFile(handle).metadata
+        names = [md.schema.column(index).name for index in range(md.num_columns)]
+        for rg_index in range(md.num_row_groups):
+            rg = md.row_group(rg_index)
+            for col_index, name in enumerate(names):
+                observed.setdefault(name, set()).add(
+                    _uses_dictionary(rg.column(col_index).encodings))
+    return {
+        name: next(iter(values)) if len(values) == 1 else None
+        for name, values in observed.items()
+    }
+
+
 def source_row_group_rows(fs, files, sample=8):
     """Row count used when the plan leaves RG at baseline.
 
@@ -185,7 +213,7 @@ def resolve_column_order(requested, available, notes, table):
     return known + tail
 
 
-def writer_kwargs(rendered, order, notes, table):
+def writer_kwargs(rendered, order, notes, table, baseline_dictionary=None):
     """Translate a rendered plan into ParquetWriter keyword arguments."""
     kwargs = {"write_page_index": True}
 
@@ -205,21 +233,61 @@ def writer_kwargs(rendered, order, notes, table):
     elif rendered.compression:
         kwargs["compression"] = _codec(rendered.compression)
 
-    encodings = {c: e for c, e in rendered.column_encoding.items() if c in set(order)}
-    if encodings:
-        # column_encoding and use_dictionary are mutually exclusive per column:
-        # the dictionary path ignores an explicit encoding, so a column asking
-        # for DELTA_* has to have the dictionary turned off or the request is
-        # silently dropped.
+    encodings = {c: e for c, e in rendered.column_encoding.items()
+                 if c in set(order)}
+    dictionary = {c: bool(v) for c, v in rendered.column_dictionary.items()
+                  if c in set(order)}
+    if encodings or dictionary:
+        # ``use_dictionary`` is a *positive allow-list* in PyArrow. Passing
+        # only the columns explicitly set to RLE_DICTIONARY turns it off for
+        # every other column.  That used to make a plan touching four columns
+        # silently rewrite all remaining columns as PLAIN, while L1 priced
+        # only the four requested changes.
+        #
+        # An explicit non-dictionary family must turn dictionary off for that
+        # column. An unnamed column reproduces its source-footer dictionary
+        # behaviour when it was uniform; PyArrow's default is only used when
+        # the source mixed dictionary and non-dictionary chunks. A canonical
+        # dict action can override that default, but may not contradict an
+        # explicit encoding on the same column.
         explicit = {c: e for c, e in encodings.items() if e != "RLE_DICTIONARY"}
-        dictionary = {c: (encodings.get(c) == "RLE_DICTIONARY") for c in order
-                      if c in encodings}
+        conflicts = sorted(c for c in explicit
+                           if dictionary.get(c) is True)
+        if conflicts:
+            raise ValueError(
+                f"{table}: explicit non-dictionary encoding conflicts with "
+                f"dictionary=true on {conflicts}")
+        for column, encoding in encodings.items():
+            requested_dict = encoding == "RLE_DICTIONARY"
+            if column in dictionary and dictionary[column] != requested_dict:
+                raise ValueError(
+                    f"{table}: encoding {encoding} conflicts with explicit "
+                    f"dictionary={dictionary[column]} on {column}")
+            dictionary[column] = requested_dict
+        source_dictionary = baseline_dictionary or {}
+        enabled = []
+        for column in order:
+            source_value = source_dictionary.get(column)
+            default = True if source_value is None else bool(source_value)
+            if dictionary.get(column, default) and column not in explicit:
+                enabled.append(column)
+        kwargs["use_dictionary"] = enabled
+        preserved_disabled = [
+            column for column in order
+            if column not in dictionary and source_dictionary.get(column) is False
+        ]
+        if preserved_disabled:
+            notes.append(
+                f"{table}: retaining source dictionary=false on "
+                f"{len(preserved_disabled)} untouched column(s)")
         if explicit:
             kwargs["column_encoding"] = explicit
-        if dictionary:
-            kwargs["use_dictionary"] = [c for c, on in dictionary.items() if on]
-        notes.append(f"{table}: encoding family set on {len(encodings)} column(s) "
-                     f"(not expressible in UC2)")
+        if encodings:
+            notes.append(f"{table}: encoding family set on {len(encodings)} column(s) "
+                         f"(not expressible in UC2)")
+        if rendered.column_dictionary:
+            notes.append(f"{table}: dictionary policy set on "
+                         f"{len(rendered.column_dictionary)} column(s)")
 
     if rendered.page_size:
         kwargs["data_page_size"] = int(rendered.page_size)
@@ -234,9 +302,6 @@ def writer_kwargs(rendered, order, notes, table):
                 f"{table}: the plan sets a page row limit but this PyArrow "
                 f"build's ParquetWriter has no max_rows_per_page; refusing to "
                 f"write a layout that silently ignores it")
-    if rendered.column_dictionary and "use_dictionary" not in kwargs:
-        kwargs["use_dictionary"] = [c for c, on in rendered.column_dictionary.items()
-                                    if on and c in set(order)]
     return kwargs
 
 
@@ -366,6 +431,27 @@ def partition_groups(files, rg_quota):
     return groups
 
 
+def output_rg_quota(source_fs, files, row_group_size):
+    """Choose output RG/file quotas for ``file=baseline``.
+
+    A baseline file action is a *file-count/topology* constraint, not a
+    request to rediscover source-sized files using PyArrow's buffered
+    ``tell()`` value.  When a row-group action changes the number of RGs,
+    distribute those RGs over the source partition's number of files.  If an
+    action makes fewer RGs than source files, empty parquet files are neither
+    useful nor writable, so the number of output files is the RG count.
+    """
+    if not row_group_size:
+        raise ValueError("could not resolve row group size for file=baseline")
+    _source_rg_rows, _source_rg, source_rows = source_row_group_geometry(
+        source_fs, files)
+    output_rg = max(1, math.ceil(source_rows / row_group_size))
+    output_files = min(len(files), output_rg)
+    whole, remainder = divmod(output_rg, output_files)
+    return [whole + (1 if index < remainder else 0)
+            for index in range(output_files)]
+
+
 def write_file_group(source_fs, files, out_fs, out_dir, schema, order,
                      target_bytes, kwargs, rg_quota, row_group_size, batch_rows):
     """Write one partition (or a whole unpartitioned table) and close it."""
@@ -406,7 +492,8 @@ def write_file_group(source_fs, files, out_fs, out_dir, schema, order,
 
 
 def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
-                notes, batch_rows=DEFAULT_BATCH_ROWS):
+                notes, batch_rows=DEFAULT_BATCH_ROWS,
+                fixed_row_groups_per_file=None):
     import pyarrow as pa
     import pyarrow.parquet as pq
 
@@ -448,7 +535,13 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
             notes.append(f"{table}: could not measure source row groups; "
                          f"row group size left to the writer default")
 
-    kwargs = writer_kwargs(rendered, order, notes, table)
+    # Passing ``use_dictionary`` for an explicit encoding turns it into an
+    # allow-list. Read source footers first so untouched columns that were
+    # deliberately non-dictionary do not silently acquire dictionary pages.
+    baseline_dictionary = None
+    if rendered.column_encoding or rendered.column_dictionary:
+        baseline_dictionary = source_dictionary_policy(source_fs, source_files)
+    kwargs = writer_kwargs(rendered, order, notes, table, baseline_dictionary)
     # PyArrow writes tz-less timestamps as INT64 with isAdjustedToUTC=false, which
     # Spark's parquet-mr reader refuses (PARQUET_COLUMN_DATA_TYPE_MISMATCH). The
     # Spark/parquet-mr baseline writes timestamps as INT96, so to keep the
@@ -460,26 +553,64 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
         notes.append(f"{table}: timestamp column(s) written as INT96 to match "
                      f"the Spark/parquet-mr baseline (otherwise PyArrow emits "
                      f"INT64 isAdjustedToUTC=false, which Spark rejects)")
-    # `file=baseline` renders to no target-file-size action; fall back to the
-    # baseline median file size so the candidate keeps the baseline file count
-    # instead of collapsing into one giant file.
+    # ``file=baseline`` is an explicit physical-topology constraint: retain
+    # the source partition's output-file count (where the RG count permits).
+    # Rotating at a median byte target is not equivalent because PyArrow can
+    # buffer pages while a ParquetWriter is open, so ``tell()`` is not a stable
+    # representation of the completed file's compressed size.
     target_bytes = rendered.target_file_size
     rg_quota = None
-    if not target_bytes and not rendered.row_group_size and row_group_size:
-        # Both axes at baseline: a byte target at the median would merge
-        # files whenever a codec or RG cut shifts sizes, and with them Spark
-        # scan tasks. Reproduce the source's row groups per file instead.
-        rg_quota = source_rg_per_file(source_fs, source_files)
-        notes.append(f"{table}: file size left at baseline by the plan; "
-                     f"keeping {len(rg_quota)} files with the source's "
-                     f"row groups per file")
+    if fixed_row_groups_per_file is not None:
+        if fixed_row_groups_per_file <= 0:
+            raise ValueError("fixed_row_groups_per_file must be positive")
+        if partitioned:
+            raise ValueError(
+                "fixed_row_groups_per_file is not supported for partitioned "
+                "tables because quotas must be specified per partition"
+            )
+        _src_rg_rows, _src_rg, total_rows = source_row_group_geometry(
+            source_fs, source_files)
+        if not row_group_size:
+            raise ValueError("could not resolve row group size for fixed quota")
+        n_rg = math.ceil(total_rows / row_group_size)
+        full_files, remainder = divmod(n_rg, fixed_row_groups_per_file)
+        rg_quota = [fixed_row_groups_per_file] * full_files
+        if remainder:
+            rg_quota.append(remainder)
+        # A quota is stronger than byte rotation: the latter would let small
+        # differences in compressed chunk ordering change file boundaries.
+        # This opt-in path exists for controlled order-only experiments.
+        notes.append(
+            f"{table}: fixed {fixed_row_groups_per_file} RG/file -> "
+            f"{n_rg} RG across {len(rg_quota)} files; byte target ignored"
+        )
     elif not target_bytes:
-        target_bytes = source_file_size_target(source_fs, source_files)
-        if target_bytes:
-            notes.append(f"{table}: file size left at baseline by the plan; "
-                         f"rotating at the source median "
-                         f"{target_bytes // 2 ** 20} MiB to preserve file count")
-    groups = partition_groups(source_files, rg_quota)
+        notes.append(
+            f"{table}: file size left at baseline by the plan; preserving "
+            "per-partition output-file topology with row-group quotas")
+    # ``source_rg_per_file`` is indexed by source file, whereas a fixed quota
+    # is indexed by output file.  The latter must be passed as one complete
+    # list to the sole unpartitioned writer group (small-RG experiments can
+    # produce more output files than the source has inputs).
+    if fixed_row_groups_per_file is not None:
+        groups = [("", source_files, rg_quota)]
+    elif not target_bytes:
+        # A source quota is indexed by source files and is exact when the
+        # row-group cut is also baseline.  A new RG cut receives a new,
+        # deterministic quota over the same partition's source file count.
+        groups = []
+        for key, files, _unused in partition_groups(source_files, None):
+            if rendered.row_group_size:
+                quota = output_rg_quota(source_fs, files, row_group_size)
+            else:
+                quota = source_rg_per_file(source_fs, files)
+            groups.append((key, files, quota))
+        rg_quota = [quota for _key, _files, quota in groups]
+        notes.append(
+            f"{table}: file=baseline resolved to "
+            f"{sum(len(quota) for quota in rg_quota)} output-file quotas")
+    else:
+        groups = partition_groups(source_files, rg_quota)
     if partitioned:
         keys = [key for key, _files, _quota in groups]
         notes.append(
@@ -504,21 +635,70 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
         paths.extend(group_paths)
     return {"rows": rows, "files": len(paths), "column_order": order,
             "row_group_size_rows": row_group_size,
+            "fixed_row_groups_per_file": fixed_row_groups_per_file,
             "writer_kwargs": {k: v for k, v in kwargs.items()
                               if k != "column_encoding" or len(str(v)) < 2000}}
 
 
 # ------------------------------------------------------------------ verification
 
-def verify_footers(fs, out_dir, sample, expect):
-    """Read the written footers back and check every dimension actually landed.
+def _uses_dictionary(encodings):
+    return bool({"RLE_DICTIONARY", "PLAIN_DICTIONARY"} &
+                {str(e).upper() for e in encodings})
 
-    Verification is not optional decoration here. Three of the six dimensions
-    fail *silently* when misapplied: an encoding the type does not support
-    downgrades to PLAIN, a codec name the build does not have raises only at
-    write time for some codecs, and `write_page_index` defaults off. A run that
-    did not verify cannot distinguish "this layout does not help" from "this
-    layout was never written".
+
+def _encoding_landed(requested, encodings):
+    seen = {str(e).upper() for e in encodings}
+    if requested == "RLE_DICTIONARY":
+        return _uses_dictionary(seen)
+    return requested in seen
+
+
+def _footer_columns(fs, files):
+    """Footer facts per column, retaining every sampled row-group observation."""
+    import pyarrow.parquet as pq
+
+    result = {}
+    for path, size in _sized(fs, files):
+        with fs.open_input_file(path) as handle:
+            md = pq.ParquetFile(handle).metadata
+        names = [md.schema.column(index).name for index in range(md.num_columns)]
+        for rg_index in range(md.num_row_groups):
+            rg = md.row_group(rg_index)
+            for col_index, name in enumerate(names):
+                col = rg.column(col_index)
+                rec = result.setdefault(name, [])
+                rec.append({
+                    "codec": str(col.compression).upper(),
+                    "encodings": sorted(str(e).upper() for e in col.encodings),
+                    "dictionary": _uses_dictionary(col.encodings),
+                    "file": path,
+                    "row_group": rg_index,
+                    "compressed_bytes": col.total_compressed_size,
+                    "file_size": size,
+                })
+    return result
+
+
+def _column_summary(records):
+    return {
+        "chunks": len(records),
+        "codecs": sorted({rec["codec"] for rec in records}),
+        "encoding_sets": sorted({",".join(rec["encodings"]) for rec in records}),
+        "dictionary_chunks": sum(1 for rec in records if rec["dictionary"]),
+        "non_dictionary_chunks": sum(1 for rec in records if not rec["dictionary"]),
+    }
+
+
+def verify_footers(fs, out_dir, sample, expect, source_fs=None, source_dir=None):
+    """Read footers and enforce an action-isolated physical layout.
+
+    A successful write must mean more than "one requested encoding appeared
+    somewhere".  Every sampled row group is checked: an explicitly changed
+    column has to carry its requested codec/encoding, while an untouched
+    column keeps the source's dictionary and (when uniform) codec behaviour.
+    This catches a renderer that turns one encoding action into a table-wide
+    dictionary policy change.
     """
     import pyarrow.parquet as pq
     try:
@@ -528,13 +708,13 @@ def verify_footers(fs, out_dir, sample, expect):
     if not files:
         return {"status": "fail", "detail": f"no parquet files under {out_dir}"}
 
+    sampled_files = files[:sample]
     order = None
     row_groups, sizes = 0, []
     codecs, encodings = set(), set()
-    offset_index = 0
-    chunks = 0
+    offset_index = chunks = 0
     file_bytes = chunk_bytes = 0
-    for path, size in _sized(fs, files[:sample]):
+    for path, size in _sized(fs, sampled_files):
         with fs.open_input_file(path) as handle:
             md = pq.ParquetFile(handle).metadata
         if order is None:
@@ -584,16 +764,73 @@ def verify_footers(fs, out_dir, sample, expect):
     if wanted_order and order != list(wanted_order):
         failures.append(f"column order mismatch: wanted {list(wanted_order)[:5]}..., "
                         f"got {(order or [])[:5]}...")
+    observed = _footer_columns(fs, sampled_files)
+    source = {}
+    if source_fs is not None and source_dir:
+        try:
+            source_files = list_parquet(source_fs, source_dir)
+            source = _footer_columns(source_fs, source_files[:sample])
+        except Exception as exc:
+            failures.append(f"could not inspect source footers: {type(exc).__name__}: {exc}")
+
     wanted_encodings = (expect or {}).get("encodings") or {}
-    absent = sorted({e for e in wanted_encodings.values() if e not in encodings})
-    if absent:
-        failures.append(f"requested encoding(s) {absent} do not appear in the "
-                        f"written footers; the writer fell back silently")
-    wanted_codecs = {c.upper() for c in ((expect or {}).get("codecs") or [])}
-    missing_codecs = sorted(wanted_codecs - {c.upper() for c in codecs})
-    if missing_codecs:
-        failures.append(f"requested codec(s) {missing_codecs} do not appear in "
-                        f"the written footers")
+    wanted_dictionary = (expect or {}).get("dictionary") or {}
+    column_codecs = (expect or {}).get("column_codecs") or {}
+    global_codec = (expect or {}).get("global_codec")
+    column_checks = {}
+    for column, records in sorted(observed.items()):
+        source_records = source.get(column) or []
+        source_codecs = {rec["codec"] for rec in source_records}
+        source_dict = {rec["dictionary"] for rec in source_records}
+        requested_encoding = wanted_encodings.get(column)
+        requested_codec = column_codecs.get(column) or global_codec
+        if requested_encoding:
+            want_dict = requested_encoding == "RLE_DICTIONARY"
+        elif column in wanted_dictionary:
+            want_dict = bool(wanted_dictionary[column])
+        elif len(source_dict) == 1:
+            want_dict = next(iter(source_dict))
+        else:
+            want_dict = None
+        if requested_codec:
+            want_codec = _codec(requested_codec).upper()
+        elif len(source_codecs) == 1:
+            want_codec = next(iter(source_codecs))
+        else:
+            want_codec = None
+
+        bad_encoding = []
+        bad_dictionary = []
+        bad_codec = []
+        for rec in records:
+            if requested_encoding and not _encoding_landed(
+                    requested_encoding, rec["encodings"]):
+                bad_encoding.append((rec["file"], rec["row_group"],
+                                     rec["encodings"]))
+            if want_dict is not None and rec["dictionary"] != want_dict:
+                bad_dictionary.append((rec["file"], rec["row_group"],
+                                       rec["dictionary"]))
+            if want_codec and rec["codec"] != want_codec:
+                bad_codec.append((rec["file"], rec["row_group"], rec["codec"]))
+        column_checks[column] = {
+            "expected_encoding": requested_encoding,
+            "expected_dictionary": want_dict,
+            "expected_codec": want_codec,
+            "observed": _column_summary(records),
+        }
+        if bad_encoding:
+            failures.append(
+                f"{column}: requested encoding {requested_encoding} absent in "
+                f"{len(bad_encoding)}/{len(records)} sampled chunks")
+        if bad_dictionary:
+            failures.append(
+                f"{column}: dictionary={want_dict} but "
+                f"{len(bad_dictionary)}/{len(records)} sampled chunks differ")
+        if bad_codec:
+            failures.append(
+                f"{column}: codec {want_codec} but "
+                f"{len(bad_codec)}/{len(records)} sampled chunks differ")
+    result["column_checks"] = column_checks
     # A page request that changed nothing is the failure mode the page axis is
     # most exposed to: PyArrow ignores a data_page_size at or above its 1 MiB
     # default and returns a byte-identical file. Priced as a change, written as
@@ -624,6 +861,11 @@ def main():
     ap.add_argument("--tables", nargs="*", default=None,
                     help="subdirectories to rewrite; default is every table found")
     ap.add_argument("--batch-rows", type=int, default=DEFAULT_BATCH_ROWS)
+    ap.add_argument(
+        "--fixed-row-groups-per-file", type=int, default=None,
+        help="opt-in controlled-layout mode: close every output file after this "
+             "many row groups, overriding byte-based file rotation",
+    )
     ap.add_argument("--verify", action="store_true")
     ap.add_argument("--verify-sample", type=int, default=20)
     ap.add_argument("--manifest", default=None)
@@ -677,16 +919,19 @@ def main():
         # write_table detects and preserves Hive partition directories itself;
         # one writer group per partition prevents files and row groups from
         # crossing day= boundaries.
-        rec = write_table(source_fs, files, out_fs, dest, rendered, table,
-                          notes, args.batch_rows)
+        rec = write_table(
+            source_fs, files, out_fs, dest, rendered, table, notes,
+            args.batch_rows, args.fixed_row_groups_per_file,
+        )
         rec["path"] = dest
         rec["elapsed_seconds"] = round(time.time() - started, 1)
         if args.verify:
             expect = {
                 "column_order": rec["column_order"],
                 "encodings": rendered.column_encoding,
-                "codecs": ([rendered.compression] if rendered.compression else [])
-                          + list(rendered.column_compression.values()),
+                "dictionary": rendered.column_dictionary,
+                "global_codec": rendered.compression,
+                "column_codecs": rendered.column_compression,
             }
             if rendered.page_size:
                 # The no-op check needs the source's own footer/page-index
@@ -697,7 +942,7 @@ def main():
                 expect["page_bytes"] = int(rendered.page_size)
                 expect["baseline_footer_index_per_chunk"] = source_index
             rec["verified"] = verify_footers(out_fs, dest, args.verify_sample,
-                                             expect)
+                                             expect, source_fs, src)
         results[table] = rec
         print(f"  {table:10s} {rec['elapsed_seconds']:7.1f}s  "
               f"{rec['rows']} rows -> {rec['files']} file(s)  {dest}", flush=True)
