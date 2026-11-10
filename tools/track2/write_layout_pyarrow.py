@@ -237,7 +237,7 @@ def writer_kwargs(rendered, order, notes, table, baseline_dictionary=None):
                  if c in set(order)}
     dictionary = {c: bool(v) for c, v in rendered.column_dictionary.items()
                   if c in set(order)}
-    if encodings or dictionary:
+    if encodings or dictionary or baseline_dictionary is not None:
         # ``use_dictionary`` is a *positive allow-list* in PyArrow. Passing
         # only the columns explicitly set to RLE_DICTIONARY turns it off for
         # every other column.  That used to make a plan touching four columns
@@ -535,12 +535,10 @@ def write_table(source_fs, source_files, out_fs, out_dir, rendered, table,
             notes.append(f"{table}: could not measure source row groups; "
                          f"row group size left to the writer default")
 
-    # Passing ``use_dictionary`` for an explicit encoding turns it into an
-    # allow-list. Read source footers first so untouched columns that were
-    # deliberately non-dictionary do not silently acquire dictionary pages.
-    baseline_dictionary = None
-    if rendered.column_encoding or rendered.column_dictionary:
-        baseline_dictionary = source_dictionary_policy(source_fs, source_files)
+    # ``use_dictionary`` is the writer's only way to preserve source dictionary
+    # policy. Read source footers for every plan so a baseline encoding does not
+    # silently acquire dictionary pages merely because PyArrow defaults differ.
+    baseline_dictionary = source_dictionary_policy(source_fs, source_files)
     kwargs = writer_kwargs(rendered, order, notes, table, baseline_dictionary)
     # PyArrow writes tz-less timestamps as INT64 with isAdjustedToUTC=false, which
     # Spark's parquet-mr reader refuses (PARQUET_COLUMN_DATA_TYPE_MISMATCH). The

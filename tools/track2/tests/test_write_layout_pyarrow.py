@@ -89,6 +89,41 @@ class PerColumnEncodingIsolation(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "conflicts"):
             writer.writer_kwargs(rendered, ["a", "b"], [], "test")
 
+    def test_baseline_plan_preserves_source_dictionary_policy(self):
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        table = pa.table({
+            "source_dictionary": ["hot-value" for _ in range(20_000)],
+            "source_plain": ["other-%04d" % (i % 97) for i in range(20_000)],
+        })
+        rendered = la.Rendered()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source_file = os.path.join(tmp, "source.parquet")
+            target_file = os.path.join(tmp, "target.parquet")
+            pq.write_table(
+                table, source_file, compression="snappy",
+                use_dictionary=["source_dictionary"], write_page_index=True)
+            fs = pa.fs.LocalFileSystem()
+            source_policy = writer.source_dictionary_policy(fs, [source_file])
+            kwargs = writer.writer_kwargs(
+                rendered, list(table.schema.names), [], "test",
+                baseline_dictionary=source_policy)
+            self.assertIn("source_dictionary", kwargs["use_dictionary"])
+            self.assertNotIn("source_plain", kwargs["use_dictionary"])
+
+            pq.write_table(table, target_file, **kwargs)
+            md = pq.ParquetFile(target_file).metadata
+            columns = {
+                md.schema.column(index).name: md.row_group(0).column(index)
+                for index in range(md.num_columns)
+            }
+            self.assertTrue(writer._uses_dictionary(
+                columns["source_dictionary"].encodings))
+            self.assertFalse(writer._uses_dictionary(
+                columns["source_plain"].encodings))
+
     def test_untouched_source_non_dictionary_column_stays_non_dictionary(self):
         import pyarrow as pa
         import pyarrow.parquet as pq
