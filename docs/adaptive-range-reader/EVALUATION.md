@@ -472,6 +472,17 @@ GC 时间在全部缓存臂上均低于无缓存臂（4.16/2.79/2.90/3.40 对 5.
 结论：**row-group 是最强动作**（移除后 GET ×7.1、+3,160 s）；**compression 次之**（+52 s，远端字节 +41.5%）。order/encoding/file 在 TPC-H 上信号弱，但这是**动作暴露不均衡**所致（order 只作用于非主扫描表），不能推断其普遍无效——故补正控制。
 出处：`消融实验结果.md` 实验一；`results/track2/cvm_tpch_sf100/ablation/summary.json`。
 
+**补充：修复 renderer 后的 TPC-H SF100 `encoding` 正向消融（`baseline` vs `baseline + encoding`，n=3，2026-11-06）。**
+TPC-H SF100 完整计划中仅有的 4 条显式 encoding 动作全部落在 `partsupp` 表（`ps_comment=DELTA_LENGTH_BYTE_ARRAY`、`ps_partkey=DELTA_BINARY_PACKED`、`ps_suppkey=DELTA_BINARY_PACKED`、`ps_supplycost=PLAIN`），其余 7 张表（含占 >70% I/O 的主表 `lineitem` 与 `orders`）均无显式 encoding 动作。使用修复后的 `write_layout_pyarrow.py` 单独重写 `partsupp`（100 文件 / 700 行组保持不变，通过 `verify_written_geometry.py` 门禁：预测 `3.60 GiB`、实写 `3.58 GiB`，较 baseline `4.07 GiB` 缩小 −12.0%），其余 7 表复用 baseline，在 COS 上交替运行 3 轮 22 条查询：
+
+| 臂 | 三轮 `query_sum_s` (s) | 中位数 (s) | CV | GET | 远端字节 | `partsupp` 体积 |
+|---|---|---:|---:|---:|---:|---:|
+| `baseline` | 2900.76 / 2904.49 / 2798.98 | **2,900.76** | 2.09% | 383,787 | 159.91 GiB | 4.07 GiB (100f/700rg) |
+| `baseline + encoding` | 3081.50 / 3971.31 / 2747.89 | **3,081.50** | 19.36% | 392,187 | 157.38 GiB | 3.58 GiB (100f/700rg) |
+
+结论：修复后单独施加 `partsupp` 的 4 条显式 encoding 使全库远端扫描字节减少 `2.53 GiB`（−1.58%），但因非 dictionary 编码改变了 `partsupp` 内部 chunk 跨度、使 S3A vectored range 合并减少，全库 GET 反增 `+8,400` 次（+2.19%），端到端墙钟无正收益。这再次印证了 §9.1 的结论：在 Snappy 基线上，仅对非主表做局部 encoding 调整不足以撼动全库端到端时间，encoding 的价值体现在与 ZSTD 及大表行组重构的联合作用（见 §9.2.B 与 Criteo 联合消融）。
+出处：`results/track2/cvm_tpch_sf100_encoding_only/grid/`。
+
 ### 9.2 弱信号动作的正控制（n=5）
 
 **A. Criteo：target-file-size 正控制。** 两臂同源、仅文件数不同（32 vs 973 对象）：
@@ -494,7 +505,9 @@ GC 时间在全部缓存臂上均低于无缓存臂（4.16/2.79/2.90/3.40 对 5.
 **encoding** 五轮均更慢，是保守正例；**column order** 减少 6.5% GET 但端到端方向混杂（均值 +0.16%），报告为空结果。
 出处：`消融实验结果.md` 实验二；`results/track2/action_positive_controls/`。
 
-### 9.3 ClickBench column-order 放大验证（n=5，预注册，空结果）
+### 9.3 ClickBench column-order 放大验证与 S3A 并发拆解消融（n=5 + Step 4/5 旋钮消融）
+
+#### A. 默认 S3A 配置下的预注册放大验证（n=5，空结果）
 
 严格相同文件/RG 边界下只改物理列序，两个几何层级：
 
@@ -503,9 +516,28 @@ GC 时间在全部缓存臂上均低于无缓存臂（4.16/2.79/2.90/3.40 对 5.
 | production-RG (22f/169rg) | 90.103 / 90.012 | −0.33% | 340.416 / 339.451 | 24,696 / 25,912 |
 | 64 MiB small-RG (73f/578rg) | 161.720 / 162.049 | +0.006% | 567.003 / 565.415 | 63,965 / 68,891 |
 
-机制门通过但端到端未通过：co-located 使 chunk-span −31.8%、预测 range −13.9%/−22.7%、实际 GET −4.69%/−7.15%，但主终点未达「5 轮同向且 ≥2%」标准。
-结论：column order **机制可测但在当前 Spark+Parquet+COS 路径上端到端收益被其他成本淹没**，是 workload-/reader-dependent 的低敏感度动作，保留在动作空间但不声称端到端加速。
-出处：`消融实验结果.md` 实验三；`results/track2/action_positive_controls/clickbench_column_order_amplified/`。
+机制门通过但端到端未通过：co-located 使 chunk-span −31.8%、预测 range −13.9%/−22.7%、实际 GET −4.69%/−7.15%，但在默认 S3A 并发配置下主终点未达「5 轮同向且 ≥2%」标准。
+
+#### B. Step 4 / Step 5 机制拆解消融：为什么减少的 GET 被默认并发吸收？（n=3，2026-11-09~10）
+
+为查明为什么 `co-located` 稳定削减了 13%–44% 的 GET 却在默认 `local[16]` 下未转化为墙钟收益，我们在同一对 COS 布局（`production-rg` 与 `small-rg` 的 `co-located` vs `separated`）上对 **任务并行度（`local[16]` vs `local[1]`）**、**单流 vectored 并发上限（`active.ranged.reads`: 默认 `4` vs `1`）** 以及 **最大合并窗口（`max.merged.size`: 默认 `2 MiB` vs `16 MiB`）** 进行了正交拆解（每组 3 轮交替运行）：
+
+| 实验组 | 旋钮配置 | 层级 | `co-located` GET / 墙钟 (s) | `separated` GET / 墙钟 (s) | `co-located` 墙钟收益 | 实测繁忙期并发 $K_{\text{busy}}$ (`co` vs `sep`) |
+|---|---|---|---:|---:|---:|---:|
+| **Step 4 基线**<br>*(Q31–33 原查询)* | `local[16]`, `active=4`, `merged=2M` | `production-rg`<br>`small-rg` | 2,451 / **35.42 s**<br>5,944 / **54.84 s** | 2,972 / **36.72 s**<br>8,824 / **56.62 s** | −3.5% (−1.30 s)<br>−3.1% (−1.78 s) | `8.99` vs **`10.91`** (+21%)<br>`12.04` vs **`17.20`** (+43%) |
+| **Step 4 去算子**<br>*(Q31–33 轻量投影)* | `local[16]`, `active=4`, `merged=2M` | `production-rg`<br>`small-rg` | 1,759 / **22.48 s**<br>3,626 / **30.02 s** | 2,284 / **19.61 s**<br>6,510 / **32.46 s** | +14.6% (+2.87 s)<br>**−7.5%** (−2.44 s) | `10.14` vs **`13.76`** (+36%)<br>`13.52` vs **`21.41`** (+58%) |
+| **Step 5 旋钮 1a**<br>*(单核 + 禁单流并发)* | `local[1]`, **`active=1`**, `merged=2M`<br>*(Q31–33 轻量投影)* | `production-rg`<br>`small-rg` | 1,759 / **313.91 s**<br>3,626 / **585.66 s** | 2,284 / **358.46 s**<br>6,510 / **875.72 s** | **−12.4%** (**−44.55 s**, 3/3)<br>**−33.1%** (**−290.06 s**, 3/3) | `1.00` vs `1.00`<br>`1.00` vs `1.00` |
+| **Step 5 旋钮 1b**<br>*(16 核 + 禁单流并发)* | `local[16]`, **`active=1`**, `merged=2M`<br>*(11 条主终点查询)* | `production-rg`<br>`small-rg` | 7,617 / **109.66 s**<br>20,104 / **197.07 s** | 8,794 / **115.51 s**<br>25,023 / **234.23 s** | **−5.1%** (**−5.85 s**, 3/3)<br>**−15.9%** (**−37.16 s**, 3/3) | `7.53` vs `8.46`<br>`10.27` vs `10.87` |
+| **Step 5 旋钮 2a**<br>*(16 核默认对照)* | `local[16]`, `active=4`, `merged=2M`<br>*(11 条主终点查询)* | `production-rg`<br>`small-rg` | 7,617 / **98.79 s**<br>20,104 / **170.89 s** | 8,794 / **99.96 s**<br>25,023 / **174.97 s** | −1.2% (−1.17 s)<br>−2.3% (−4.08 s) | `8.71` vs **`10.15`**<br>`11.82` vs **`14.63`** |
+| **Step 5 旋钮 2b**<br>*(放大合并上限 16 MiB)* | `local[16]`, `active=4`, **`merged=16M`**<br>*(11 条主终点查询)* | `production-rg`<br>`small-rg` | 7,327 / **97.32 s**<br>20,089 / **170.59 s** | 8,747 / **98.11 s**<br>24,920 / **172.62 s** | −0.8% (−0.78 s)<br>−1.2% (−2.03 s) | `8.36` vs **`10.20`**<br>`11.79` vs **`14.64`** |
+
+**核心机制发现（直接解释为什么默认配置下 column order 端到端不显著）**：
+1. **并发弹性吸收效应（Elastic Concurrency Absorption）**：在默认 `active.ranged.reads=4` 下，当 `separated` 布局把相邻列拆散成更多碎片 range GET（如 `small-rg` 上 6,510 vs 3,626 次 GET，+79.5%）时，S3A vectored reader 会在每个 task 内同时发出最多 4 个并发 GET，使全系统繁忙期在飞并发度 $K_{\text{busy}}$ 从 `co-located` 的 **13.52 自动膨胀到 `separated` 的 21.41（+58%）**。多出来的 258 秒累积请求耗时（`ttfb_sum_s`: 619.2 s vs 385.7 s）被 $1.58\times$ 的更高并发完全摊平（I/O 并集耗时 `union_s` 仅 `30.17 s` vs `27.95 s`）！
+2. **一旦限制单流并发（`active.ranged.reads=1`），column order 立即兑现大幅端到端加速**：将 `active.ranged.reads` 设为 1 以消除单流内部的并发吸收后，即便在 `local[16]` 11 条复杂主查询下，`co-located` 在 `production-rg` 上稳定加速 **−5.1%（−5.85 s，3/3 同向）**，在 `small-rg` 上稳定加速 **−15.9%（−37.16 s，3/3 同向）**；在 `local[1]` 下更达到 **−12.4%（−44.6 s）** 与 **−33.1%（−290.1 s，节省的墙钟与累积 TTFB 差值 280 s 1:1 吻合）**。
+3. **排除 2 MiB 合并上限假说**：将 `max.merged.size` 从 2 MiB 扩至 16 MiB 仅多合并了 <4% 的 GET（7,617→7,327），证明限制 column order 端到端表现的主因不是 2 MiB 合并窗口，而是 S3A `active.ranged.reads=4` 的单流并发掩盖了碎片请求的固定延迟。
+
+结论：column order **物理机制确凿（最高削减 44% GET，在受限 reader 并发下端到端加速 15.9%–33.1%）**，但在默认高并发 vectored reader（`active.ranged.reads=4`）下，碎片 GET 被自动升高的在飞并发度 $K_{\text{busy}}$ 吸收，因而表现为 reader-concurrency-dependent 的次级动作。
+出处：`消融实验结果.md` 实验二；`results/track2/action_positive_controls/clickbench_column_order_amplified/`（含 `step4_validation/summary.json` 与 `step5_knob_ablation/summary.json`）。
 
 ### 9.4 Criteo L1 排序保真度与全负载几何闭合验证（8 候选，n=5）
 
@@ -569,9 +601,5 @@ GC 时间在全部缓存臂上均低于无缓存臂（4.16/2.79/2.90/3.40 对 5.
 - [ ] 若 32 GiB 臂观测到平台，则「拐点位于压力比 ≈1」由外推变为实测，§8.6 的结论表与论文 5.5 节需同步更新为双侧验证。
 - [ ] 若论文声称「五负载全部由当前 planner 端到端生成」，ClickBench SF8 需用当前 planner 重新规划并重写（现为复用既有 joint2 布局，见 §2.1）。
 - [ ] 缓存算法单轴消融（在同布局/堆/介质下分离请求级原子准入与远端代价加权），以支撑 §7 的归因。
-<<<<<<< HEAD
 - [x] ~~高压力比负载（NYC Yellow / COS）容量曲线对照实验~~（已完成，见 §8.6 与 `PHASE3_RESULT.md` §11；2026-11-10 跑完 16g/32g 冒烟与六臂 n=5 正式扫描，`16g`/`32g` 相对 `4g` 墙钟 −34.4% / −57.1%、五轮配对全正，G1 判定 PASS）。
 - [ ] 低 Xmx 对照网格（§8.7 边界 1）。现有容量曲线全在 driver 48g 下测得，无法回答「堆紧张时 SSD / 分层是否仍有效」；需单变量另跑一组。
-=======
-- [ ] 低 Xmx 对照网格（§8.6 边界 2）。现有容量曲线全在 driver 48g 下测得，无法回答「堆紧张时 SSD / 分层是否仍有效」；需单变量另跑一组。
->>>>>>> 93916bba9f3 (docs aws)
