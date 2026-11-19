@@ -37,8 +37,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -201,6 +203,99 @@ class PassthroughS3ClientsTest {
         S3AsyncClient asyncOnce = PassthroughS3Clients.wrapAsync(rawAsync, Track1S3aProbe.shared());
         S3AsyncClient asyncTwice = PassthroughS3Clients.wrapAsync(asyncOnce, Track1S3aProbe.shared());
         assertThat(asyncTwice).isSameAs(asyncOnce);
+    }
+
+    @Test
+    void getObjectAsBytesAndTransformer_hitD1CacheOnRepeat() {
+        stubFor(get(urlPathEqualTo("/bucket/key"))
+                    .withHeader("Range", equalTo("bytes=0-4"))
+                    .willReturn(aResponse().withStatus(206)
+                                           .withHeader("ETag", "\"etag-1\"")
+                                           .withBody("hello")));
+        RuntimeConfig d1Cfg = RuntimeConfig.builder()
+                                           .d1Enabled(true)
+                                           .d1AdmitMaxBytes(256 * 1024)
+                                           .globalCacheBytes(16L * 1024 * 1024)
+                                           .perAppReservedBytes(16L * 1024 * 1024)
+                                           .build();
+        Track1S3aRuntime runtime = Track1S3aRuntime.resetShared(d1Cfg);
+        S3Client wrapped = PassthroughS3Clients.wrapSync(rawSync, Track1S3aProbe.shared(), runtime.pipeline());
+        GetObjectRequest req = GetObjectRequest.builder()
+                                               .bucket("bucket")
+                                               .key("key")
+                                               .range("bytes=0-4")
+                                               .build();
+        ResponseBytes<GetObjectResponse> miss = wrapped.getObjectAsBytes(req);
+        assertThat(miss.asByteArray()).isEqualTo("hello".getBytes());
+        assertThat(runtime.stats().cacheMisses()).isEqualTo(1);
+        assertThat(runtime.stats().cacheHits()).isZero();
+
+        ResponseBytes<GetObjectResponse> hit = wrapped.getObject(req, ResponseTransformer.toBytes());
+        assertThat(hit.asByteArray()).isEqualTo("hello".getBytes());
+        assertThat(hit.response().eTag()).isEqualTo("\"etag-1\"");
+        assertThat(runtime.stats().cacheHits()).isEqualTo(1);
+        assertThat(runtime.stats().remoteGets()).isEqualTo(1);
+    }
+
+    @Test
+    void suffixRangeReadTail_cachesAndHitsOnRepeat() throws Exception {
+        stubFor(get(urlPathEqualTo("/bucket/parquet"))
+                    .withHeader("Range", equalTo("bytes=-5"))
+                    .willReturn(aResponse().withStatus(206)
+                                           .withHeader("ETag", "\"etag-tail\"")
+                                           .withHeader("Content-Range", "bytes 95-99/100")
+                                           .withBody("PAR1!")));
+        RuntimeConfig d1Cfg = RuntimeConfig.builder()
+                                           .d1Enabled(true)
+                                           .d1AdmitMaxBytes(256 * 1024)
+                                           .globalCacheBytes(16L * 1024 * 1024)
+                                           .perAppReservedBytes(16L * 1024 * 1024)
+                                           .build();
+        Track1S3aRuntime runtime = Track1S3aRuntime.resetShared(d1Cfg);
+        S3Client wrapped = PassthroughS3Clients.wrapSync(rawSync, Track1S3aProbe.shared(), runtime.pipeline());
+        GetObjectRequest tailReq = GetObjectRequest.builder()
+                                                   .bucket("bucket")
+                                                   .key("parquet")
+                                                   .range("bytes=-5")
+                                                   .build();
+        try (ResponseInputStream<GetObjectResponse> first = wrapped.getObject(tailReq)) {
+            assertThat(readAll(first)).isEqualTo("PAR1!".getBytes());
+        }
+        assertThat(runtime.stats().cacheMisses()).isEqualTo(1);
+        assertThat(runtime.stats().cacheHits()).isZero();
+
+        try (ResponseInputStream<GetObjectResponse> second = wrapped.getObject(tailReq)) {
+            assertThat(readAll(second)).isEqualTo("PAR1!".getBytes());
+        }
+        assertThat(runtime.stats().cacheHits()).isEqualTo(1);
+        assertThat(runtime.stats().remoteGets()).isEqualTo(1);
+    }
+
+    @Test
+    void sdkAutoHook_attachesInterceptorOnceAndWrapsClient(WireMockRuntimeInfo wireMock) {
+        String prev = System.getProperty("track1.sdk.auto");
+        System.setProperty("track1.sdk.auto", "true");
+        try {
+            software.amazon.awssdk.services.s3.S3ClientBuilder builder =
+                S3Client.builder()
+                        .httpClient(UrlConnectionHttpClient.builder().build())
+                        .endpointOverride(URI.create("http://localhost:" + wireMock.getHttpPort()))
+                        .region(Region.US_EAST_1)
+                        .credentialsProvider(
+                            StaticCredentialsProvider.create(AwsBasicCredentials.create("akid", "skid")));
+            Track1SdkAutoHook.beforeBuild(builder);
+            Track1SdkAutoHook.beforeBuild(builder);
+            assertThat(builder.overrideConfiguration().executionInterceptors()).hasSize(1);
+            try (S3Client built = (S3Client) Track1SdkAutoHook.wrapClient(builder.build())) {
+                assertThat(built).isInstanceOf(PassthroughS3Clients.Handle.class);
+            }
+        } finally {
+            if (prev == null) {
+                System.clearProperty("track1.sdk.auto");
+            } else {
+                System.setProperty("track1.sdk.auto", prev);
+            }
+        }
     }
 
     /**

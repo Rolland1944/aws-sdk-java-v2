@@ -21,12 +21,17 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
 import software.amazon.awssdk.annotations.SdkInternalApi;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.utils.IoUtils;
 
 /**
  * JDK proxies in front of S3A's AWS clients.
@@ -55,7 +60,7 @@ public final class PassthroughS3Clients {
             return delegate;
         }
         return (S3Client) Proxy.newProxyInstance(
-            S3Client.class.getClassLoader(),
+            PassthroughS3Clients.class.getClassLoader(),
             new Class<?>[] { S3Client.class, Handle.class },
             new Handler(delegate, "sync", probe, pipeline));
     }
@@ -68,7 +73,7 @@ public final class PassthroughS3Clients {
             return delegate;
         }
         return (S3AsyncClient) Proxy.newProxyInstance(
-            S3AsyncClient.class.getClassLoader(),
+            PassthroughS3Clients.class.getClassLoader(),
             new Class<?>[] { S3AsyncClient.class, Handle.class },
             new Handler(delegate, "async", probe, null));
     }
@@ -112,23 +117,59 @@ public final class PassthroughS3Clients {
             if (method.getDeclaringClass() == Object.class) {
                 return invokeObject(proxy, method, args);
             }
-            if (!"getObject".equals(method.getName())) {
+            String methodName = method.getName();
+            if (!"getObject".equals(methodName) && !"getObjectAsBytes".equals(methodName)) {
                 return invokeDelegate(method, args);
             }
             return invokeGet(method, args);
         }
 
+        @SuppressWarnings("unchecked")
         private Object invokeGet(Method method, Object[] args) throws Throwable {
             GetObjectRequest request = findRequest(args);
             long start = System.nanoTime();
-            if (pipeline != null && pipeline.enabled()
-                && ResponseInputStream.class.isAssignableFrom(method.getReturnType())) {
+            if (pipeline != null && pipeline.enabled() && "sync".equals(clientKind) && request != null) {
                 try {
-                    ResponseInputStream<GetObjectResponse> intercepted =
-                        pipeline.trySyncGet((S3Client) delegate, request);
-                    if (intercepted != null) {
-                        probe.record(clientKind, request, start, null);
-                        return intercepted;
+                    if (ResponseInputStream.class.isAssignableFrom(method.getReturnType())
+                        && (args == null || args.length == 1)) {
+                        ResponseInputStream<GetObjectResponse> intercepted =
+                            pipeline.trySyncGet((S3Client) delegate, request);
+                        if (intercepted != null) {
+                            probe.record(clientKind, request, start, null);
+                            return intercepted;
+                        }
+                    } else if ("getObjectAsBytes".equals(method.getName())
+                               && ResponseBytes.class.isAssignableFrom(method.getReturnType())) {
+                        ResponseInputStream<GetObjectResponse> intercepted =
+                            pipeline.trySyncGet((S3Client) delegate, request);
+                        if (intercepted != null) {
+                            byte[] bytes;
+                            try {
+                                bytes = IoUtils.toByteArray(intercepted);
+                            } finally {
+                                intercepted.close();
+                            }
+                            probe.record(clientKind, request, start, null);
+                            return ResponseBytes.fromByteArrayUnsafe(intercepted.response(), bytes);
+                        }
+                    } else if (args != null && args.length == 2 && args[1] instanceof ResponseTransformer) {
+                        ResponseInputStream<GetObjectResponse> intercepted =
+                            pipeline.trySyncGet((S3Client) delegate, request);
+                        if (intercepted != null) {
+                            ResponseTransformer<GetObjectResponse, Object> transformer =
+                                (ResponseTransformer<GetObjectResponse, Object>) args[1];
+                            boolean keepOpen = transformer.needsConnectionLeftOpen();
+                            try {
+                                Object transformed = transformer.transform(
+                                    intercepted.response(), AbortableInputStream.create(intercepted));
+                                probe.record(clientKind, request, start, null);
+                                return transformed;
+                            } finally {
+                                if (!keepOpen) {
+                                    intercepted.close();
+                                }
+                            }
+                        }
                     }
                 } catch (Throwable t) {
                     probe.record(clientKind, request, start, t);
@@ -180,13 +221,23 @@ public final class PassthroughS3Clients {
             }
         }
 
+        @SuppressWarnings("unchecked")
         private static GetObjectRequest findRequest(Object[] args) {
-            if (args == null) {
+            if (args == null || args.length == 0) {
                 return null;
             }
             for (Object arg : args) {
                 if (arg instanceof GetObjectRequest) {
                     return (GetObjectRequest) arg;
+                }
+            }
+            if (args[0] instanceof Consumer) {
+                try {
+                    GetObjectRequest.Builder b = GetObjectRequest.builder();
+                    ((Consumer<GetObjectRequest.Builder>) args[0]).accept(b);
+                    return b.build();
+                } catch (RuntimeException ignored) {
+                    return null;
                 }
             }
             return null;

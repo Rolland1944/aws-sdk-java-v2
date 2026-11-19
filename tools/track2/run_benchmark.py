@@ -34,7 +34,9 @@ import json
 import math
 import os
 import shutil
+import socket
 import statistics
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -70,48 +72,120 @@ def to_spark_sql(sql):
             .replace("extract(minute FROM EventTime)", "minute(EventTime)"))
 
 
-def drop_os_page_cache():
-    """Best-effort; S3A coldness comes from killing the JVM, not this."""
+LOCAL_HOST_ALIASES = {
+    "localhost",
+    "127.0.0.1",
+    socket.gethostname(),
+    socket.getfqdn(),
+}
+
+
+def parse_worker_hosts(raw):
+    if not raw:
+        return []
+    return [h.strip() for h in raw.split(",") if h.strip()]
+
+
+def is_remote_host(host):
+    return host not in LOCAL_HOST_ALIASES
+
+
+def drop_os_page_cache(worker_hosts=None):
+    """Drop Linux page cache locally (via direct write or passwordless sudo) and on remote workers."""
+    ok = False
     try:
         with open("/proc/sys/vm/drop_caches", "w") as fh:
             fh.write("3\n")
-        return True
+        ok = True
     except OSError:
-        return False
+        res = subprocess.run(
+            ["sudo", "-n", "sh", "-c", "sync && echo 3 > /proc/sys/vm/drop_caches"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        ok = res.returncode == 0
+    for host in worker_hosts or []:
+        if is_remote_host(host):
+            subprocess.run(
+                [
+                    "ssh",
+                    "-o",
+                    "BatchMode=yes",
+                    host,
+                    "sudo -n sh -c 'sync && echo 3 > /proc/sys/vm/drop_caches' || true",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    return ok
+
+
+def prepare_remote_workers(worker_hosts, run_io_dir):
+    probe_dir = os.path.join(run_io_dir, "track1-probe")
+    for host in worker_hosts:
+        if is_remote_host(host):
+            subprocess.check_call(
+                [
+                    "ssh",
+                    "-o",
+                    "BatchMode=yes",
+                    host,
+                    f"rm -rf {run_io_dir!r} && mkdir -p {probe_dir!r}",
+                ]
+            )
+
+
+def pull_remote_workers(worker_hosts, run_io_dir):
+    for host in worker_hosts:
+        if not is_remote_host(host):
+            continue
+        dest = os.path.join(run_io_dir, "workers", host)
+        os.makedirs(dest, exist_ok=True)
+        subprocess.run(
+            [
+                "rsync",
+                "-az",
+                f"{host}:{run_io_dir.rstrip('/')}/",
+                f"{dest}/",
+            ],
+            check=False,
+        )
 
 
 def io_stats(collector_dir, since_mtime):
-    """Sum interceptor records written after since_mtime."""
+    """Sum interceptor records written after since_mtime across driver + workers."""
     gets, ranged, nbytes = 0, 0, 0
     if not collector_dir or not os.path.isdir(collector_dir):
         return {"gets": None, "ranged_gets": None, "remote_bytes": None}
-    for name in os.listdir(collector_dir):
-        if not name.endswith(".ndjson"):
-            continue
-        path = os.path.join(collector_dir, name)
-        if os.path.getmtime(path) < since_mtime - 1:
-            continue
-        with open(path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                # The interceptor writes NDJSON asynchronously; a record may be
-                # truncated if read while the JVM is tearing down after spark.stop().
-                # Skip those few lines rather than aborting the whole run.
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if rec.get("method") != "GET":
-                    continue
-                gets += 1
-                length = rec.get("range_length") or rec.get("bytes_expected") or 0
-                if rec.get("range_offset") is not None:
-                    ranged += 1
-                    nbytes += length
-                elif length:
-                    nbytes += length
+    seen_files = set()
+    for root, _dirs, files in os.walk(collector_dir):
+        for name in files:
+            if not name.endswith(".ndjson") or name.startswith("track1-s3a-probe"):
+                continue
+            if name in seen_files:
+                continue
+            path = os.path.join(root, name)
+            if os.path.getmtime(path) < since_mtime - 5:
+                continue
+            seen_files.add(name)
+            with open(path) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if rec.get("method") != "GET":
+                        continue
+                    gets += 1
+                    length = rec.get("range_length") or rec.get("bytes_expected") or 0
+                    if rec.get("range_offset") is not None:
+                        ranged += 1
+                        nbytes += length
+                    elif length:
+                        nbytes += length
     return {"gets": gets, "ranged_gets": ranged, "remote_bytes": nbytes}
 
 
@@ -150,12 +224,31 @@ def build_session(args, run_id, collector_dir, eventlog_dir):
             track1_d1_coverage=getattr(args, "track1_d1_coverage", None),
             track1_d1_observe_gets=getattr(args, "track1_d1_observe_gets", None),
             track1_d1_min_mib=getattr(args, "track1_d1_min_mib", None))
+    if getattr(args, "executor_memory", None):
+        builder = builder.config("spark.executor.memory", args.executor_memory)
+    if getattr(args, "executor_cores", None):
+        builder = builder.config("spark.executor.cores", str(args.executor_cores))
+    if getattr(args, "num_executors", None):
+        builder = builder.config("spark.executor.instances", str(args.num_executors))
+        if args.executor_cores:
+            builder = builder.config(
+                "spark.cores.max", str(int(args.num_executors) * int(args.executor_cores))
+            )
     if "hits" in getattr(args, "tables", []):
         # gen_clickbench.py wrote EventDate/EventTime in UTC.
         builder = builder.config("spark.sql.session.timeZone", "UTC")
     for item in args.conf:
         key, _, value = item.partition("=")
         builder = builder.config(key, value)
+    if getattr(args, "periodic_gc_ms", 0):
+        gc_flags = (
+            f"-XX:+UseG1GC -XX:G1PeriodicGCInterval={int(args.periodic_gc_ms)} "
+            "-XX:-G1PeriodicGCInvokesConcurrent"
+        )
+        for opt_key in ("spark.driver.extraJavaOptions", "spark.executor.extraJavaOptions"):
+            existing = builder._options.get(opt_key, "")
+            merged = f"{existing} {gc_flags}".strip()
+            builder = builder.config(opt_key, merged)
     spark = builder.getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
     return spark
@@ -192,10 +285,13 @@ def result_sha256(rows):
 
 
 def run_once(args, run_id, queries, collector_dir, eventlog_dir):
-    dropped = drop_os_page_cache()
+    workers = parse_worker_hosts(getattr(args, "worker_hosts", ""))
+    dropped = drop_os_page_cache(workers)
     t_session = time.time()
     run_io_dir = os.path.join(collector_dir, f"run-{run_id}")
     os.makedirs(run_io_dir, exist_ok=True)
+    if workers:
+        prepare_remote_workers(workers, run_io_dir)
     spark = build_session(args, run_id, run_io_dir, eventlog_dir)
     register_tables(spark, args.data, args.tables)
     rows = []
@@ -204,10 +300,6 @@ def run_once(args, run_id, queries, collector_dir, eventlog_dir):
         err = None
         nout = None
         result_hash = None
-        # Stamp the query number into the event log. Spark records this as the
-        # SQL execution's description, which makes the log self-describing when
-        # a run has to be explained after the fact. Since r5 nothing in the
-        # advisor reads it -- the event log is run evidence, not advisor input.
         spark.sparkContext.setLocalProperty("callSite.short", f"track2:q{qnr}")
         try:
             result = spark.sql(sql).collect()
@@ -228,8 +320,14 @@ def run_once(args, run_id, queries, collector_dir, eventlog_dir):
         print(f"  run {run_id}  Q{qnr:02d}  {elapsed:8.2f}s  {status}", flush=True)
         if err:
             print(f"           {err[:300]}", flush=True)
-    track1 = read_track1_stats(spark, run_io_dir)
+    driver_track1 = read_driver_track1_stats(spark)
     spark.stop()
+    if not args.master.startswith("local"):
+        # Allow Standalone executor JVM shutdown hooks to flush stats & NDJSON.
+        time.sleep(1.0)
+    if workers:
+        pull_remote_workers(workers, run_io_dir)
+    track1 = aggregate_track1_stats(run_io_dir, driver_track1)
     session_s = time.time() - t_session
     io = io_stats(run_io_dir, t_session)
     return {
@@ -244,17 +342,85 @@ def run_once(args, run_id, queries, collector_dir, eventlog_dir):
     }
 
 
-def read_track1_stats(spark, run_io_dir):
-    """Snapshot D1/D2/D4 counters from the live driver JVM, then the probe file."""
+ADDITIVE_TRACK1_KEYS = (
+    "cache_hits",
+    "cache_misses",
+    "cache_useful_bytes",
+    "cached_bytes",
+    "peak_cached_bytes",
+    "evicted_bytes",
+    "evicted_blocks",
+    "d1_admitted_blocks",
+    "d1_rejected_blocks",
+    "d1_ghost_hits",
+    "d1_reject_ghost_hits",
+    "d1_reject_request_ghost_hits",
+    "d1_eviction_ghost_hits",
+    "remote_gets",
+    "merged_gets",
+    "merged_members",
+    "wasted_bytes",
+    "fallbacks",
+    "admit_rejected",
+    "teed_gets",
+    "teed_bytes",
+    "gc_ms",
+    "gc_count",
+)
+
+
+def read_driver_track1_stats(spark):
+    """Snapshot D1/D2/D4 counters from the live driver JVM."""
     try:
         raw = spark._jvm.software.amazon.awssdk.s3.adaptive.s3a.Track1S3aRuntime.shared().snapshotJson()
         return json.loads(str(raw))
     except Exception:
-        path = os.path.join(run_io_dir, "track1-probe", "track1-s3a-stats.json")
-        if os.path.isfile(path):
-            with open(path) as fh:
+        return None
+
+
+def aggregate_track1_stats(run_io_dir, driver_fallback):
+    """Collect per-JVM Track1 stats files across driver + Standalone executors."""
+    snaps = {}
+    for root, _dirs, files in os.walk(run_io_dir):
+        for name in sorted(files):
+            if name.startswith("track1-s3a-stats-") and name.endswith(".json"):
+                if name in snaps:
+                    continue
+                path = os.path.join(root, name)
+                try:
+                    with open(path) as fh:
+                        snaps[name] = json.load(fh)
+                except Exception:
+                    continue
+    if not snaps:
+        if driver_fallback is not None:
+            return driver_fallback
+        legacy = os.path.join(run_io_dir, "track1-probe", "track1-s3a-stats.json")
+        if os.path.isfile(legacy):
+            with open(legacy) as fh:
                 return json.load(fh)
         return None
+    items = list(snaps.values())
+    if len(items) == 1:
+        return items[0]
+    # Multi-JVM cluster run: prefer executor JVMs that actually issued/served reads
+    # when computing per-node max heap, while summing all additive cache counters.
+    active_items = [
+        s for s in items
+        if (s.get("cache_hits", 0) + s.get("cache_misses", 0) + s.get("remote_gets", 0)) > 0
+    ] or items
+    merged = dict(active_items[0])
+    for key in ADDITIVE_TRACK1_KEYS:
+        if all(isinstance(s.get(key), (int, float)) for s in items if key in s):
+            merged[key] = sum(s.get(key, 0) for s in items)
+    merged["peak_heap_bytes"] = max(s.get("peak_heap_bytes", 0) for s in active_items)
+    merged["sum_peak_heap_bytes"] = sum(s.get("peak_heap_bytes", 0) for s in active_items)
+    merged["max_node_peak_cached_bytes"] = max(
+        s.get("peak_cached_bytes", 0) for s in active_items
+    )
+    merged["jvm_count"] = len(items)
+    merged["active_executor_jvms"] = len(active_items)
+    return merged
 
 
 def summarize(runs):
@@ -309,6 +475,16 @@ def main():
     ap.add_argument("--layout-id", default="baseline")
     ap.add_argument("--master", default="local[16]")
     ap.add_argument("--driver-memory", default="32g")
+    ap.add_argument("--executor-memory", default=None,
+                    help="Spark executor memory in cluster mode (e.g. 48g)")
+    ap.add_argument("--executor-cores", type=int, default=None,
+                    help="Spark cores per executor in cluster mode (e.g. 16)")
+    ap.add_argument("--num-executors", type=int, default=None,
+                    help="Number of active executors to use in Standalone cluster mode")
+    ap.add_argument("--worker-hosts", default="",
+                    help="Comma-separated worker hosts for remote drop_caches & telemetry pull")
+    ap.add_argument("--periodic-gc-ms", type=int, default=0,
+                    help="Enable G1 periodic GC interval in ms (e.g. 30000)")
     ap.add_argument("--conf", action="append", default=[])
     ap.add_argument("--no-s3", dest="s3", action="store_false")
     ap.add_argument("--no-interceptor", action="store_true")

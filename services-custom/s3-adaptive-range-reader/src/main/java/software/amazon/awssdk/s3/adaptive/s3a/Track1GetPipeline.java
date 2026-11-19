@@ -19,7 +19,9 @@ import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -45,6 +47,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public final class Track1GetPipeline {
 
     private final Track1S3aRuntime runtime;
+    private final ConcurrentHashMap<String, Long> objectSizes = new ConcurrentHashMap<String, Long>();
 
     public Track1GetPipeline(Track1S3aRuntime runtime) {
         this.runtime = runtime;
@@ -62,17 +65,26 @@ public final class Track1GetPipeline {
         if (request == null || !enabled()) {
             return null;
         }
+        RuntimeConfig cfg = runtime.config();
+        String objectId = Track1RangeCache.objectId(request, null);
         long[] range = Track1S3aProbe.parseRange(request.range());
         if (range[0] < 0 || range[1] < range[0]) {
-            return null;
+            long suffixLen = parseSuffixLength(request.range());
+            if (suffixLen <= 0 || !cfg.d1Enabled()) {
+                return null;
+            }
+            Long knownTotal = objectSizes.get(objectId);
+            if (knownTotal == null || knownTotal <= 0L) {
+                return openSuffixTeeOnFirstTouch(sync, request, objectId, suffixLen);
+            }
+            long resolvedStart = Math.max(0L, knownTotal.longValue() - suffixLen);
+            range = new long[] { resolvedStart, knownTotal.longValue() - 1L };
         }
         long start = range[0];
         long endExclusive = range[1] + 1;
         long length = endExclusive - start;
-        RuntimeConfig cfg = runtime.config();
         try {
             if (cfg.d1Enabled()) {
-                String objectId = Track1RangeCache.objectId(request, null);
                 Track1RangeCache.Hit hit = runtime.cache().tryHit(request, start, endExclusive);
                 if (hit != null) {
                     runtime.controller().observe(objectId, start, length);
@@ -146,9 +158,108 @@ public final class Track1GetPipeline {
         long setupStart = System.nanoTime();
         ResponseInputStream<GetObjectResponse> in = sync.getObject(request);
         long setupNanos = System.nanoTime() - setupStart;
+        recordContentRangeTotal(Track1RangeCache.objectId(request, null), in.response());
         return new ResponseInputStream<GetObjectResponse>(
             in.response(),
             new CachingTeeStream(in, request, in.response(), start, (int) length, setupNanos));
+    }
+
+    private ResponseInputStream<GetObjectResponse> openSuffixTeeOnFirstTouch(
+        S3Client sync, GetObjectRequest request, String objectId, long suffixLen
+    ) throws Exception {
+        if (suffixLen <= 0 || suffixLen > Integer.MAX_VALUE) {
+            return null;
+        }
+        try {
+            if (!runtime.controller().admit(objectId, 0L, suffixLen)) {
+                runtime.controller().observe(objectId, 0L, suffixLen);
+                runtime.stats().rejectAdmit();
+                return null;
+            }
+            runtime.stats().remoteGet();
+            long setupStart = System.nanoTime();
+            ResponseInputStream<GetObjectResponse> in = sync.getObject(request);
+            long setupNanos = System.nanoTime() - setupStart;
+            long[] cr = parseContentRange(in.response() == null ? null : in.response().contentRange());
+            if (cr == null || cr[2] <= 0 || cr[1] < cr[0]) {
+                return in;
+            }
+            long actualStart = cr[0];
+            long actualLen = cr[1] - cr[0] + 1L;
+            if (actualLen <= 0 || actualLen > Integer.MAX_VALUE) {
+                return in;
+            }
+            objectSizes.put(objectId, Long.valueOf(cr[2]));
+            runtime.controller().observe(objectId, actualStart, actualLen);
+            runtime.stats().cacheMiss();
+            runtime.stats().teedGet(actualLen);
+            return new ResponseInputStream<GetObjectResponse>(
+                in.response(),
+                new CachingTeeStream(in, request, in.response(), actualStart, (int) actualLen, setupNanos));
+        } catch (Throwable t) {
+            Throwable cause = unwrap(t);
+            if (isServiceError(cause)) {
+                if (cause instanceof Exception) {
+                    throw (Exception) cause;
+                }
+                throw new CompletionException(cause);
+            }
+            runtime.stats().fallback();
+            return null;
+        }
+    }
+
+    private void recordContentRangeTotal(String objectId, GetObjectResponse response) {
+        if (response == null || response.contentRange() == null) {
+            return;
+        }
+        long[] cr = parseContentRange(response.contentRange());
+        if (cr != null && cr[2] > 0) {
+            objectSizes.putIfAbsent(objectId, Long.valueOf(cr[2]));
+        }
+    }
+
+    /** Parses {@code bytes=-N} (e.g. Trino {@code S3Input.readTail}) -> {@code N}, else {@code -1}. */
+    static long parseSuffixLength(String header) {
+        if (header == null) {
+            return -1L;
+        }
+        String value = header.trim().toLowerCase(Locale.ROOT);
+        if (!value.startsWith("bytes=-") || value.indexOf(',') >= 0) {
+            return -1L;
+        }
+        try {
+            long suffix = Long.parseLong(value.substring("bytes=-".length()).trim());
+            return suffix > 0 ? suffix : -1L;
+        } catch (NumberFormatException e) {
+            return -1L;
+        }
+    }
+
+    /** Parses {@code bytes start-end/total} -> {@code {start, end, total}}, else {@code null}. */
+    static long[] parseContentRange(String contentRange) {
+        if (contentRange == null) {
+            return null;
+        }
+        String value = contentRange.trim().toLowerCase(Locale.ROOT);
+        if (!value.startsWith("bytes ")) {
+            return null;
+        }
+        value = value.substring("bytes ".length()).trim();
+        int slash = value.indexOf('/');
+        int dash = value.indexOf('-');
+        if (dash <= 0 || slash <= dash + 1) {
+            return null;
+        }
+        try {
+            long start = Long.parseLong(value.substring(0, dash).trim());
+            long end = Long.parseLong(value.substring(dash + 1, slash).trim());
+            String totalStr = value.substring(slash + 1).trim();
+            long total = "*".equals(totalStr) ? -1L : Long.parseLong(totalStr);
+            return new long[] { start, end, total };
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private ResponseInputStream<GetObjectResponse> openTiming(S3Client sync, GetObjectRequest request,

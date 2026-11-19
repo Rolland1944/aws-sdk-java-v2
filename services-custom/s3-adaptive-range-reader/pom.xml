@@ -165,6 +165,13 @@
             </exclusions>
         </dependency>
 
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy</artifactId>
+            <version>1.14.15</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Explicit test HTTP implementations: this services-custom module does not inherit services/pom.xml. -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
@@ -223,6 +230,10 @@
                     <archive>
                         <manifestEntries>
                             <Automatic-Module-Name>software.amazon.awssdk.s3.adaptive</Automatic-Module-Name>
+                            <Premain-Class>software.amazon.awssdk.s3.adaptive.s3a.Track1SdkAgent</Premain-Class>
+                            <Agent-Class>software.amazon.awssdk.s3.adaptive.s3a.Track1SdkAgent</Agent-Class>
+                            <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                            <Class-Path>byte-buddy-1.14.15.jar</Class-Path>
                         </manifestEntries>
                     </archive>
                 </configuration>

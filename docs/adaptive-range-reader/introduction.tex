@@ -1,0 +1,95 @@
+\section{Introduction}
+\label{sec:intro}
+%Data lakes and lakehouses built on object storage have evolved from raw file repositories into platforms that simultaneously serve large-scale ingestion, interactive SQL, machine learning, and graph processing\cite{lakehouseCompare}. Such systems must support workloads spanning an extremely wide range — from sub-second interactive queries to petabyte-scale batch processing — on top of high-latency object storage. Unlike local storage, a single Range GET on object storage carries a fixed cost that is largely independent of the number of bytes transferred\cite{lakehouseCompare}. The number of requests is therefore a cost dimension overlooked by existing query optimizers: the engine has no visibility into it, and file layouts are not designed for object storage in the first place.
+Object storage has become the shared storage substrate of modern data lakes and lakehouses.
+In these systems, data tables are stored as columnar-format files on object storage services such as Amazon S3 and are organized by open table formats such as Iceberg,
+Hudi, and Delta Lake~\cite{iceberg,hudi,deltalake}.
+Thus, the same data can be consumed by a diverse and growing set of data-intensive applications such as SQL analytics and %data loaders that repeatedly scan feature columns to feed AI training pipelines.
+and AI pre-training.
+Whatever the upper-layer system, every byte it reads ultimately passes through an object storage SDK as an HTTP Range GET.
+Unlike local storage, each such request carries a fixed latency that does not fluctuate with the size of the requested range (for example, a small GET is 23.6 ms on AWS S3 and 81 ms on Tencent Cloud COS, as we measured).
+%The number of requests is therefore a cost dimension overlooked by existing query optimizers: the engine has no visibility into it, and file layouts are not designed for object storage in the first place.
+The I/O time of these workloads is therefore governed by a request-bound bottleneck that depends on \textit{how many} remote requests are issued and \textit{how they are shaped}, far more than by how many bytes are transferred.
+
+
+%Prior work attacks this cost from three directions, yet none eliminates requests without a trade-off. Caching is effective — Snowflake\cite{snowflake} reports that opportunistically caching hot files on compute nodes with a simple LRU speeds up many queries — but Hadoop S3A's prefetching\cite{s3aprefetch} and Spark's RDD\cite{rdd} caching bind fetch granularity to cache granularity or cache computed results rather than remote bytes; in our replay over seven real traces, fixed-block caching degrades to 68× read amplification once the working set exceeds the cache budget. Layout rewriting is equally effective, but Pixels\cite{pixels} introduces a new storage format, PTO\cite{pto} is tied to Iceberg and query-level workload information, and qd-tree\cite{qdtree} depends on predicates; moreover, since engines are tightly coupled to Parquet, optimizations inside one engine cannot be reused by others\cite{activedatalakes}. At the SDK layer, the common path of all engines, Durner et al. minimize the throughput and CPU cost of each retrieval with AnyBlob\cite{anyblob}, but not the number of retrievals. What is missing is an optimization layer that modifies neither engine source code nor the file format, serves multiple engines, and reduces the number of requests rather than the cost of each one.
+Existing works attack this problem separately inside each upper-layer system. Hadoop S3A implements its own prefetching and block cache~\cite{s3aprefetch};
+Parquet readers implement their own vectored reads and range-merging rules;
+Spark caches computed results rather than remote bytes~\cite{rdd}; Snowflake
+caches hot files on its compute nodes~\cite{snowflake}; and layout optimizers
+are tied to a particular table format, engine, or predicate
+workload---PTO~\cite{pto} to Iceberg and query-level workloads,
+qd-tree~\cite{qdtree} to query predicates---while Pixels~\cite{pixels} to \textbf{[a sentence to make it clear]}. This per-system approach has three
+drawbacks. First, \emph{the same optimizations are re-implemented again and
+again}: every engine and every data loader builds its own caching, request
+shaping, and layout tuning, and an optimization built inside one engine cannot
+be reused by the others that read the same files~\cite{activedatalakes}.
+Second, \emph{the quality of these implementations is uneven}: the I/O
+efficiency a dataset obtains depends on which system happens to read it, and
+even well-engineered mechanisms have blind spots---binding fetch granularity
+to cache granularity, as fixed-block caches do, degrades to 68$\times$ read
+amplification in our replay of seven real traces once the working set exceeds
+the cache budget(\textbf{as we replay over seven real traces in section XX}). Third, \emph{each system optimizes in isolation}: a reader
+observes only its own requests and cannot change how the data was laid out,
+while the writer that decides the layout never observes how the data is
+actually read, leaving read-unfriendly layouts persist and read-side
+optimizations only mitigate but never eliminate the excess requests they
+cause. What is missing is an optimization layer that serves multiple engines, and reduces the number of requests rather than the cost of each one, modifies neither engine source code nor the file format.
+
+%Taken together, all these issues point to a natural way for I/O optimizations: an object storage SDK. 
+A natural place for these optimizations is the object storage SDK.
+SDK is the narrow waist through which every engine and data loader reaches object storage, so an optimization implemented there benefits all of them, with uniform quality and without modifying any of them. In addition, unlike any single engine, the SDK can observe the complete request stream---which object and byte range each request touches, how large it is, when and by which
+thread it is issued---independently of whether the workload is SQL, AI training or any other, and it handles writes as well as reads. Building
+a unified optimization layer inside the SDK, however, raises three challenges.
+\textbf{(1)} ... \textbf{(2)} ...\textbf{(3)} ...
+
+To address these challenges, we propose RECAS, a smart \underline{Re}configuration and \underline{Ca}ching \underline{S}DK, that consolidates three
+complementary I/O optimizations %, previously scattered across upper-layer systems, 
+into a single transparent layer, relying solely on observable evidence inside it. 
+
+%Therefore, we propose the Reconfiguration and Caching SDK (Short as RECAS), an SDK optimized with online caching and offline layout reconfiguration. We do two things on the SDK read path. First, online caching: intercepting Range GET requests and performing cache admission and eviction on a request-by-request basis. Our strategy extends W-TinyLFU\cite{tinylfu} by adding a size- and cost-aware admission mechanism. Second, offline layout: the byte-level access trace recorded by the SDK is correlated with the Parquet footer on purely geometric grounds, yielding the set of hot accessed columns, from which we generate a file-level layout plan covering column order, compression and encoding, row-group size, and file size; the data is then rewritten into standard Parquet through the Parquet writer, so that a single rewrite benefits all subsequent readers. Because we look only at byte ranges and footers — never at SQL, query plans, or predicates — the approach behaves uniformly across SQL and non-SQL workloads. Experimentally, on ClickBench SF8 and same-region AWS S3, the combined approach reduces the median query time of the 43 queries by 25.9% and remote GETs by 83%. On Tencent Cloud COS, the median query time of the same 43 queries drops by 55.0%; since the number of eliminated requests is nearly identical in both settings, the method evidently yields larger gains the higher the fixed cost of a GET. The price is an increase in the Spark driver's peak heap from roughly 8 GiB to 21–25 GiB, with no increase in GC time.
+
+\textbf{Request-level cost-aware caching}: 
+RECAS intercepts every Range GET before it reaches the network and serves it from a local cache whenever the requested range is fully covered. Since our goal is to eliminate remote requests rather than to save bytes, RECAS admits/rejects requests as a whole: the blocks of one Range GET are cached or rejected together, so that every hit removes an entire remote round trip. We build on W-TinyLFU~\cite{tinylfu}, whose frequency-based admission keeps one-shot scans from flushing hot data, and replace its frequency-only score with $\mathit{frequency} \times \widehat{\mathit{cost}}_{\mathrm{remote}}$ (Section ...), since requests with equal frequency can differ greatly in what it costs to fetch them again.
+
+
+\textbf{Access-pattern-aware I/O}:
+%We note that different Requests should not all be served the same way. For this, 
+RECAS identifies the access pattern of the request stream --- one-shot large scans versus small, fragmented, repeatedly accessed ranges---from byte ranges, sizes, and timing alone, and adapts how each request is issued. Oversized requests which typically belong to one-off large scan with little reuse potential, \textbf{[add descriptions here]}.
+
+\textbf{Feedback-driven write layout}
+As the read path tells RECAS how the
+data is actually consumed, RECAS feeds this back to the write path. It correlates the byte-level access trace with Parquet footers on purely
+geometric grounds to derive which columns are read, and which are read
+together, and then plans the file layout over five writer-controlled
+dimensions: file size, row-group size, column order, compression and encoding. Candidate layouts are priced on a virtual footer by replaying
+the reader's merge rules, so no data has to be written to evaluate them. The
+selected plan is materialized through the standard Parquet writer, then every
+subsequent reader benefits from it without modification.
+
+We argue that these three optimization mechanisms act as different parts of a request's life: the layout determines how a read is split into requests, pattern-aware I/O decides how each of the request is issued and the cache determines whether a request go to the object storage. Meanwhile, as the effectiveness of three optimizations stems from independent workload properties, their combination are not tied to a particular engine, table format, or predicate workload, thereby decoupling I/O optimization from specific stacks, improving quality guarantees while
+reducing duplicated engineering effort at the same time.
+
+We implement RECAS as a drop-in layer around the S3 client used by Hadoop S3A and evaluate it with Spark on five workloads on both AWS S3 and Tencent Cloud COS: ClickBench~\cite{} and TPC-H~\cite{} for OLAP, and NYC Yellow Taxi~\cite{}, Criteo CTR~\cite{}, and
+NovoMCP Compound~\cite{} for machine-learning feature scans. %Compared  with ... \textbf{add sentences when experiments are finished}.
+
+In summary, our contributions are as follows:
+%\begin{itemize}
+%    \item A pluggable, user-transparent smart SDK. All optimization takes place inside the SDK and reads no SQL, query plans, or predicates; to the layers above, it is merely a configuration option.
+%    \item Request-level, cost-aware transparent caching. On the SDK read path, we perform atomic per-request admission based on frequency × remote cost, replacing fixed size thresholds and naive LRU.
+%    \item Layout rewriting inferred from byte traces and footers. We generate a file-level layout plan from the GET ranges observed by the SDK together with the Parquet footer, and materialize it as standard Parquet through the public writer API, making it transparent to any engine.
+%    \item Evaluation across environments and workloads. (Results deferred; evaluation over five workloads to follow.)
+%\end{itemize}
+
+\begin{itemize}
+    \item We identify that object storage I/O optimizations are scattered across upper-layer systems, which leads to duplicated effort and uneven quality. Hence, we propose RACAS, a unified smart object storage SDK to consolidate optimizations at the shared access layer, to improve I/O for diverse upper-layer applications without modifying each of them. RECAS is pluggable and reads no SQL, query plans, or predicates; to the layers above, it is merely a configuration option. (section 2.)
+    
+    \item In RACAS, we present a novel closed-loop framework that optimize I/O from both read and write sides: it adapts and caches remote requests on the read path and feeds the observed accesses back into write path. It comprises three mechanisms that (1) a request-level, cost-aware cache that admits each Range GET as a whole by frequency $\times$ remote cost;
+    (2) access-pattern-aware I/O that adapts how requests are issued and whether they enter the cache; (3) feedback-driven write-time layout that updates
+    the file layout based on how data is read, reducing subsequent remote-request
+    cost. (section 3 and 4).
+    
+    \item Evaluations on AWS S3A and Tencent Cloud COS across 5 different workloads show that ... outperforms ......(section 5).
+\end{itemize}
+
+%The rest of the paper is organized as follows. Section 2 presents the background and motivation. Section 3 shows the overview of our design.Section 4 and 5 detailed the implement of reconfiguration and caching design. Section 7 evaluates the performance of RECAS over baseline SDK. Finally, Section 8 discusses related work and Section 9 makes a conclusion. 

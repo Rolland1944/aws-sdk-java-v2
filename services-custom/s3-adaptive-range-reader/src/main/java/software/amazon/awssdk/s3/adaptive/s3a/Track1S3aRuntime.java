@@ -17,10 +17,13 @@ package software.amazon.awssdk.s3.adaptive.s3a;
 
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.s3.adaptive.internal.RuntimeConfig;
@@ -43,6 +46,7 @@ public final class Track1S3aRuntime {
     private static final String APP = "spark";
     private static final AtomicReference<Track1S3aRuntime> SHARED =
         new AtomicReference<Track1S3aRuntime>();
+    private static final AtomicBoolean SHUTDOWN_HOOK_INSTALLED = new AtomicBoolean(false);
 
     private final RuntimeConfig config;
     private final Track1S3aStats stats = new Track1S3aStats();
@@ -105,6 +109,7 @@ public final class Track1S3aRuntime {
     }
 
     public static Track1S3aRuntime shared() {
+        installShutdownHookOnce();
         Track1S3aRuntime current = SHARED.get();
         if (current != null) {
             return current;
@@ -115,6 +120,22 @@ public final class Track1S3aRuntime {
         }
         created.close();
         return SHARED.get();
+    }
+
+    private static void installShutdownHookOnce() {
+        if (!SHUTDOWN_HOOK_INSTALLED.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                Track1S3aRuntime live = SHARED.get();
+                if (live != null) {
+                    live.snapshotJson();
+                }
+            }, "track1-s3a-stats-shutdown"));
+        } catch (Throwable ignored) {
+            // JVM already shutting down or restricted security manager.
+        }
     }
 
     public static Track1S3aRuntime resetShared(RuntimeConfig config) {
@@ -291,16 +312,43 @@ public final class Track1S3aRuntime {
         try {
             Path folder = Paths.get(dir);
             Files.createDirectories(folder);
-            Path file = folder.resolve("track1-s3a-stats.json");
-            Writer w = new OutputStreamWriter(Files.newOutputStream(file), StandardCharsets.UTF_8);
-            try {
-                w.write(json);
-            } finally {
-                w.close();
-            }
+            writeFile(folder.resolve("track1-s3a-stats.json"), json);
+            writeFile(folder.resolve("track1-s3a-stats-" + hostPidTag() + ".json"), json);
         } catch (Exception ignored) {
             // Losing a stats file must not fail the run being measured.
         }
+    }
+
+    private static void writeFile(Path file, String json) throws Exception {
+        Writer w = new OutputStreamWriter(Files.newOutputStream(file), StandardCharsets.UTF_8);
+        try {
+            w.write(json);
+        } finally {
+            w.close();
+        }
+    }
+
+    private static String hostPidTag() {
+        String host = "host";
+        try {
+            String raw = InetAddress.getLocalHost().getHostName();
+            if (raw != null && !raw.isEmpty()) {
+                host = raw.replaceAll("[^A-Za-z0-9._-]", "_");
+            }
+        } catch (Throwable ignored) {
+            // Fallback to "host".
+        }
+        String pid = "0";
+        try {
+            String jvm = ManagementFactory.getRuntimeMXBean().getName();
+            int at = jvm == null ? -1 : jvm.indexOf('@');
+            if (at > 0) {
+                pid = jvm.substring(0, at);
+            }
+        } catch (Throwable ignored) {
+            // Fallback to "0".
+        }
+        return host + "-" + pid;
     }
 
     public void close() {

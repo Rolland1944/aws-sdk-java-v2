@@ -1,0 +1,447 @@
+\section{Design}
+\label{sec:design}
+In this section, we presents the design details of RECAS. We
+first describe layout configuration, that how byte-range traces
+and Parquet footers are turned into an access profile, how the
+candidates are generated and priced under L0/L1, and how the
+chosen plan is materialized. We then describe the online cache,
+that is the request path including size-and-mode filtering, and
+the cost-aware admission policy.
+ 
+\subsection{Reconfiguration}
+%This section presents the design of the Reconfiguration component: evidence collection, the action space, candidate generation, the L0 feasibility gate and the L1 pricing model, and finally how the selected plan is materialised by a Parquet writer.
+Layout reconfiguration turns a request stream into a rewritten Parquet layout from evidence the SDK can observe (i.e. byte range traces and footers). The goal is to apply fewer Range GETs without dropping below the parallelism the reader can use. The pipeline has four stages: (i) evidence collection and access profile construction %(phase \textbf{observe} in~\ref{sec:sysoverview})
+; (ii) bounded candidate generation over a five-dimensional action space; (iii) L0 feasibility and L1 virtual-footer pricing; and (iv) materialization and verification %(phase \textbf{reconfigure} in~\ref{sec:sysoverview}).
+. We describe each stage in turn.
+\subsubsection{Evidence Collection and Access Profile}
+This stage %builds the access profile that late stages price and rewrite against. It 
+collects two layers of evidence that the SDK can observe without SQL or query plans. Figure~\ref{fig:reconfiguration} places this stage in the overall pipeline.
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{figs/reconfiguration.png}
+    \caption{Recofiguration}
+    \label{fig:reconfiguration}
+\end{figure}
+
+\textbf{Collection.} 
+On the request path, RECAS attaches an interceptor to the outgoing HTTP request path and emits one record per transmission attempt. Each record logs the method, host, and path to identify whether the request is a ranged GET and which object on which endpoint it targets. For ranged GETs, RECAS parses the Range header into \texttt{range\_offset} and \texttt{range\_length}. %The record further carries the audit identifiers that S3A encodes as a query string in the Refer header — id, ps and p1, recorded as \texttt{audit\_span\_id}, \texttt{audit\_process\_id} and \texttt{audit\_path} — together with the issuing thread and the wall-clock issue time \texttt{ts\_wall\_ms}. 
+The record also captures the issuing thread, the wall-clock issue time \texttt{ts\_wall\_ms}, and any audit identifiers that S3A encodes in the Refer header $(id, ps, p1)$ as \texttt{audit\_span\_id}, \texttt{audit\_process\_id} and \texttt{audit\_path}. 
+%The record also carries the issuing thread, the wall-clock issue time \texttt{ts\_wall\_ms}, and when present, the audit identifiers that S3A encodes in the Refer header , mapped as  \texttt{audit\_span\_id}, \texttt{audit\_process\_id} and \texttt{audit\_path}. 
+%A missing audit field is normal rather than an error, 
+Missing audit fields are treated as normal rather than errors, since S3A truncates the header once it grows too long.
+
+In parallel, RECAS parses %the footer of every Parquet file 
+each Parquet footer with PyArrow to derive the byte range for each column chunk% occupies in the object
+. %Two quantities are computed rather than read, because the format does not expose them directly. 
+Since the Parquet format does not expose chunk boundaries directly, RECAS computes both endpoints. A chunk's start offset \texttt{byte\_start} is taken as $min(\texttt{dictionary\_page\_offset}, \texttt{data\_page\_offset})$, since the \texttt{file\_offset} field points to the first page rather than to a clean chunk boundary. The end offset \texttt{byte\_end} is  $\texttt{byte\_start}+\texttt{total\_compressed\_size}$. A row group's range is the union of its column chunks' ranges. This pass is strictly read-only and emits one row per $(file, row\_group, column)$ triple, recording the byte range, compressed and uncompressed sizes, physical type, encodings, and the presence of an OffsetIndex and ColumnIndex. %The latter fields are what the L0 encoding-compatibility check and the L1 page-index term later consume.
+The last two fields feed the L0 encoding-compatibility check and the L1 page-index term.
+
+\textbf{Correlation.} %We define a
+An \textit{access span} is defined as a logical open of one object, and %take it as 
+is the unit at which columns are %read together
+co-accessed. %S3A stamps this identity on every GET, so a span is identified by the triple (\texttt{audit\_process\_id}, \texttt{audit\_span\_id}, \texttt{audit\_path}). 
+When S3A audit fields are present, RECAS identifies each span by the triple $(\texttt{audit\_process\_id},\,\texttt{audit\_span\_id},\,\texttt{audit\_path})$. 
+When fewer than half of the records carry an audit span (from older traces, or non-S3A readers), RECAS falls back to grouping by \texttt{(thread, object)} %and cuts a span wherever two consecutive requests are more than 2000 ms apart. 
+and starts a new span whenever the gap between the issue times of two consecutive requests exceeds 2000ms. This threshold sits far above the inter-request spacing within a single vectored read, \colorbox{yellow}{even at the 228 ms??? RTT we measured cross-cloud}. It also stays well below the gap between two Spark tasks sharing a pool thread, preventing a single read from being split. The span-size distribution is reported so that a degenerate setting is visible rather than silent.
+
+Correlation then joins the two layers purely geometrically, with no reference to query plans or predicates:
+
+\[
+\mathbf{GET}[\mathrm{offset},\,\mathrm{offset}+\mathrm{length})
+\cap
+[\mathrm{byte}_{\mathrm{start}},\,\mathrm{byte}_{\mathrm{end}})
+\]
+
+%The chunk table is loaded into memory, grouped by object and sorted by \texttt{byte\_start}, and a binary search over that ordered list resolves the chunks each GET overlaps, recording the per-chunk \texttt{overlap\_bytes}. One GET may cover several chunks.Taking the union over the GETs of one span yields the set of chunks that span read.A GET that overlaps no chunk and begins beyond the end of the last column chunk is classified as format metadata. Such requests would be retained and further split by issuing thread into file-level discovery and scan-span metadata. This distinction is what later allows L1 to scale the two kinds of metadata traffic by different quantities — object count and input-split count respectively — rather than by one conflated factor. Correlation is gated on attribution coverage: at least 95\% of data bytes must be attributed to a column chunk, or the stage fails. The denominator deliberately excludes format-metadata bytes, which are real traffic but by construction cannot land in a column chunk.
+To compute this intersection, RECAS groups the chunk table by
+object and sorts the chunks by \texttt{byte\_start}. 
+A binary search identifies the chunks each GET intersects and records the corresponding \texttt{overlap\_bytes}. Since a single GET may span several chunks, the union across all GETs in a span defines the set of chunks read by that span. Any GET that overlaps no chunk and starts beyond the final column chunk is classified as format metadata. RECAS retains these metadata requests and splits them by issuing thread into file-discovery and scan-span traffic; this separation allows L1 to scale them later by object count and input-split count, respectively, rather than through a single conflated factor. Finally, correlation enforces an attribution gate: at least 95\% of data bytes must be attributed to column chunks, or the stage aborts. Format-metadata bytes are excluded from this denominator because they cannot land in a column chunk by construction.
+
+\textbf{Access profile. }%The footer labels every chunk with its logical column name \texttt{path\_in\_schema}.
+Every column chunk in the Parquet footer records its logical column path
+\texttt{path\_in\_schema}. %Unioning the labels of all chunks a span intersected gives the set of columns that logical read touched; a column appearing in several row groups of the same span is counted once in that set, while its overlap bytes accumulate. From the per-span records RECAS derives four artefacts:
+By taking the union of these paths across all chunks intersected by an access span, RECAS determines the exact set of columns accessed by that logical read. When a column appears in multiple row groups of the same span, RECAS counts the column once while accumulating its overlap bytes. From these per-span summaries, RECAS constructs four profiling
+artifacts:
+\begin{itemize}
+    %\item \texttt{column\_weight} — per column, the overlap bytes, the byte share, the number of spans touching it and the corresponding span share. Columns in the schema that no span touched would be placed at the tail of the order.
+     \item \texttt{column\_weight} records the overlap bytes, the byte share, the number of accessing spans, and the span share for each column. Columns that appear in the schema but are never accessed are placed at the tail of the column order.
+    %\item \texttt{coaccess} — an undirected column graph whose nodes are columns and whose edge weight is the number of spans reading both endpoints. The emitted document retains only the heaviest 400 pairs; this bounds the serialised artefact.
+    \item \texttt{coaccess} constructs an undirected column graph where each edge weight represents the number of spans accessing both endpoint columns. RECAS retains only the 400 heaviest paris, which bounds the size of the serialized artifacts.
+    \item \texttt{patterns} %— spans grouped by (table, set of columns read). 
+    groups spans by table and the set of columns read. Each pattern records %the number of spans exhibiting it 
+    its span counts together with the mean bytes, mean data GETs, mean metadata GETs and mean number of row groups touched.
+    \item \texttt{request\_shape} %— the request-size histogram, the fraction of GETs below 64 KiB, the counts and bytes of data versus metadata GETs split into the file and scan kinds, the per-object open overhead, the mean number of GETs per touched chunk, and the share of data spans that read more than one column.
+    aggregates global I/O statistics, including the request-size histogram, the fraction of GETs below 64 KiB, separate counts and bytes for data and metadata GETs per accessed chunk, and the fraction of data spans that access more than one column.
+\end{itemize}
+
+These four artifacts feed distinct consumers downstream. %\texttt{column\_weight} supplies the greedy seriation with both its seed and its restart rule — the heaviest unplaced column begins a new contiguous block whenever the co-access chain breaks, which is what produces clusters without a separate clustering pass — and also supplies L1 with per-column byte shares. 
+\texttt{column\_weight} supplies greedy column seriation with both its seed and restart rule, and it also supplies L1 with per-column byte shares. Whenever the co-access chain breaks, the heaviest column not yet placed starts a new contiguous block. That restart forms the clusters, so seriation needs no separate clustering pass.
+\texttt{coaccess} is the sole evidence behind the column-order action. Its candidate is the order from one greedy seriation pass over this graph. \texttt{patterns} are the units L1 prices and rank. \texttt{request\_shape} serves two roles.%: it 
+It decides whether an action is addressable at all, and the column-order axis is skipped when multi-column data spans fall below 25\% of all data spans; it provides the measured GET and byte totals against which L1 validate its baseline replay.
+
+\subsubsection{Five-Dimensional Action Space and Candidate Generation}
+\label{sec:action-space}
+This stage turns the access profile into a bounded set of candidate layout plans. Table~\ref{tab:action-space} specifies the five dimensions, and Figure~\ref{fig:reconfiguration} places this stage in the overall pipeline.
+
+\textbf{Action space.}
+%Re-laying out a file can touch a large number of variables---column order, file size, row-group size, compression and encoding, page geometry, and further still partitioning and sorting. %The approach we adopt is \emph{bounded exhaustive enumeration over a five-dimensional action space}. Following Zeng et al.'s empirical decomposition of columnar storage formats~\cite{zeng2023empirical}, we divide the physical structure of Parquet into five levels
+We here define the action space from the physical structure
+of Parquet. Following the empirical decomposition of columnar storage formats by Zeng et al.~\cite{zeng2023empirical}, we divide Parquet into five levels --- file, row group, column order, column-chunk representation, and page---and at each level select one principal variable that is directly controlled by the writer as an action dimension. 
+%A variable is admitted only if it satisfies all five of the following conditions: (i) the evidence needed to price it is obtainable from the SDK trace, the Parquet footer, or a small-scale probe; (ii) it is expressible through the public writer API; (iii) the resulting artefact is still standard Parquet and requires no reader-side modification; (iv) it changes at least one of the GET count, the remote bytes, or the metadata cost; and (v) it does not depend on SQL predicates, query plans, or application semantics.
+A variable is retained only if it satisfies all five of the following
+conditions: (i) the evidence needed to price it is obtainable from the SDK
+trace, the Parquet footer, or a small-scale probe; (ii) it is expressible
+through the public writer API; (iii) the resulting artifact remains standard Parquet and requires no reader-side modification; (iv) it changes at least one of the GET count, the remote bytes, or the metadata cost, the quantities L1 ranks; and (v) it depends on neither SQL predicates, query plans, nor application semantics, and it leaves unchanged the set of rows each query reads, so that the execution residual stays constant across candidates (\S\ref{sec:l0l1}).
+Table~\ref{tab:action-space} gives the full specification of the five
+dimensions.
+
+% Preamble:
+% \usepackage{booktabs}
+% \usepackage{tabularx}
+% \usepackage{array}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{The five-dimensional layout action space of RECAS.}
+\label{tab:action-space}
+
+\begin{tabularx}{\columnwidth}{@{}
+  >{\raggedright\arraybackslash}p{0.18\columnwidth}
+  >{\raggedright\arraybackslash}p{0.40\columnwidth}
+  X
+@{}}
+\toprule
+\textbf{Level / action} &
+\textbf{Cost terms affected} &
+\textbf{Candidate construction} \\
+\midrule
+File /\newline\textit{target file size} &
+File count, footer and per-open overhead, task parallelism &
+A bounded candidate set in the space of file counts \\
+\addlinespace[3pt]
+Row group /\newline\textit{row-group size} &
+Row-group count, column-chunk size, scan unit &
+A bounded candidate set in the space of \emph{row groups per file} \\
+\addlinespace[3pt]
+Column order /\newline\textit{column order} &
+Physical distance between the required column chunks, and the opportunity for range merging &
+The order produced by one greedy seriation pass over the co-access graph \\
+\addlinespace[3pt]
+Column-chunk /\newline\textit{(codec, encoding)} &
+Compressed bytes and decoding cost of a column chunk &
+Four discrete combinations \\
+\addlinespace[3pt]
+Page /\newline\textit{page geometry} &
+Granularity and size of page-level index metadata &
+The baseline plus several discrete levels \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+By this standard, several common actions are excluded. 
+%The benefits of partitioning, global sort, and Bloom filters depend on the predicate columns, their selectivities, and the value distribution, none of which a byte-level range trace can reliably recover. 
+First, partitioning, global sorting, and Bloom filters can be priced only from the predicate columns, their selectivities and the value distribution, none of which a SDK byte-level trace can recover reliably. 
+%More fundamentally,% the first two change the set of rows each query reads, which partitioning and global sorting change the set of rows each query reads. 
+Besides, partitioning and global sorting also alter which rows a query reads, so the execution residual differs across candidates. Keeping them would force L1 to estimate selectivity, and ranking candidates by I/O cost would no longer match their end-to-end order (\S\ref{sec:l0l1}).
+%This violates %the central premise of L1---that
+%condition (v), because the execution residual no longer stays constant across candidates, %so that ranking by $t_{\mathrm{io}}$ is equivalent to ranking by end-to-end time (\S\ref{sec:l1})---and retaining them would force the pricing model to reintroduce selectivity estimation. 
+Second, format substitution, column duplication, and
+external indexes fall out of the requirement that the artifact remains standard Parquet and requires no query rewriting. Subsitituing another format produces non-Parquet files, and an external index cannot be consumed by standard readers. Duplication columns remain valid Parquet but the query must be rewritten to read the replica. Third, some actions can be derived from the selected dimensions and need no separate optimization. In particular, column-chunk size is jointly determined by the row-group size, the per-column byte distribution, and the (codec, encoding) pair, and has no independent control variable. Likewise, compression and encoding influence the compressed size of a column as a pair, so the two are merged into a single dimension and priced jointly.
+
+\textbf{Bounded candidate generation.}
+%Searching the raw space of these actions directly is infeasible: with $C$ columns there are $C!$ column orders, and if each column admits $E$ representations, the per-column combinations reach $E^{C}$. 
+RECAS does not enumerate the raw space. %Instead, it first generates for each dimension a small, interpretable, evidence-backed set of candidates, retaining the baseline value as one candidate in every dimension. 
+For each dimension, it builds a small interpretable candidate set from the collected evidence, and always keeps the baseline value as one candidate.
+%Two design choices here are worth noting. 
+Two design choices determine which candidates enter these sets.
+%First, the bounded candidate sets for the file and row-group dimensions are constructed in \emph{count space} rather than byte space---that is, in terms of how many objects a scan must open and how many row groups can be skipped. Second, the candidate set of every dimension is pre-filtered by a feasibility check that removes candidates the writer cannot produce, or that demonstrably yield no benefit.
+File-size and row-group candidates are built in \emph{count space} rather than byte space. Each candidate specifies how many objects a scan must open, and each row-group candidate specifies how many row groups can be skipped. Candidates that the writer cannot produce or that demonstrably yield no benefit, are then be removed from each set.
+
+%For table $t$, the post-filtering search size is therefore
+The size for table $t$ after this filtering is
+%
+\begin{equation}
+N_t = n_{\mathrm{order}} \cdot n_{\mathrm{repr}} \cdot n_{\mathrm{file}}
+      \cdot n_{\mathrm{rg}} \cdot n_{\mathrm{page}},
+\label{eq:search-size}
+\end{equation}
+%
+%where $n_{\mathrm{order}} \le 2$ and $n_{\mathrm{repr}} \le 4$, 
+where $n_{\mathrm{order}} \le 2$, covering the baseline order and one order from greedy seriation, and $n_{\mathrm{repr}} \le 4$ covering the four (codec, encoding) combinations. 
+%and the
+The remaining three terms are determined by the bounded candidate sets and filtering rules above.
+
+The benefits of the five dimensions are not mutually independent, which is
+precisely why they must be priced in the joint space. A codec that shrinks bytes,
+for instance, reduces the file count under the same target file size, which in
+turn changes the scan-task count and ultimately lowers the achievable
+concurrency. RECAS therefore enumerates the Cartesian product of these bounded
+candidates, treats each combination as one candidate plan, and submits them
+point by point to the L0 gate (\S\ref{sec:l0}) and the L1 pricing model
+(\S\ref{sec:l1}). On the ClickBench workload this space yields 384 candidate
+plans, of which 312 pass L0 and 72 are rejected.
+
+We choose bounded exhaustive enumeration over a generative model or Bayesian
+optimisation for three reasons. First, determinism and reproducibility. Second,
+the reduction is explicit while the search is exhaustive: every contraction of
+the space has an interpretable evidential origin. Third, because every dimension
+retains its baseline value, the winning plan is necessarily no worse than the
+baseline under the same L1---a guarantee that randomised search under a finite
+budget cannot provide. Enumeration is in any case inexpensive: RECAS's
+\texttt{virtual\_footer} derives a candidate's request plan directly from the
+footer, the probe ratios, and the reader's merge rules, so pricing a single point
+requires writing no data at all, and a space of a few hundred candidates is
+priced in its entirety within seconds.
+
+\subsubsection{L0 Feasibility and L1 Virtual-Footer Pricing}
+\label{sec:l0l1}
+
+Every enumerated candidate plan is first materialised as a \emph{virtual
+footer}, which is thereafter treated throughout L0 and L1 as if it were
+physically present. The enumeration applies two steps to each candidate in
+turn. \textbf{L0} decides feasibility on the virtual footer: whether the layout
+can be produced by the writer at all, and whether it falls within the range the
+reader can read. L0 additionally serves a compensating role: because L1 divides
+the aggregate I/O by a concurrency factor, it cannot see that the wall clock is
+set by the slowest task in each wave, and L0 therefore forbids any candidate
+whose scan-task count falls below that of the baseline. \textbf{L1} then prices
+the candidate on the same virtual footer. Table~\ref{tab:l0l1} gives the
+concrete form each takes along the five dimensions.
+
+% Preamble:
+% \usepackage{booktabs}
+% \usepackage{tabularx}
+% \usepackage{array}
+% \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{L0 feasibility checks and L1 pricing across the five dimensions.}
+\label{tab:l0l1}
+
+\begin{tabularx}{\columnwidth}{@{}
+  >{\raggedright\arraybackslash}p{0.17\columnwidth}
+  Y
+  Y
+@{}}
+\toprule
+\textbf{Action} & \textbf{L0 feasibility check} & \textbf{L1 pricing} \\
+\midrule
+Target file size &
+File count at least the parallelism floor and within $[2,\,2\times10^{4}]$ &
+File-discovery metadata scales with object count; scan-span metadata scales
+with input-split count; one HEAD is charged per open \\
+\addlinespace[3pt]
+Row-group size &
+Requested row-group bytes $\le 128$\,MiB; row-group count $\ge 4$;
+\texttt{page} $\le$ \texttt{row group} &
+Data GETs and bytes are scaled by $n_{rg}(\mathrm{cand})/n_{rg}(\mathrm{base})$
+and applied to the measured totals of the trace \\
+\addlinespace[3pt]
+Column order &
+Must be a permutation of the original schema &
+Replay the frozen reader's vectored merge rules under the candidate order to
+obtain the per-row-group GET count and bytes, then take the ratio against the
+same quantities on the baseline \\
+\addlinespace[3pt]
+(codec, encoding) &
+The codec must be readable by the writer; the encoding must match the column's
+physical type &
+Scale the bytes of the affected columns by the \emph{jointly} measured probe
+ratio only; tuples not covered by a measurement are left unpriced and fall back
+to baseline bytes \\
+\addlinespace[3pt]
+Page geometry &
+\texttt{page} $\le$ \texttt{row group} &
+The probe-measured index bytes per page, multiplied by the number of columns
+the pattern itself reads and by its row-group touch count \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+L1 prices by \emph{replay}. The reader's behaviour is deterministic: given the
+vectored merge rules, a set of columns within one row group is merged into a
+uniquely determined set of ranges. The access profile supplies what is priced
+--- how often each column combination occurs, and how many GETs and bytes it
+was measured to consume; the virtual footer supplies the setting in which it is
+priced --- how many ranges that column set forms within one row group of the
+candidate layout, and how many bytes they carry. The two meet at a single
+point: L1 takes the request counts and byte counts measured on the baseline
+trace as its base quantities, and uses the virtual footer to predict the
+candidate's scaling factors relative to the baseline. For an access pattern $p$
+and a candidate $c$,
+%
+\begin{align}
+R_p(c) &= \hat{R}_p \cdot \frac{m_p(c)}{m_p(0)}
+          \cdot \frac{n_{rg}(c)}{n_{rg}(0)} + \mu_p(c), \label{eq:requests}\\[2pt]
+B_p(c) &= \hat{B}_p \cdot \frac{b_p(c)}{b_p(0)}
+          \cdot \frac{n_{rg}(c)}{n_{rg}(0)} + \beta_p(c), \label{eq:bytes}
+\end{align}
+\begin{align}
+t_{io}(p,c)
+  &= \frac{R_p(c)\cdot \mathrm{RTT} + B_p(c)/\mathrm{BW}}
+           {K_{\mathrm{eff}}(c)}, \label{eq:tio-p}\\[2pt]
+t_{io}(c)
+  &= \sum_{p} t_{io}(p,c)
+     + t_{io}^{\,\mathrm{meta}}(c)\label{eq:tio}
+\end{align}
+where $\hat{R}_p$ and $\hat{B}_p$ are the data request count and byte count
+measured for that pattern, $m_p$ and $b_p$ are the per-row-group GET count and
+byte count obtained by replaying the merge rules on the virtual footer, the
+subscript $0$ denotes the baseline, and $\mu_p$ and $\beta_p$ are the pattern's
+metadata request and byte counts.
+
+Scaling by the candidate-to-baseline ratio is used for two reasons. A static
+model has no direct knowledge of the row-group and page pruning rates induced
+by query predicates, and the virtual footer is built from sampled per-row-group
+averages, which deviates inherently from the reader's actual splitting. Every
+component of the model whose absolute magnitude is poorly predicted cancels in
+the ratio, leaving only the relative change, which does not perturb the
+ranking.
+
+All three system constants are fitted from the same trace rather than set by
+hand. $\mathrm{RTT}$ is the median latency of the sub-64\,KiB request bucket;
+$\mathrm{BW}$ is the difference in median bytes between the large and small
+buckets divided by the difference in their median latencies; and
+$K_{\mathrm{busy}}$ is the ratio of the sum of all request latencies to the I/O
+active time, that is, the union of the intervals during which at least one
+request is in flight. The effective concurrency takes the minimum of three
+bounds,
+%
+\begin{equation}
+K_{\mathrm{eff}} = \max\bigl\{1,\ \min(K_{\mathrm{busy}},\,
+n_{\mathrm{scan\_units}},\, P)\bigr\},
+\label{eq:keff}
+\end{equation}
+%
+since concurrency can never exceed the number of independently scannable
+splits.
+
+Two checks must be passed before ranking. First, the fit of the pricing model
+must be shown to be sound: L1 is used to price the baseline, and its predicted
+GET count and byte count must reproduce the measured values of the trace the
+model was built from, within a relative error of 10\%; otherwise the search is
+refused. Second, a candidate must not buy a better aggregate by sacrificing one
+class of access: under the same L1 pricing, no single access pattern may be
+more than 10\% slower than on the baseline. Candidates passing both checks are
+sorted by $t_{io}$ in ascending order, and the minimum is returned as the layout
+plan for that workload.
+
+The merit of this architecture is that materialising a physical layout is
+expensive in both time and space, whereas pricing is not: the model ranks
+candidate layouts without writing out any of them. What L1 yields is a
+\emph{ranking} rather than a wall-clock prediction. Because none of the five
+actions changes the set of rows a query reads, the execution residual is the
+same constant for every candidate, so ranking by $t_{io}$ coincides with
+ranking by end-to-end time.
+
+\subsubsection{Layout Materialization and Verification}
+\label{sec:layout-materialization}
+
+\noindent\textbf{From Canonical Actions to Writer Parameters.}
+The layout plan selected by L1 is represented as writer-neutral canonical actions and translated into concrete writer parameters during materialization.
+\textsc{RECAS} supports two materialization paths: invoking \texttt{pyarrow.parquet.ParquetWriter} directly, which targets scenarios where the writer code can be customized; and translating the plan into Spark SQL writer options, which targets scenarios restricted to engine-level configuration.
+Because action feasibility depends on the target writer, the writer's capability matrix—together with the network regime and the frozen reader configuration—forms the environment specification for planning and is passed as an input to the L0 feasibility check in \S\ref{sec:l0-l1}.
+
+Our primary experimental results are materialized via the \texttt{ParquetWriter} path, under which all five canonical action types are fully supported.
+Once writing completes, \textsc{RECAS} samples the output files and reads back their Parquet footers for post-write verification: it checks both whether all five canonical actions take effect as planned and whether the materialized footer matches the virtual footer used during L1 cost estimation.
+Any discrepancy on either check marks the materialization as failed.
+
+\subsection{Caching}
+\subsubsection{Request Path}
+\label{sec:request-path}
+
+Figure \ref{fig:caching} illustrates the Caching workflow.The cache layer is interposed in front of \texttt{S3Client} via a JDK dynamic proxy that intercepts only synchronous \texttt{getObject} calls.
+Before a request is dispatched to the network, the proxy extracts the bucket, object key, and HTTP \texttt{Range} header from \texttt{GetObjectRequest}, normalizing the range into a half-open interval $[\mathit{start}, \mathit{endExclusive})$.
+Each cached object is identified by a three-part key comprising the bucket, the object key, and a version token drawn in precedence order from \texttt{VersionId}, \texttt{If-Match}, or the response \texttt{ETag}; distinct versions of the same object are therefore naturally isolated in the key space.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{figs/caching.png}
+    \caption{System Architecture}
+    \label{fig:caching}
+\end{figure}
+
+\noindent\textbf{Hit Resolution and Block Pinning.}
+Cache lookup is performed atomically within a single lock acquisition: starting from $\mathit{start}$, the lookup traverses the per-object block index to locate cached blocks covering the current offset, appends each matched block to the covering span while incrementing its reference count, and advances the cursor to the end of that block until $\mathit{endExclusive}$ is reached.
+A covering span may stitch together multiple adjacent blocks, whereas any uncovered gap results in a cache miss and rolls back all reference-count increments within the same critical section.
+Blocks with a non-zero reference count are exempt from eviction and may be held concurrently by multiple readers.
+On a hit, the cache returns a synthetic response stream that reads directly from the pinned block memory and decrements the reference counts upon stream closure.
+
+\noindent\textbf{Two-Stage Decision on a Miss.}
+Before issuing a remote GET, the request undergoes size and controller-mode filtering: any request exceeding the single-range fetch limit (8\,MiB by default), or arriving while the controller is in bypass mode or has a zero budget, is passed through as a native exact-range GET without entering the cache path.
+Such oversized requests typically correspond to one-off large scans; buffering their payload offers little reuse potential while displacing small, frequently accessed hot ranges.
+For requests that pass pre-filtering, the caller reads directly from the S3 response stream while the same bytes are simultaneously teed into a request-sized buffer.
+Once the buffer is fully populated, the complete request is submitted to the admission policy in \S\ref{sec:admission}.
+If rejected, the buffer is discarded for garbage collection and its request key is recorded in a ghost table for counterfactual telemetry; if admitted, ownership of the buffer is transferred directly to the cache.
+Logical blocks sliced along fixed block boundaries (1\,MiB by default) share the same underlying byte array and are distinguished only by offset and length, eliminating a second memory copy during insertion.
+
+\noindent\textbf{Exception Semantics.}
+Any internal exception within the cache layer falls back to a native exact-range GET, whereas S3 service exceptions are rethrown verbatim, ensuring that cache faults never cause query failures.
+\subsubsection{Cache Algorithm}
+
+\textbf{Choice of the base algorithm.}
+On a read path whose wall-clock time is dominated by the number of remote
+GETs, the decisive choice for a caching policy is \emph{admission} rather
+than \emph{eviction}. Our SF8 capacity experiments show that enlarging the
+cache from 4\,GiB to 16\,GiB---driving the evicted volume down to nearly
+zero---barely moves the wall clock; what actually limits reuse is the portion
+of bytes rejected at admission. This pushes two requirements to the fore.
+First, the policy must be \emph{scan-resistant}: a one-shot large scan must
+not displace a small, repeatedly accessed hot region. Second, the objects are
+Range GETs of unequal size, so capacity must be accounted for \emph{by bytes}
+rather than by entries. W-TinyLFU's frequency-based admission filter satisfies
+both at once: it uses a compact estimate of access frequency to decide whether
+new content is worth displacing existing content, resisting scan pollution at
+the admission layer. We therefore adopt W-TinyLFU as the base algorithm.
+
+\textbf{Adding cost awareness.}
+Native W-TinyLFU uses \emph{frequency} alone as the comparison score for both
+admission and eviction. This is reasonable for equal-sized objects, but it does
+not hold on a lakehouse read path: a small GET and a large GET each cost about
+one RTT, yet correspond to vastly different byte volumes and remote fetch times,
+so ``equal frequency'' does not imply ``equal refetch cost.'' We change the
+comparison score to
+$$
+  \mathit{benefit} \;=\; \mathit{frequency} \times \widehat{\mathit{cost}}_{\mathrm{remote}},
+$$
+where $\widehat{\mathit{cost}}_{\mathrm{remote}}$ is fitted online by an
+estimator that buckets requests by size and takes a confidence lower bound;
+when a size bucket has too few samples to yield a trustworthy estimate, the
+term falls back to the request's byte count, degenerating to the size-aware
+form ``frequency $\times$ bytes.'' At admission, the $\mathit{benefit}$ of a
+candidate request is compared against the sum of the $\mathit{benefit}$s of all
+victims it would displace, and the request is admitted only if it is strictly
+better. Admission is \emph{atomic at the request level}: the several physical
+blocks split from a single Range GET are either all cached or all rejected,
+consistent with a GET being one logical unit of reuse. A rejected request is
+recorded in a ghost table; a subsequent ghost hit indicates that the rejection
+was wrong, and this signal in turn drives the adaptation of capacity and
+admission.
+
+The closest prior work is W-TinyLFU-AV (Aggregated Victims) proposed by
+Einziger et al.~\cite{wtinylfu_av}. Both account for capacity by bytes; the
+difference lies in the admission unit, the comparison score, and the comparison
+timing. W-TinyLFU-AV admits \emph{per block}, uses frequency alone as the
+comparison score, and first inserts a new block into the window, after which
+the overflowing block competes with the victims in the main region. In
+contrast, our cost-aware W-TinyLFU admits \emph{per request}, uses
+$\mathit{frequency} \times \widehat{\mathit{cost}}_{\mathrm{remote}}$ as the
+score, and compares a new block against the victims \emph{before} deciding
+whether to admit it.
+
+\textbf{Selection outcome.}
+We compare cost-aware W-TinyLFU against five other cache algorithms and a
+no-cache baseline on the reconfigured ClickBench SF8 Parquet. The results show
+that the wall-clock time of cost-aware W-TinyLFU is close to that of SIEVE, the
+fastest by median, while its peak heap is about 3.61\,GiB (13\%) smaller, it
+issues about 1{,}827 fewer GETs, and its cache churn is also markedly lower.
+Because the true ceiling of the in-memory cache tier is the heap rather than
+the hit rate---under SF8 the peak heap of the 16\,GiB arm already reaches 94\%
+of \texttt{Xmx}---a lower heap footprint means more usable capacity, or higher
+per-host concurrency, under the same resources. We therefore ultimately adopt
+cost-aware W-TinyLFU. The full algorithm matrix, the rationale for each
+representative, the capacity curves, and the per-metric cost comparison are
+given in the evaluation (\S\ref{sec:eval}).

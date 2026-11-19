@@ -6,6 +6,8 @@ import os
 
 BUCKET = os.environ.get("S3ARR_BUCKET", "home-haoyue")
 REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-2")
+ENDPOINT = os.environ.get("S3ARR_ENDPOINT", "")
+PATH_STYLE = os.environ.get("S3ARR_PATH_STYLE", "")
 
 TRACK2_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 INTERCEPTOR_JAR = os.path.join(
@@ -129,13 +131,14 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
                 f"-Dtrack1.d1.observe.gets={int(track1_d1_observe_gets)}")
         if track1_d1_min_mib is not None:
             java_opts.append(f"-Dtrack1.d1.min.mib={int(track1_d1_min_mib)}")
+    s3a_endpoint = ENDPOINT or f"s3.{REGION}.amazonaws.com"
     builder = (
         builder
         .config("spark.driver.extraClassPath", extra_classpath())
         .config("spark.executor.extraClassPath", extra_classpath())
         .config("spark.local.dir", spark_scratch())
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-        .config("spark.hadoop.fs.s3a.endpoint", f"s3.{REGION}.amazonaws.com")
+        .config("spark.hadoop.fs.s3a.endpoint", s3a_endpoint)
         .config("spark.hadoop.fs.s3a.endpoint.region", REGION)
         .config("spark.hadoop.fs.s3a.access.key", ak)
         .config("spark.hadoop.fs.s3a.secret.key", sk)
@@ -159,6 +162,8 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
         .config("spark.hadoop.parquet.filter.columnindex.enabled", "true")
         .config("spark.hadoop.parquet.filter.bloom.enabled", "true")
     )
+    if PATH_STYLE:
+        builder = builder.config("spark.hadoop.fs.s3a.path.style.access", PATH_STYLE.lower())
     if track1_s3a:
         builder = builder.config(
             "spark.hadoop.fs.s3a.s3.client.factory.impl",
@@ -174,10 +179,9 @@ def apply_frozen_reader(builder, ak, sk, collector_dir=None, eventlog_dir=None,
     if java_opts:
         extra_java = " ".join(java_opts)
         builder = builder.config("spark.driver.extraJavaOptions", extra_java)
-        if track1_s3a:
-            # local[*] runs tasks in the driver JVM; a real cluster would
-            # otherwise construct unwrapped clients on the executors.
-            builder = builder.config("spark.executor.extraJavaOptions", extra_java)
+        # Always propagate java_opts (including -Dtrack2.collector.dir) to
+        # executors so Standalone/cluster workers emit NDJSON & Track1 stats.
+        builder = builder.config("spark.executor.extraJavaOptions", extra_java)
     if eventlog_dir:
         os.makedirs(eventlog_dir, exist_ok=True)
         builder = (
